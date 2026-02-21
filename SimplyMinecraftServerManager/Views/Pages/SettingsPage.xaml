@@ -21,13 +21,13 @@
     <helpers:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
   </Page.Resources>
   <StackPanel>
-    <TextBlock FontSize="20" FontWeight="Medium" Text="Personalization" />
-    <TextBlock Margin="0,12,0,0" Text="Theme" />
+    <TextBlock FontSize="20" FontWeight="Medium" Text="个性化" />
+    <TextBlock Margin="0,12,0,0" Text="主题" />
     <RadioButton
       Margin="0,12,0,0"
       Command="{Binding ViewModel.ChangeThemeCommand, Mode=OneWay}"
       CommandParameter="theme_light"
-      Content="Light"
+      Content="浅色"
       GroupName="themeSelect"
       IsChecked="{Binding ViewModel.CurrentTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Light, Mode=OneWay}"
     />
@@ -35,11 +35,11 @@
       Margin="0,8,0,0"
       Command="{Binding ViewModel.ChangeThemeCommand, Mode=OneWay}"
       CommandParameter="theme_dark"
-      Content="Dark"
+      Content="深色"
       GroupName="themeSelect"
       IsChecked="{Binding ViewModel.CurrentTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Dark, Mode=OneWay}"
     />
-    <TextBlock Margin="0,24,0,0" FontSize="20" FontWeight="Medium" Text="About SimplyMinecraftServerManager" />
+    <TextBlock Margin="0,24,0,0" FontSize="20" FontWeight="Medium" Text="关于本程序" />
     <TextBlock Margin="0,12,0,0" Text="{Binding ViewModel.AppVersion, Mode=OneWay}" />
   </StackPanel>
 </Page>

@@ -6,40 +6,34 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
     public partial class MainWindowViewModel : ObservableObject
     {
         [ObservableProperty]
-        private string _applicationTitle = "WPF UI - SimplyMinecraftServerManager";
+        private string _applicationTitle = "MC服务器管理器";
 
         [ObservableProperty]
-        private ObservableCollection<object> _menuItems = new()
-        {
+        private ObservableCollection<object> _menuItems =
+        [
             new NavigationViewItem()
             {
-                Content = "Home",
+                Content = "主页",
                 Icon = new SymbolIcon { Symbol = SymbolRegular.Home24 },
                 TargetPageType = typeof(Views.Pages.DashboardPage)
-            },
-            new NavigationViewItem()
-            {
-                Content = "Data",
-                Icon = new SymbolIcon { Symbol = SymbolRegular.DataHistogram24 },
-                TargetPageType = typeof(Views.Pages.DataPage)
             }
-        };
+        ];
 
         [ObservableProperty]
-        private ObservableCollection<object> _footerMenuItems = new()
-        {
+        private ObservableCollection<object> _footerMenuItems =
+        [
             new NavigationViewItem()
             {
-                Content = "Settings",
+                Content = "设置",
                 Icon = new SymbolIcon { Symbol = SymbolRegular.Settings24 },
                 TargetPageType = typeof(Views.Pages.SettingsPage)
             }
-        };
+        ];
 
         [ObservableProperty]
-        private ObservableCollection<MenuItem> _trayMenuItems = new()
-        {
-            new MenuItem { Header = "Home", Tag = "tray_home" }
-        };
+        private ObservableCollection<MenuItem> _trayMenuItems =
+        [
+            new MenuItem { Header = "主页", Tag = "tray_home" }
+        ];
     }
 }

@@ -26,7 +26,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private void InitializeViewModel()
         {
             CurrentTheme = ApplicationThemeManager.GetAppTheme();
-            AppVersion = $"UiDesktopApp1 - {GetAssemblyVersion()}";
+            AppVersion = $"简单MC服务器管理器 - {GetAssemblyVersion()}";
 
             _isInitialized = true;
         }

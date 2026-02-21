@@ -1,14 +1,13 @@
-﻿namespace SimplyMinecraftServerManager.ViewModels.Pages
+﻿using System.Diagnostics;
+
+namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
     public partial class DashboardViewModel : ObservableObject
     {
-        [ObservableProperty]
-        private int _counter = 0;
-
         [RelayCommand]
-        private void OnCounterIncrement()
+        private void NavivateToSite(string uri)
         {
-            Counter++;
+            Process.Start("explorer.exe", uri);
         }
     }
 }
