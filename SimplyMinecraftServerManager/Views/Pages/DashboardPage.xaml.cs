@@ -1,4 +1,5 @@
 ﻿using SimplyMinecraftServerManager.Controls;
+using SimplyMinecraftServerManager.Internals.Downloads;
 using SimplyMinecraftServerManager.ViewModels.Pages;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
@@ -17,10 +18,9 @@ namespace SimplyMinecraftServerManager.Views.Pages
             InitializeComponent();
             AddServer();
         }
-        private void AddServer()
+        private async void AddServer()
         {
             grid_cards.Children.Add( new ServerCard("4U4N"));
-
         }
     }
 }
