@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 
 namespace SimplyMinecraftServerManager.Internals
@@ -13,23 +13,67 @@ namespace SimplyMinecraftServerManager.Internals
         public static string InstancesFile => Path.Combine(_root, "instances.toml");
         public static string InstancesRoot => Path.Combine(_root, "instances");
 
-        /// <summary>%appdata%/smsm/jdks/ — 自动下载的 JDK 安装目录</summary>
         public static string JdksRoot => Path.Combine(_root, "jdks");
 
         public static string GetInstanceDir(string id)
-            => Path.Combine(InstancesRoot, id);
+        {
+            ValidateInstanceId(id);
+            return Path.Combine(InstancesRoot, id);
+        }
 
         public static string GetPluginsDir(string id)
-            => Path.Combine(GetInstanceDir(id), "plugins");
+        {
+            ValidateInstanceId(id);
+            return Path.Combine(GetInstanceDir(id), "plugins");
+        }
 
         public static string GetServerPropertiesPath(string id)
-            => Path.Combine(GetInstanceDir(id), "server.properties");
+        {
+            ValidateInstanceId(id);
+            return Path.Combine(GetInstanceDir(id), "server.properties");
+        }
 
         public static string GetEulaPath(string id)
-            => Path.Combine(GetInstanceDir(id), "eula.txt");
+        {
+            ValidateInstanceId(id);
+            return Path.Combine(GetInstanceDir(id), "eula.txt");
+        }
 
         public static string GetServerJarPath(string id, string jarName)
-            => Path.Combine(GetInstanceDir(id), jarName);
+        {
+            ValidateInstanceId(id);
+            if (string.IsNullOrWhiteSpace(jarName))
+                throw new ArgumentException("JAR name cannot be empty", nameof(jarName));
+
+            if (!SecurityHelper.IsValidFileName(jarName))
+                throw new ArgumentException("Invalid JAR filename", nameof(jarName));
+
+            string fullPath = Path.Combine(GetInstanceDir(id), jarName);
+            return ValidatePathInsideInstance(fullPath, id);
+        }
+
+        private static void ValidateInstanceId(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentException("Instance ID cannot be empty", nameof(id));
+
+            if (SecurityHelper.IsPathTraversal(id))
+                throw new ArgumentException("Invalid instance ID", nameof(id));
+        }
+
+        public static string ValidatePathInsideInstance(string path, string instanceId)
+        {
+            string normalizedPath = Path.GetFullPath(path);
+            string normalizedInstanceDir = Path.GetFullPath(GetInstanceDir(instanceId));
+
+            if (!normalizedPath.StartsWith(normalizedInstanceDir + Path.DirectorySeparatorChar) && 
+                normalizedPath != normalizedInstanceDir)
+            {
+                throw new InvalidOperationException("Path is outside instance directory");
+            }
+
+            return normalizedPath;
+        }
 
         public static void EnsureDirectories()
         {

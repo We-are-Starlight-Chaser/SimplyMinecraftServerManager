@@ -22,12 +22,13 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <StackPanel Margin="0,10,0,0" Orientation="Horizontal" Grid.Row="0">
+        <StackPanel Orientation="Horizontal" Grid.Row="0">
+            <ui:ImageIcon Source="pack://application:,,,/Assets/Pictures/SMSM-icon-256.jpg" Width="60"/>
+            <TextBlock FontSize="20" Text="{Binding ViewModel.UserName,StringFormat=Hi\,{0}!今天有什么想做的吗？}" VerticalAlignment="Center"/>
+        </StackPanel>
+        <StackPanel Margin="0,10,0,0" Orientation="Horizontal" Grid.Row="1">
             <ui:Button Command="{Binding ViewModel.NavivateToSiteCommand}" CommandParameter="https://wasc.qzz.io/products/smsm">产品主页</ui:Button>
             <ui:Button Command="{Binding ViewModel.NavivateToSiteCommand}" CommandParameter="https://wasc.qzz.io/tutorials/smsm" Margin="5,0,0,0">使用教程</ui:Button>
         </StackPanel>
-        <TextBlock Grid.Row="1" FontSize="18" Margin="0,5,0,0">服务器管理</TextBlock>
-        <WrapPanel Grid.Row="2" x:Name="grid_cards" Margin="0,5,0,0">
-        </WrapPanel>
     </Grid>
 </Page>

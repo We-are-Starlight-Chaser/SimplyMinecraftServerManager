@@ -1,19 +1,15 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using Tomlyn;
 
 namespace SimplyMinecraftServerManager.Internals
 {
-    /// <summary>
-    /// 管理 %appdata%/smsm/config.toml 的读写。
-    /// </summary>
     public static class ConfigManager
     {
         private static readonly object _lock = new();
         private static AppConfig? _cached;
 
-        /// <summary>当前配置（懒加载）。</summary>
         public static AppConfig Current
         {
             get
@@ -23,7 +19,6 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        /// <summary>从磁盘加载配置；文件不存在则创建默认配置。</summary>
         public static AppConfig Load()
         {
             lock (_lock)
@@ -41,6 +36,7 @@ namespace SimplyMinecraftServerManager.Internals
                 {
                     string toml = File.ReadAllText(PathHelper.ConfigFile, Encoding.UTF8);
                     _cached = Toml.ToModel<AppConfig>(toml);
+                    DecryptSensitiveFields();
                 }
                 catch (Exception)
                 {
@@ -52,19 +48,44 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        /// <summary>将配置保存到磁盘。</summary>
+        private static void DecryptSensitiveFields()
+        {
+            if (_cached == null) return;
+            string decrypted = SecureConfig.Decrypt(_cached.DefaultJdkPath);
+            if (decrypted != _cached.DefaultJdkPath)
+            {
+                _cached.DefaultJdkPath = decrypted;
+            }
+        }
+
         public static void Save(AppConfig config)
         {
             lock (_lock)
             {
+                var configToSave = CloneConfig(config);
+                configToSave.DefaultJdkPath = SecureConfig.Encrypt(config.DefaultJdkPath);
+
                 _cached = config;
                 PathHelper.EnsureDirectories();
-                string toml = Toml.FromModel(config);
+                string toml = Toml.FromModel(configToSave);
                 File.WriteAllText(PathHelper.ConfigFile, toml, Encoding.UTF8);
             }
         }
 
-        /// <summary>修改后保存当前配置。</summary>
+        private static AppConfig CloneConfig(AppConfig original)
+        {
+            return new AppConfig
+            {
+                DefaultMinMemoryMb = original.DefaultMinMemoryMb,
+                DefaultMaxMemoryMb = original.DefaultMaxMemoryMb,
+                DefaultJdkPath = original.DefaultJdkPath,
+                DownloadThreads = original.DownloadThreads,
+                AutoAcceptEula = original.AutoAcceptEula,
+                Language = original.Language,
+                PreferredJdkDistribution = original.PreferredJdkDistribution
+            };
+        }
+
         public static void Save() => Save(Current);
     }
 }
