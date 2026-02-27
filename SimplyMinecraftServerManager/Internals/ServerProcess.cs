@@ -1,43 +1,119 @@
-﻿using System;
+using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace SimplyMinecraftServerManager.Internals
 {
-    /// <summary>
-    /// 封装 Minecraft 服务端进程的启动、停止、命令输入和输出监听。
-    /// </summary>
     public class ServerProcess : IDisposable
     {
         private Process? _process;
         private bool _disposed;
+        private IntPtr _jobHandle = IntPtr.Zero;
 
-        /// <summary>实例 UUID</summary>
         public string InstanceId { get; }
 
-        /// <summary>服务器是否正在运行</summary>
         public bool IsRunning => _process is { HasExited: false };
 
-        /// <summary>收到标准输出时触发</summary>
         public event EventHandler<string>? OutputReceived;
-
-        /// <summary>收到标准错误时触发</summary>
         public event EventHandler<string>? ErrorReceived;
-
-        /// <summary>服务器进程退出时触发</summary>
-        public event EventHandler<int>? Exited; // 参数为 ExitCode
+        public event EventHandler<int>? Exited;
 
         public ServerProcess(string instanceId)
         {
             InstanceId = instanceId;
         }
 
-        /// <summary>
-        /// 启动服务器。
-        /// </summary>
-        /// <exception cref="InvalidOperationException">找不到实例或 JDK</exception>
-        /// <exception cref="FileNotFoundException">找不到服务端 JAR</exception>
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
+
+        [DllImport("kernel32.dll")]
+        private static extern bool SetJobObjectLimits(IntPtr hJob, uint JobObjectInfoClass, IntPtr lpInfo, uint cbInfo);
+
+        [DllImport("kernel32.dll")]
+        private static extern bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
+
+        [DllImport("kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint GetLastError();
+
+        private const uint JOB_OBJECT_LIMIT_PROCESS_TIME = 0x00000002;
+        private const uint JOB_OBJECT_LIMIT_MEMORY = 0x00000001;
+        private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
+        private const uint JobObjectExtendedLimitInformation = 9;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct JOBOBJECT_BASIC_LIMIT_INFORMATION
+        {
+            public long PerProcessTimeLimit;
+            public long PerJobTimeLimit;
+            public uint LimitFlags;
+            public UIntPtr MinimumWorkingSetSize;
+            public UIntPtr MaximumWorkingSetSize;
+            public uint ActiveProcessLimit;
+            public long Affinity;
+            public uint PriorityClass;
+            public uint SchedulingClass;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct IO_COUNTERS
+        {
+            public ulong ReadOperationCount;
+            public ulong WriteOperationCount;
+            public ulong OtherOperationCount;
+            public ulong ReadTransferCount;
+            public ulong WriteTransferCount;
+            public ulong OtherTransferCount;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+        {
+            public JOBOBJECT_BASIC_LIMIT_INFORMATION BasicLimitInformation;
+            public IO_COUNTERS IoInfo;
+            public UIntPtr ProcessMemoryLimit;
+            public UIntPtr JobMemoryLimit;
+            public UIntPtr PeakProcessMemoryUsed;
+            public UIntPtr PeakJobMemoryUsed;
+        }
+
+        private void CreateJobObject()
+        {
+            _jobHandle = CreateJobObject(IntPtr.Zero, $"SMSM_{InstanceId}_{Guid.NewGuid():N}");
+            if (_jobHandle == IntPtr.Zero)
+            {
+                throw new InvalidOperationException($"Failed to create job object: {GetLastError()}");
+            }
+
+            var limitInfo = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+            {
+                BasicLimitInformation = new JOBOBJECT_BASIC_LIMIT_INFORMATION
+                {
+                    LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                }
+            };
+
+            int size = Marshal.SizeOf(limitInfo);
+            IntPtr limitInfoPtr = Marshal.AllocHGlobal(size);
+            try
+            {
+                Marshal.StructureToPtr(limitInfo, limitInfoPtr, false);
+                if (!SetJobObjectLimits(_jobHandle, JobObjectExtendedLimitInformation, limitInfoPtr, (uint)size))
+                {
+                    throw new InvalidOperationException($"Failed to set job object limits: {GetLastError()}");
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(limitInfoPtr);
+            }
+        }
+
         public void Start()
         {
             if (IsRunning)
@@ -50,13 +126,23 @@ namespace SimplyMinecraftServerManager.Internals
             if (string.IsNullOrWhiteSpace(javaPath))
                 throw new InvalidOperationException("JDK path is not configured.");
 
+            if (SecurityHelper.IsPathTraversal(javaPath))
+                throw new InvalidOperationException("Invalid JDK path");
+
             string workDir = PathHelper.GetInstanceDir(InstanceId);
             string jarPath = PathHelper.GetServerJarPath(InstanceId, info.ServerJar);
 
             if (!File.Exists(jarPath))
                 throw new FileNotFoundException($"Server JAR not found: {jarPath}");
 
-            // 构建参数
+            string normalizedWorkDir = Path.GetFullPath(workDir);
+            string normalizedJarPath = Path.GetFullPath(jarPath);
+            if (!normalizedJarPath.StartsWith(normalizedWorkDir + Path.DirectorySeparatorChar))
+                throw new InvalidOperationException("JAR path is outside instance directory");
+
+            if (!SecurityHelper.IsValidJvmArgs(info.ExtraJvmArgs))
+                throw new InvalidOperationException("Invalid JVM arguments");
+
             var args = new StringBuilder();
             args.Append($"-Xms{info.MinMemoryMb}M ");
             args.Append($"-Xmx{info.MaxMemoryMb}M ");
@@ -65,6 +151,8 @@ namespace SimplyMinecraftServerManager.Internals
                 args.Append($"{info.ExtraJvmArgs.Trim()} ");
 
             args.Append($"-jar \"{info.ServerJar}\" nogui");
+
+            CreateJobObject();
 
             _process = new Process
             {
@@ -97,41 +185,48 @@ namespace SimplyMinecraftServerManager.Internals
             _process.Exited += (_, _) =>
             {
                 int code = -1;
-                try { code = _process.ExitCode; } catch { /* ignore */ }
+                try { code = _process.ExitCode; } catch { }
                 Exited?.Invoke(this, code);
             };
 
             _process.Start();
+
+            IntPtr processHandle = _process.Handle;
+            if (!AssignProcessToJobObject(_jobHandle, processHandle))
+            {
+                _process.Kill(entireProcessTree: true);
+                throw new InvalidOperationException($"Failed to assign process to job object: {GetLastError()}");
+            }
+
             _process.BeginOutputReadLine();
             _process.BeginErrorReadLine();
         }
 
-        /// <summary>
-        /// 向服务器控制台发送命令。
-        /// </summary>
         public void SendCommand(string command)
         {
             if (!IsRunning)
                 throw new InvalidOperationException("Server is not running.");
 
+            if (string.IsNullOrWhiteSpace(command))
+                return;
+
+            if (command.Length > 1024)
+                command = command[..1024];
+
             _process!.StandardInput.WriteLine(command);
             _process.StandardInput.Flush();
         }
 
-        /// <summary>发送 "stop" 命令，优雅关闭服务器。</summary>
         public void Stop() => SendCommand("stop");
 
-        /// <summary>强制终止进程。</summary>
         public void Kill()
         {
             if (IsRunning)
                 _process!.Kill(entireProcessTree: true);
         }
 
-        /// <summary>等待服务器进程退出。</summary>
         public void WaitForExit() => _process?.WaitForExit();
 
-        /// <summary>等待服务器进程退出（带超时）。</summary>
         public bool WaitForExit(int milliseconds)
             => _process?.WaitForExit(milliseconds) ?? true;
 
@@ -142,11 +237,17 @@ namespace SimplyMinecraftServerManager.Internals
 
             if (IsRunning)
             {
-                try { _process!.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                try { _process!.Kill(entireProcessTree: true); } catch { }
             }
 
             _process?.Dispose();
             _process = null;
+
+            if (_jobHandle != IntPtr.Zero)
+            {
+                CloseHandle(_jobHandle);
+                _jobHandle = IntPtr.Zero;
+            }
 
             GC.SuppressFinalize(this);
         }

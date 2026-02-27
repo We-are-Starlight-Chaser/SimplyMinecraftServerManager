@@ -1,11 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Security;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,9 +18,6 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         private static readonly object _defaultLock = new();
         private static DownloadManager? _default;
 
-        /// <summary>
-        /// 全局默认实例（首次访问自动读取 AppConfig.DownloadThreads）
-        /// </summary>
         public static DownloadManager Default
         {
             get
@@ -35,16 +34,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             }
         }
 
-        /// <summary>
-        /// 用新线程数重建全局默认实例。
-        /// 不影响旧实例上仍在运行的任务（它们会正常完成）。
-        /// </summary>
         public static void ReconfigureDefault(int maxConcurrentDownloads)
         {
             lock (_defaultLock)
             {
-                // 旧实例不 Dispose：正在执行的任务仍持有旧 semaphore 引用，
-                // 让它们自然完成后 GC 回收即可。
                 _default = new DownloadManager(maxConcurrentDownloads);
             }
         }
@@ -54,7 +47,6 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         private readonly ConcurrentDictionary<string, DownloadTask> _tasks = new();
         private const int BufferSize = 81920;
 
-        // 可热替换的 Semaphore
         private volatile SemaphoreSlim _semaphore;
         private volatile int _maxConcurrent;
 
@@ -62,8 +54,24 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         public event EventHandler<DownloadTask>? TaskCompleted;
         public event EventHandler<DownloadTask>? TaskFailed;
 
-        /// <summary>当前最大并发数。</summary>
         public int MaxConcurrentDownloads => _maxConcurrent;
+
+        private static readonly string[] AllowedHosts = new[]
+        {
+            "api.papermc.io",
+            "papermc.io",
+            "download.mojang.com",
+            "github.com",
+            "githubusercontent.com",
+            "modrinth.com",
+            "cdn.modrinth.com",
+            "leavesmc.org",
+            "purpurmc.org",
+            "github.io",
+            "adoptium.net",
+            "azul.com",
+            "zulu.org"
+        };
 
         public DownloadManager(int maxConcurrentDownloads = 4, HttpClient? httpClient = null)
         {
@@ -77,7 +85,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             }
             else
             {
-                var handler = new HttpClientHandler();
+                var handler = new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = ValidateCertificate
+                };
                 _httpClient = new HttpClient(handler)
                 {
                     Timeout = TimeSpan.FromMinutes(30)
@@ -87,6 +98,45 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 _httpClient.DefaultRequestHeaders.Accept.ParseAdd("*/*");
                 _ownsHttpClient = true;
             }
+        }
+
+        private static bool ValidateCertificate(
+            HttpRequestMessage message,
+            X509Certificate2? certificate,
+            X509Chain? chain,
+            SslPolicyErrors errors)
+        {
+            if (certificate == null) return false;
+
+            string host = message.RequestUri?.Host ?? "";
+            bool isAllowedHost = AllowedHosts.Any(h => 
+                host.Equals(h, StringComparison.OrdinalIgnoreCase) || 
+                host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase));
+
+            if (!isAllowedHost)
+            {
+                return false;
+            }
+
+            if (errors != SslPolicyErrors.None)
+            {
+                return false;
+            }
+
+            if (chain != null)
+            {
+                try
+                {
+                    chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                    chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
+                    chain.Build(certificate);
+                }
+                catch
+                {
+                }
+            }
+
+            return true;
         }
 
         // 动态调整并发数

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -80,14 +80,18 @@ namespace SimplyMinecraftServerManager.Internals
         /// <returns>是否成功删除</returns>
         public static bool DeletePlugin(string instanceId, string jarFileName)
         {
-            // 安全检查：防止路径遍历攻击
-            if (jarFileName.Contains("..") || jarFileName.Contains(Path.DirectorySeparatorChar)
-                || jarFileName.Contains(Path.AltDirectorySeparatorChar))
-            {
-                throw new ArgumentException("Invalid plugin file name.", nameof(jarFileName));
-            }
+            if (string.IsNullOrWhiteSpace(jarFileName))
+                throw new ArgumentException("Plugin file name cannot be empty", nameof(jarFileName));
+
+            if (!SecurityHelper.IsValidFileName(jarFileName))
+                throw new ArgumentException("Invalid plugin file name", nameof(jarFileName));
 
             string path = Path.Combine(PathHelper.GetPluginsDir(instanceId), jarFileName);
+            path = Path.GetFullPath(path);
+
+            string pluginsDir = Path.GetFullPath(PathHelper.GetPluginsDir(instanceId));
+            if (!path.StartsWith(pluginsDir + Path.DirectorySeparatorChar))
+                throw new ArgumentException("Invalid plugin path", nameof(jarFileName));
 
             if (!File.Exists(path))
                 return false;
@@ -96,18 +100,29 @@ namespace SimplyMinecraftServerManager.Internals
             return true;
         }
 
-        /// <summary>
-        /// 将插件 JAR 复制到实例的 plugins 目录。
-        /// </summary>
         public static PluginInfo? InstallPlugin(string instanceId, string sourceJarPath)
         {
+            if (string.IsNullOrWhiteSpace(sourceJarPath))
+                throw new ArgumentException("Source JAR path cannot be empty", nameof(sourceJarPath));
+
             if (!File.Exists(sourceJarPath))
                 throw new FileNotFoundException("Source plugin JAR not found.", sourceJarPath);
+
+            if (SecurityHelper.IsPathTraversal(sourceJarPath))
+                throw new ArgumentException("Invalid source path", nameof(sourceJarPath));
+
+            sourceJarPath = Path.GetFullPath(sourceJarPath);
 
             string pluginsDir = PathHelper.GetPluginsDir(instanceId);
             Directory.CreateDirectory(pluginsDir);
 
             string destPath = Path.Combine(pluginsDir, Path.GetFileName(sourceJarPath));
+            destPath = Path.GetFullPath(destPath);
+
+            string normalizedPluginsDir = Path.GetFullPath(pluginsDir);
+            if (!destPath.StartsWith(normalizedPluginsDir + Path.DirectorySeparatorChar))
+                throw new InvalidOperationException("Destination path is outside plugins directory");
+
             File.Copy(sourceJarPath, destPath, overwrite: true);
 
             return ParsePluginJar(destPath);

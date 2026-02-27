@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -119,6 +119,34 @@ namespace SimplyMinecraftServerManager.Internals
             int maxMemoryMb = 0,
             string extraJvmArgs = "")
         {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Instance name cannot be empty", nameof(name));
+
+            name = SecurityHelper.SanitizeInstanceName(name);
+
+            if (!SecurityHelper.IsValidInstanceName(name))
+                throw new ArgumentException("Invalid instance name format", nameof(name));
+
+            if (!string.IsNullOrWhiteSpace(serverJarSourcePath))
+            {
+                if (!File.Exists(serverJarSourcePath))
+                    throw new FileNotFoundException("Server JAR source not found", serverJarSourcePath);
+
+                if (SecurityHelper.IsPathTraversal(serverJarSourcePath))
+                    throw new ArgumentException("Invalid path in server JAR source", nameof(serverJarSourcePath));
+
+                serverJarSourcePath = Path.GetFullPath(serverJarSourcePath);
+            }
+
+            if (!SecurityHelper.IsValidFileName(serverJar))
+                throw new ArgumentException("Invalid server JAR filename", nameof(serverJar));
+
+            if (!SecurityHelper.IsValidJvmArgs(extraJvmArgs))
+                throw new ArgumentException("JVM arguments contain dangerous patterns", nameof(extraJvmArgs));
+
+            if (!string.IsNullOrWhiteSpace(jdkPath) && SecurityHelper.IsPathTraversal(jdkPath))
+                throw new ArgumentException("Invalid JDK path", nameof(jdkPath));
+
             lock (_lock)
             {
                 EnsureLoaded();
@@ -139,19 +167,19 @@ namespace SimplyMinecraftServerManager.Internals
                     CreatedAt = DateTime.Now.ToString("O")
                 };
 
-                // 创建实例目录结构
                 string instanceDir = PathHelper.GetInstanceDir(info.Id);
+                if (SecurityHelper.IsPathTraversal(instanceDir))
+                    throw new InvalidOperationException("Invalid instance directory path");
+
                 Directory.CreateDirectory(instanceDir);
                 Directory.CreateDirectory(PathHelper.GetPluginsDir(info.Id));
 
-                // 复制服务端 JAR（如果提供了源路径）
                 if (!string.IsNullOrWhiteSpace(serverJarSourcePath) && File.Exists(serverJarSourcePath))
                 {
                     string destJar = PathHelper.GetServerJarPath(info.Id, info.ServerJar);
                     File.Copy(serverJarSourcePath, destJar, overwrite: true);
                 }
 
-                // 自动接受 EULA
                 if (config.AutoAcceptEula)
                 {
                     AcceptEula(info.Id);

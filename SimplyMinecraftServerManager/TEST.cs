@@ -1,15 +1,10 @@
 ﻿using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads;
-
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace SimplyMinecraftServerManager
 {
     public class TEST
     {
-        static public async Task Main(string[] args)
+        static public async Task Main()
         {
             DownloadManager.Default.ProgressChanged += (_, e) =>
             {
