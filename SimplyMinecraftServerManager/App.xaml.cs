@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SimplyMinecraftServerManager.Services;
@@ -7,7 +7,6 @@ using SimplyMinecraftServerManager.ViewModels.Windows;
 using SimplyMinecraftServerManager.Views.Pages;
 using SimplyMinecraftServerManager.Views.Windows;
 using System.IO;
-using System.Reflection;
 using System.Windows.Threading;
 using Wpf.Ui;
 using Wpf.Ui.DependencyInjection;
@@ -19,11 +18,6 @@ namespace SimplyMinecraftServerManager
     /// </summary>
     public partial class App
     {
-        // The.NET Generic Host provides dependency injection, configuration, logging, and other services.
-        // https://docs.microsoft.com/dotnet/core/extensions/generic-host
-        // https://docs.microsoft.com/dotnet/core/extensions/dependency-injection
-        // https://docs.microsoft.com/dotnet/core/extensions/configuration
-        // https://docs.microsoft.com/dotnet/core/extensions/logging
         private static readonly IHost _host = Host
             .CreateDefaultBuilder()
             .ConfigureAppConfiguration(c => { c.SetBasePath(Path.GetDirectoryName(AppContext.BaseDirectory)); })
@@ -46,8 +40,22 @@ namespace SimplyMinecraftServerManager
                 services.AddSingleton<INavigationWindow, MainWindow>();
                 services.AddSingleton<MainWindowViewModel>();
 
+                // Pages and ViewModels
                 services.AddSingleton<DashboardPage>();
                 services.AddSingleton<DashboardViewModel>();
+                
+                services.AddSingleton<DownloadPage>();
+                services.AddSingleton<DownloadViewModel>();
+                
+                services.AddSingleton<ServersPage>();
+                services.AddSingleton<ServersViewModel>();
+                
+                services.AddSingleton<JdkPage>();
+                services.AddSingleton<JdkViewModel>();
+                
+                services.AddSingleton<InstancePage>();
+                services.AddSingleton<InstanceViewModel>();
+                
                 services.AddSingleton<SettingsPage>();
                 services.AddSingleton<SettingsViewModel>();
             }).Build();

@@ -3,17 +3,16 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.Views.Pages
 {
-    public partial class DashboardPage : INavigableView<DashboardViewModel>
+    public partial class JdkPage : INavigableView<JdkViewModel>
     {
-        public DashboardViewModel ViewModel { get; }
+        public JdkViewModel ViewModel { get; }
 
-        public DashboardPage(DashboardViewModel viewModel)
+        public JdkPage(JdkViewModel viewModel)
         {
             ViewModel = viewModel;
             DataContext = this;
 
             InitializeComponent();
         }
-        
     }
 }
