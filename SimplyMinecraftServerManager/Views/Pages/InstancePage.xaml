@@ -1,0 +1,229 @@
+<Page
+  x:Class="SimplyMinecraftServerManager.Views.Pages.InstancePage"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+  xmlns:helpers="clr-namespace:SimplyMinecraftServerManager.Helpers"
+  Title="实例管理"
+  d:DataContext="{d:DesignInstance local:InstancePage, IsDesignTimeCreatable=False}"
+  d:DesignHeight="600"
+  d:DesignWidth="900"
+  ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
+  ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+  mc:Ignorable="d"
+>
+    <Page.Resources>
+        <helpers:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    </Page.Resources>
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题栏 -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding ViewModel.InstanceName}" FontSize="24" FontWeight="Medium"/>
+                <TextBlock Text="{Binding ViewModel.StatusMessage}" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <ui:Button 
+                    Command="{Binding ViewModel.StartServerCommand}"
+                    IsEnabled="{Binding ViewModel.IsRunning, Converter={StaticResource InverseBooleanConverter}}"
+                    Appearance="Success"
+                    Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Play24"/>
+                        <TextBlock Text="启动" Margin="8,0,0,0"/>
+                    </StackPanel>
+                </ui:Button>
+                <ui:Button 
+                    Command="{Binding ViewModel.StopServerCommand}"
+                    IsEnabled="{Binding ViewModel.IsRunning}"
+                    Appearance="Danger">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Stop24"/>
+                        <TextBlock Text="停止" Margin="8,0,0,0"/>
+                    </StackPanel>
+                </ui:Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- 主内容区域 -->
+        <TabControl Grid.Row="1">
+            <!-- 控制台 -->
+            <TabItem Header="控制台">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBox Grid.Row="0"
+                        Text="{Binding ViewModel.ConsoleOutput, Mode=OneWay}"
+                        IsReadOnly="True"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Auto"
+                        FontFamily="Consolas"
+                        FontSize="12"
+                        Padding="8"/>
+
+                    <Grid Grid.Row="1" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <ui:TextBox Grid.Column="0"
+                            Text="{Binding ViewModel.CommandInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="输入命令..."
+                            KeyDown="OnCommandKeyDown"/>
+
+                        <ui:Button Grid.Column="1"
+                            Command="{Binding ViewModel.SendCommandCommand}"
+                            Margin="8,0,0,0">
+                            发送
+                        </ui:Button>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- 插件管理 -->
+            <TabItem Header="插件">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="已安装插件" FontSize="16" FontWeight="Medium" VerticalAlignment="Center"/>
+                        <ui:Button 
+                            Command="{Binding ViewModel.RefreshPluginsCommand}"
+                            Margin="16,0,0,0"
+                            Appearance="Secondary">
+                            <ui:SymbolIcon Symbol="ArrowSync24"/>
+                        </ui:Button>
+                    </StackPanel>
+
+                    <ListView Grid.Row="1" ItemsSource="{Binding ViewModel.Plugins}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Name}" FontWeight="Medium"/>
+                                            <TextBlock Text=" v"/>
+                                            <TextBlock Text="{Binding Version}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Description}" FontSize="12" MaxHeight="40" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Authors}" FontSize="11"/>
+                                    </StackPanel>
+
+                                    <ui:Button Grid.Column="1" 
+                                        Command="{Binding DataContext.DeletePluginCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                        CommandParameter="{Binding}"
+                                        Appearance="Secondary">
+                                        <ui:SymbolIcon Symbol="Delete24"/>
+                                    </ui:Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </TabItem>
+
+            <!-- 服务器配置 -->
+            <TabItem Header="配置">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="服务器设置" FontSize="16" FontWeight="Medium" Margin="0,0,0,12"/>
+
+                    <ScrollViewer Grid.Row="1">
+                        <StackPanel>
+                            <ui:Card Padding="16" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="内存设置" FontWeight="Medium" Margin="0,0,0,12"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="最小内存 (MB)" Margin="0,0,0,4"/>
+                                            <ui:TextBox Text="{Binding ViewModel.EditMinMemory, Mode=TwoWay}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                            <TextBlock Text="最大内存 (MB)" Margin="0,0,0,4"/>
+                                            <ui:TextBox Text="{Binding ViewModel.EditMaxMemory, Mode=TwoWay}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </ui:Card>
+
+                            <ui:Card Padding="16" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="JDK 路径" FontWeight="Medium" Margin="0,0,0,8"/>
+                                    <ui:TextBox Text="{Binding ViewModel.EditJdkPath, Mode=TwoWay}" 
+                                        PlaceholderText="留空使用全局默认 JDK"/>
+                                </StackPanel>
+                            </ui:Card>
+
+                            <ui:Button 
+                                Command="{Binding ViewModel.SaveSettingsCommand}"
+                                Appearance="Primary"
+                                HorizontalAlignment="Left">
+                                保存设置
+                            </ui:Button>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- server.properties -->
+            <TabItem Header="server.properties">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="server.properties" FontSize="16" FontWeight="Medium" Margin="0,0,0,12"/>
+
+                    <DataGrid Grid.Row="1"
+                        ItemsSource="{Binding ViewModel.ServerProperties}"
+                        AutoGenerateColumns="False"
+                        IsReadOnly="False"
+                        CanUserAddRows="True"
+                        CanUserDeleteRows="True"
+                        GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="属性名" Binding="{Binding Key, Mode=TwoWay}" Width="*"/>
+                            <DataGridTextColumn Header="值" Binding="{Binding Value, Mode=TwoWay}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Page>
