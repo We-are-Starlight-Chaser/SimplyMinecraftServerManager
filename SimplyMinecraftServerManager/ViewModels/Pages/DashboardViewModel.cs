@@ -36,7 +36,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private void LoadStatistics()
         {
             var instances = InstanceManager.GetAll();
-            int runningCount = 0; // TODO: 实际运行中的服务器数量
+            // TODO: 实际运行中的服务器数量
 
             StatisticsText = $"共 {instances.Count} 个服务器实例";
         }
