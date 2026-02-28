@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using Wpf.Ui.Abstractions.Controls;
-using Wpf.Ui.Appearance;
+﻿using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
@@ -8,6 +6,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     {
         [ObservableProperty]
         private string _userName;
+        [ObservableProperty]
+        private string? _news;
         private bool _isInitialized = false;
         public Task OnNavigatedFromAsync() => Task.CompletedTask;
 
@@ -21,12 +21,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             UserName = Environment.UserName;
             _isInitialized = true;
-        }
-
-        [RelayCommand]
-        private void NavivateToSite(string uri)
-        {
-            Process.Start("explorer.exe", uri);
         }
     }
 }

@@ -9,7 +9,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         private string _applicationTitle = "MC服务器管理器";
 
         [ObservableProperty]
-        private ObservableCollection<object> _menuItems =
+        private ObservableCollection<object> _headerMenuItems =
         [
             new NavigationViewItem()
             {
