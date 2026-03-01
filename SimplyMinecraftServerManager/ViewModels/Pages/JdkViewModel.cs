@@ -1,12 +1,18 @@
 using System.Collections.ObjectModel;
+using System.Threading;
+using System.Windows;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
+using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
+using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
     public partial class JdkViewModel : ObservableObject, INavigationAware
     {
+        private readonly IContentDialogService _contentDialogService;
+
         [ObservableProperty]
         private ObservableCollection<InstalledJdkDisplayItem> _installedJdks = new();
 
@@ -30,6 +36,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         [ObservableProperty]
         private string _installStatus = "";
+
+        public JdkViewModel(IContentDialogService contentDialogService)
+        {
+            _contentDialogService = contentDialogService;
+        }
 
         public async Task OnNavigatedToAsync()
         {
@@ -134,9 +145,22 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         [RelayCommand]
-        private void UninstallJdk(InstalledJdkDisplayItem? item)
+        private async Task UninstallJdkAsync(InstalledJdkDisplayItem? item)
         {
             if (item == null) return;
+
+            var dialog = new ContentDialog
+            {
+                Title = "确认删除",
+                Content = $"确定要删除 JDK {item.MajorVersion} ({item.DistributionName}) 吗？\n\n路径: {item.HomePath}",
+                PrimaryButtonText = "删除",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary
+            };
+
+            var result = await _contentDialogService.ShowAsync(dialog, CancellationToken.None);
+
+            if (result != ContentDialogResult.Primary) return;
 
             try
             {
@@ -144,7 +168,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 if (success)
                 {
                     InstalledJdks.Remove(item);
-                    StatusMessage = "JDK 已卸载";
+                    StatusMessage = $"JDK {item.MajorVersion} 已卸载";
                 }
                 else
                 {
@@ -154,6 +178,22 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             catch (Exception ex)
             {
                 StatusMessage = $"卸载失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private void CopyJavaPath(InstalledJdkDisplayItem? item)
+        {
+            if (item == null) return;
+
+            try
+            {
+                Clipboard.SetText(item.JavaExecutable);
+                item.ShowCopied();
+            }
+            catch
+            {
+                // 忽略复制失败
             }
         }
 
@@ -169,7 +209,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
-    public class InstalledJdkDisplayItem : ObservableObject
+    public partial class InstalledJdkDisplayItem : ObservableObject
     {
         public JdkDistribution Distribution { get; }
         public int MajorVersion { get; }
@@ -181,9 +221,22 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         public string DistributionName => Distribution.ToString();
 
-        public string StatusText => IsValid ? "✅ 有效" : "❌ 无效";
+        public string StatusText => IsValid ? "有效" : "无效";
 
-        public string StatusColor => IsValid ? "#4CAF50" : "#F44336";
+        public string RawStatus => IsValid ? "Valid" : "Invalid";
+
+        [ObservableProperty]
+        private bool _isCopied = false;
+
+        public void ShowCopied()
+        {
+            IsCopied = true;
+            Task.Run(async () =>
+            {
+                await Task.Delay(2000);
+                IsCopied = false;
+            });
+        }
 
         public InstalledJdkDisplayItem(InstalledJdk jdk)
         {

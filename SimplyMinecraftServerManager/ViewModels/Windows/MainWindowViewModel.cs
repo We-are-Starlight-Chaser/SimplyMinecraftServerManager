@@ -52,6 +52,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
             {
                 new NavigationViewItem()
                 {
+                    Content = "下载任务",
+                    Icon = new SymbolIcon { Symbol = SymbolRegular.ArrowDownload24 },
+                    TargetPageType = typeof(Views.Pages.DownloadsPage)
+                },
+                new NavigationViewItem()
+                {
                     Content = "设置",
                     Icon = new SymbolIcon { Symbol = SymbolRegular.Settings24 },
                     TargetPageType = typeof(Views.Pages.SettingsPage)

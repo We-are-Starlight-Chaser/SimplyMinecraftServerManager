@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Microsoft.Win32;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
@@ -14,22 +15,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private int _selectedServerPlatformIndex = 0;
 
         [ObservableProperty]
-        private string _selectedMinecraftVersion = "";
-
-        [ObservableProperty]
-        private ObservableCollection<string> _minecraftVersions = new();
-
-        [ObservableProperty]
-        private ObservableCollection<ServerBuildItem> _serverBuilds = new();
+        private ObservableCollection<ServerVersionCard> _serverVersionCards = new();
 
         [ObservableProperty]
         private bool _isLoadingVersions = false;
 
         [ObservableProperty]
-        private bool _isLoadingBuilds = false;
+        private string _serverDownloadStatus = "";
 
         [ObservableProperty]
-        private string _serverDownloadStatus = "";
+        private string _currentPlatformName = "Paper";
+
+        [ObservableProperty]
+        private string _currentPlatformDescription = "高性能 Paper 服务端";
 
         #endregion
 
@@ -80,13 +78,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         #endregion
 
-        #region 下载任务列表
-
-        [ObservableProperty]
-        private ObservableCollection<DownloadTaskItem> _downloadTasks = new();
-
-        #endregion
-
         private readonly Dictionary<ServerPlatform, IServerProvider> _serverProviders = new();
 
         public DownloadViewModel()
@@ -111,15 +102,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 AvailableInstances.Add(inst);
             }
 
-            // 初始化下载管理器事件
-            DownloadManager.Default.ProgressChanged -= OnDownloadProgress;
-            DownloadManager.Default.ProgressChanged += OnDownloadProgress;
-            DownloadManager.Default.TaskCompleted -= OnDownloadTaskCompleted;
-            DownloadManager.Default.TaskCompleted += OnDownloadTaskCompleted;
-
-            // 刷新下载任务列表
-            RefreshDownloadTasks();
-
             // 加载服务端版本
             await LoadServerVersionsAsync();
         }
@@ -134,24 +116,72 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             if (IsLoadingVersions) return;
 
             IsLoadingVersions = true;
-            MinecraftVersions.Clear();
+            ServerVersionCards.Clear();
+            ServerDownloadStatus = "正在加载版本列表...";
 
             try
             {
                 var platform = GetSelectedServerPlatform();
                 if (platform == null) return;
 
+                var platformInfo = GetSelectedPlatformInfo();
+                CurrentPlatformName = platformInfo.Name;
+                CurrentPlatformDescription = platformInfo.Description;
+
                 var versions = await platform.GetVersionsAsync();
-                foreach (var v in versions)
+
+                // 只取最新 15 个版本
+                var versionsToLoad = versions.Take(15).ToList();
+                var cards = new List<ServerVersionCard>();
+
+                // 使用信号量限制并发数，避免请求过多失败
+                var semaphore = new SemaphoreSlim(5, 5); // 最多5个并发
+
+                var tasks = versionsToLoad.Select(async v =>
                 {
-                    MinecraftVersions.Add(v);
+                    await semaphore.WaitAsync();
+                    try
+                    {
+                        var builds = await platform.GetBuildsAsync(v);
+                        var latestBuild = builds.FirstOrDefault();
+
+                        if (latestBuild != null)
+                        {
+                            return new ServerVersionCard
+                            {
+                                MinecraftVersion = v,
+                                LatestBuild = latestBuild,
+                                PlatformName = platformInfo.Name,
+                                PlatformColorLight = platformInfo.ColorLight,
+                                PlatformColorDark = platformInfo.ColorDark
+                            };
+                        }
+                    }
+                    catch
+                    {
+                        // 单个版本加载失败，跳过
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                    return null;
+                });
+
+                var results = await Task.WhenAll(tasks);
+                
+                // 按版本号正确排序（使用 Version 类比较）
+                var sortedCards = results
+                    .Where(c => c != null)
+                    .Select(c => c!)
+                    .OrderByDescending(c => ParseVersionNumber(c.MinecraftVersion));
+
+                foreach (var card in sortedCards)
+                {
+                    ServerVersionCards.Add(card);
                 }
 
-                if (MinecraftVersions.Count > 0)
-                {
-                    SelectedMinecraftVersion = MinecraftVersions[0];
-                    await LoadServerBuildsAsync();
-                }
+                ServerDownloadStatus = $"已加载 {ServerVersionCards.Count} 个版本";
             }
             catch (Exception ex)
             {
@@ -163,43 +193,32 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-        [RelayCommand]
-        private async Task LoadServerBuildsAsync()
+        /// <summary>
+        /// 解析 Minecraft 版本号为可比较的对象
+        /// </summary>
+        private static Version ParseVersionNumber(string version)
         {
-            if (string.IsNullOrEmpty(SelectedMinecraftVersion) || IsLoadingBuilds) return;
-
-            IsLoadingBuilds = true;
-            ServerBuilds.Clear();
-
-            try
+            // 移除可能的前缀如 "1.21.4-pre1" 或 "21w37a"
+            var dashIndex = version.IndexOf('-');
+            if (dashIndex > 0)
             {
-                var platform = GetSelectedServerPlatform();
-                if (platform == null) return;
+                version = version.Substring(0, dashIndex);
+            }
 
-                var builds = await platform.GetBuildsAsync(SelectedMinecraftVersion);
-                foreach (var b in builds)
-                {
-                    ServerBuilds.Add(new ServerBuildItem
-                    {
-                        Build = b,
-                        DisplayName = $"#{b.BuildNumber} - {b.Channel}"
-                    });
-                }
-            }
-            catch (Exception ex)
+            // 尝试解析为标准版本号
+            if (Version.TryParse(version, out var v))
             {
-                ServerDownloadStatus = $"加载构建失败: {ex.Message}";
+                return v;
             }
-            finally
-            {
-                IsLoadingBuilds = false;
-            }
+
+            // 如果解析失败，返回 0.0
+            return new Version(0, 0);
         }
 
         [RelayCommand]
-        private async Task DownloadServerBuildAsync(ServerBuildItem? item)
+        private async Task DownloadServerVersionAsync(ServerVersionCard? card)
         {
-            if (item?.Build == null) return;
+            if (card?.LatestBuild == null) return;
 
             try
             {
@@ -209,12 +228,42 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 string destPath = System.IO.Path.Combine(
                     PathHelper.Root,
                     "downloads",
-                    item.Build.FileName);
+                    card.LatestBuild.FileName);
 
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(destPath)!);
 
-                await platform.DownloadAsync(item.Build, destPath);
-                ServerDownloadStatus = $"已添加下载任务: {item.Build.FileName}";
+                await platform.DownloadAsync(card.LatestBuild, destPath);
+                ServerDownloadStatus = $"已添加下载任务: {card.LatestBuild.FileName}";
+            }
+            catch (Exception ex)
+            {
+                ServerDownloadStatus = $"下载失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private async Task SaveServerVersionAsAsync(ServerVersionCard? card)
+        {
+            if (card?.LatestBuild == null) return;
+
+            try
+            {
+                var saveDialog = new SaveFileDialog
+                {
+                    FileName = card.LatestBuild.FileName,
+                    Filter = "JAR 文件 (*.jar)|*.jar|所有文件 (*.*)|*.*",
+                    Title = "保存服务端文件"
+                };
+
+                if (saveDialog.ShowDialog() == true)
+                {
+                    var platform = GetSelectedServerPlatform();
+                    if (platform == null) return;
+
+                    ServerDownloadStatus = $"正在下载: {card.LatestBuild.FileName}";
+                    await platform.DownloadAsync(card.LatestBuild, saveDialog.FileName);
+                    ServerDownloadStatus = $"下载完成: {saveDialog.FileName}";
+                }
             }
             catch (Exception ex)
             {
@@ -238,17 +287,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return _serverProviders.TryGetValue(platforms[idx], out var p) ? p : null;
         }
 
+        private (string Name, string Description, string ColorLight, string ColorDark) GetSelectedPlatformInfo()
+        {
+            // 使用更柔和的颜色，浅色模式用较深色，深色模式用较浅色
+            return SelectedServerPlatformIndex switch
+            {
+                0 => ("Paper", "优化性能，减少延迟", "#C9A227", "#E8C547"),      // 金色
+                1 => ("Folia", "Paper 分支，支持多线程", "#3D8B40", "#5CB85C"),   // 绿色
+                2 => ("Purpur", "Paper 分支，更多功能选项", "#7B1FA2", "#9C27B0"), // 紫色
+                3 => ("Leaves", "Paper 分支，支持 Carpet 模块", "#558B2F", "#7CB342"), // 浅绿
+                4 => ("Leaf", "Leaves 分支，性能优化", "#0097A7", "#00BCD4"),     // 青色
+                _ => ("Paper", "优化性能，减少延迟", "#C9A227", "#E8C547")
+            };
+        }
+
         partial void OnSelectedServerPlatformIndexChanged(int value)
         {
             _ = LoadServerVersionsAsync();
-        }
-
-        partial void OnSelectedMinecraftVersionChanged(string value)
-        {
-            if (!string.IsNullOrEmpty(value))
-            {
-                _ = LoadServerBuildsAsync();
-            }
         }
 
         #endregion
@@ -446,105 +501,41 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         #endregion
-
-        #region 下载任务管理
-
-        private void RefreshDownloadTasks()
-        {
-            DownloadTasks.Clear();
-            foreach (var task in DownloadManager.Default.AllTasks)
-            {
-                DownloadTasks.Add(new DownloadTaskItem(task));
-            }
-        }
-
-        private void OnDownloadProgress(object? sender, DownloadProgressInfo e)
-        {
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                var item = DownloadTasks.FirstOrDefault(t => t.TaskId == e.TaskId);
-                if (item != null)
-                {
-                    item.UpdateProgress(e);
-                }
-                else
-                {
-                    DownloadTasks.Add(new DownloadTaskItem(e));
-                }
-            });
-        }
-
-        private void OnDownloadTaskCompleted(object? sender, DownloadTask task)
-        {
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                if (item != null)
-                {
-                    item.UpdateFromTask(task);
-                }
-            });
-        }
-
-        #endregion
     }
 
     #region 辅助类
 
-    public class ServerBuildItem
+    /// <summary>
+    /// 服务端版本卡片数据
+    /// </summary>
+    public class ServerVersionCard
     {
-        public ServerBuild Build { get; init; } = null!;
-        public string DisplayName { get; init; } = "";
-    }
+        /// <summary>Minecraft 版本号</summary>
+        public string MinecraftVersion { get; init; } = "";
 
-    public partial class DownloadTaskItem : ObservableObject
-    {
-        public string Id { get; }
-        public string TaskId { get; }
-        public string DisplayName { get; }
+        /// <summary>最新构建</summary>
+        public ServerBuild LatestBuild { get; init; } = null!;
 
-        [ObservableProperty]
-        private double _progress;
+        /// <summary>平台名称</summary>
+        public string PlatformName { get; init; } = "";
 
-        [ObservableProperty]
-        private string _status = "";
+        /// <summary>平台主题色 (浅色模式)</summary>
+        public string PlatformColorLight { get; init; } = "#C9A227";
 
-        [ObservableProperty]
-        private string _speed = "";
+        /// <summary>平台主题色 (深色模式)</summary>
+        public string PlatformColorDark { get; init; } = "#E8C547";
 
-        public DownloadTaskItem(DownloadTask task)
-        {
-            Id = task.Id;
-            TaskId = task.Id;
-            DisplayName = task.DisplayName;
-            UpdateFromTask(task);
-        }
+        /// <summary>构建号显示文本</summary>
+        public string BuildNumberText => $"#{LatestBuild?.BuildNumber ?? 0}";
 
-        public DownloadTaskItem(DownloadProgressInfo info)
-        {
-            TaskId = info.TaskId;
-            DisplayName = info.DisplayName;
-            Id = TaskId;
-            UpdateProgress(info);
-        }
+        /// <summary>渠道标签</summary>
+        public string ChannelTag => LatestBuild?.Channel ?? "default";
 
-        public void UpdateFromTask(DownloadTask task)
-        {
-            Progress = task.TotalBytes > 0
-                ? (double)task.BytesDownloaded / task.TotalBytes * 100
-                : 0;
-            Status = task.Status.ToString();
-            Speed = "";
-        }
+        /// <summary>是否为实验性版本</summary>
+        public bool IsExperimental => LatestBuild?.Channel == "experimental";
 
-        public void UpdateProgress(DownloadProgressInfo info)
-        {
-            Progress = info.ProgressPercent;
-            Status = info.IsCompleted ? "已完成" : info.IsFailed ? $"失败: {info.ErrorMessage}" : "下载中";
-            Speed = info.SpeedBytesPerSecond > 0
-                ? $"{info.SpeedBytesPerSecond / 1024 / 1024:F2} MB/s"
-                : "";
-        }
+        /// <summary>显示的版本标签 (如 1.21.4)</summary>
+        public string VersionTag => $"MC {MinecraftVersion}";
     }
 
     #endregion

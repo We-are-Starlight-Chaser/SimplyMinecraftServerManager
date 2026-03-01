@@ -38,6 +38,7 @@ namespace SimplyMinecraftServerManager
                 services.AddSingleton<IThemeService, ThemeService>();
                 services.AddSingleton<ITaskBarService, TaskBarService>();
                 services.AddSingleton<INavigationService, NavigationService>();
+                services.AddSingleton<IContentDialogService, ContentDialogService>();
 
                 services.AddSingleton<INavigationWindow, MainWindow>();
                 services.AddSingleton<MainWindowViewModel>();
@@ -56,6 +57,9 @@ namespace SimplyMinecraftServerManager
                 
                 services.AddSingleton<InstancePage>();
                 services.AddSingleton<InstanceViewModel>();
+                
+                services.AddSingleton<DownloadsPage>();
+                services.AddSingleton<DownloadsViewModel>();
                 
                 services.AddSingleton<SettingsPage>();
                 services.AddSingleton<SettingsViewModel>();

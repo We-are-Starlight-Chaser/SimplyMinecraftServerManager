@@ -13,7 +13,8 @@ namespace SimplyMinecraftServerManager.Views.Windows
         public MainWindow(
             MainWindowViewModel viewModel,
             INavigationViewPageProvider navigationViewPageProvider,
-            INavigationService navigationService
+            INavigationService navigationService,
+            IContentDialogService contentDialogService
         )
         {
             ViewModel = viewModel;
@@ -25,6 +26,9 @@ namespace SimplyMinecraftServerManager.Views.Windows
             SetPageService(navigationViewPageProvider);
 
             navigationService.SetNavigationControl(RootNavigation);
+            
+            // 设置对话框宿主
+            contentDialogService.SetDialogHost(RootContentDialogPresenter);
         }
 
         #region INavigationWindow methods

@@ -17,7 +17,15 @@
       
       <helpers:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
       <helpers:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+      <helpers:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter"/>
       <helpers:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+      <helpers:IntToVisibilityConverter x:Key="IntToVisibilityConverter"/>
+      <helpers:PlatformNameToColorConverter x:Key="PlatformNameToColorConverter"/>
+      <helpers:PlatformNameToInitialConverter x:Key="PlatformNameToInitialConverter"/>
+      <helpers:ThemeAwareColorConverter x:Key="ThemeAwareColorConverter"/>
+      <helpers:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
+      <helpers:JdkStatusToBackgroundConverter x:Key="JdkStatusToBackgroundConverter"/>
+      <helpers:JdkStatusToForegroundConverter x:Key="JdkStatusToForegroundConverter"/>
     </ResourceDictionary>
   </Application.Resources>
 </Application>

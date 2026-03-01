@@ -6,6 +6,7 @@
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+  x:Name="JdkPageRoot"
   Title="JDK 管理"
   d:DataContext="{d:DesignInstance local:JdkPage, IsDesignTimeCreatable=False}"
   d:DesignHeight="600"
@@ -16,130 +17,259 @@
 >
     
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="320"/>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- 已安装的 JDK 列表 -->
-        <Grid Grid.Column="0" Margin="0,0,12,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
+        <!-- 顶部标题栏 -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
-                <TextBlock Text="已安装的 JDK" FontSize="20" FontWeight="Medium" VerticalAlignment="Center"/>
-                <ui:Button 
-                    Command="{Binding ViewModel.RefreshCommand}"
-                    Margin="16,0,0,0"
-                    Appearance="Secondary">
-                    <ui:SymbolIcon Symbol="ArrowSync24"/>
-                </ui:Button>
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <ui:SymbolIcon Symbol="DeveloperBoard24" FontSize="28" 
+                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                <TextBlock Text="JDK 管理" FontSize="24" FontWeight="Medium" 
+                    VerticalAlignment="Center" Margin="12,0,0,0"/>
             </StackPanel>
 
-            <TextBlock Grid.Row="1" Text="{Binding ViewModel.StatusMessage}" Margin="0,0,0,8"/>
+            <TextBlock Grid.Column="1" Text="{Binding ViewModel.StatusMessage}" 
+                VerticalAlignment="Center" HorizontalAlignment="Center"
+                Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
 
-            <ListView Grid.Row="2" ItemsSource="{Binding ViewModel.InstalledJdks}"
-                VirtualizingStackPanel.IsVirtualizing="True"
-                VirtualizingStackPanel.VirtualizationMode="Recycling"
-                ScrollViewer.IsDeferredScrollingEnabled="True">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <ui:Card Margin="0,0,0,8" Padding="12">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel Grid.Column="0">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock FontWeight="Medium" FontSize="16">
-                                            <Run Text="JDK "/>
-                                            <Run Text="{Binding MajorVersion, Mode=OneWay}"/>
-                                        </TextBlock>
-                                        <Border Background="{DynamicResource AccentFillColorDisabledBrush}" 
-                                            CornerRadius="4" Margin="8,0,0,0" Padding="6,2">
-                                            <TextBlock Text="{Binding DistributionName}" FontSize="11"/>
-                                        </Border>
-                                        <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" 
-                                            CornerRadius="4" Margin="4,0,0,0" Padding="6,2">
-                                            <TextBlock Text="{Binding Architecture}" FontSize="11"/>
-                                        </Border>
-                                    </StackPanel>
-
-                                    <TextBlock Text="{Binding FullVersion}" FontSize="12" Margin="0,4,0,0"/>
-
-                                    <TextBlock Text="{Binding HomePath}" FontSize="11" 
-                                        Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
-
-                                    <TextBlock Text="{Binding StatusText}" FontSize="11" 
-                                        Foreground="{Binding StatusColor}" Margin="0,4,0,0"/>
-                                </StackPanel>
-
-                                <ui:Button Grid.Column="1" 
-                                    Command="{Binding DataContext.UninstallJdkCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                    CommandParameter="{Binding}"
-                                    Appearance="Secondary"
-                                    VerticalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="Delete24"/>
-                                </ui:Button>
-                            </Grid>
-                        </ui:Card>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+            <ui:Button Grid.Column="2" 
+                Command="{Binding ViewModel.RefreshCommand}"
+                Appearance="Secondary"
+                ToolTip="刷新列表">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="ArrowSync24"/>
+                    <TextBlock Text="刷新" Margin="8,0,0,0"/>
+                </StackPanel>
+            </ui:Button>
         </Grid>
 
-        <!-- 安装新 JDK 面板 -->
-        <ui:Card Grid.Column="1" Padding="16" VerticalAlignment="Top">
-            <StackPanel>
-                <TextBlock Text="安装新 JDK" FontSize="16" FontWeight="Medium" Margin="0,0,0,16"/>
+        <!-- 主内容区域 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-                <TextBlock Text="发行版" Margin="0,0,0,4"/>
-                <ComboBox SelectedIndex="{Binding ViewModel.SelectedJdkDistributionIndex, Mode=TwoWay}" 
-                    Width="280" HorizontalAlignment="Left">
-                    <ComboBoxItem Content="Adoptium (Temurin)"/>
-                    <ComboBoxItem Content="Azul Zulu"/>
-                </ComboBox>
+            <!-- 已安装的 JDK 列表 -->
+            <ScrollViewer Grid.Column="0" Margin="0,0,16,0">
+                <ItemsControl ItemsSource="{Binding ViewModel.InstalledJdks}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ui:Card Margin="0,0,0,12" Padding="0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                <TextBlock Text="版本" Margin="0,12,0,4"/>
-                <ComboBox 
-                    ItemsSource="{Binding ViewModel.AvailableJdkVersions}"
-                    SelectedItem="{Binding ViewModel.SelectedJdkMajorVersion, Mode=TwoWay}"
-                    Width="280" HorizontalAlignment="Left"/>
+                                    <!-- 左侧版本号标识 -->
+                                    <Border Grid.Column="0" Width="80" 
+                                        Background="{DynamicResource AccentFillColorSecondaryBrush}"
+                                        CornerRadius="8,0,0,8"
+                                        VerticalAlignment="Stretch">
+                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <TextBlock Text="JDK" FontSize="11" 
+                                                Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+                                                HorizontalAlignment="Center"/>
+                                            <TextBlock Text="{Binding MajorVersion}" 
+                                                FontSize="28" FontWeight="Bold"
+                                                Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+                                                HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
 
-                <ui:Button 
-                    Command="{Binding ViewModel.InstallJdkCommand}"
-                    IsEnabled="{Binding ViewModel.IsLoading, Converter={StaticResource InverseBooleanConverter}}"
-                    Appearance="Primary"
-                    Margin="0,16,0,0"
-                    HorizontalAlignment="Stretch">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="ArrowDownload24"/>
-                        <TextBlock Text="下载并安装" Margin="8,0,0,0"/>
-                    </StackPanel>
-                </ui:Button>
+                                    <!-- 中间信息 -->
+                                    <Grid Grid.Column="1" Margin="16,12,12,12">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
 
-                <TextBlock Text="{Binding ViewModel.InstallStatus}" 
-                    Margin="0,12,0,0" 
-                    TextWrapping="Wrap"/>
+                                        <!-- 第一行：发行版和架构标签 -->
+                                        <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                            <Border Background="{DynamicResource SubtleFillColorTertiaryBrush}" 
+                                                CornerRadius="4" Padding="8,2" Margin="0,0,6,0">
+                                                <TextBlock Text="{Binding DistributionName}" 
+                                                    FontSize="12" FontWeight="Medium"/>
+                                            </Border>
+                                            <Border Background="{DynamicResource SubtleFillColorTertiaryBrush}" 
+                                                CornerRadius="4" Padding="8,2">
+                                                <TextBlock Text="{Binding Architecture}" FontSize="12"/>
+                                            </Border>
+                                            <Border 
+                                                Background="{Binding RawStatus, Converter={StaticResource JdkStatusToBackgroundConverter}}"
+                                                CornerRadius="4" Padding="8,2" Margin="6,0,0,0">
+                                                <TextBlock Text="{Binding StatusText}" FontSize="12"
+                                                    Foreground="{Binding RawStatus, Converter={StaticResource JdkStatusToForegroundConverter}}"/>
+                                            </Border>
+                                        </StackPanel>
 
-                <Separator Margin="0,16,0,16"/>
+                                        <!-- 第二行：完整版本 -->
+                                        <TextBlock Grid.Row="1" Text="{Binding FullVersion}" 
+                                            FontSize="13" Margin="0,6,0,0"
+                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
 
-                <TextBlock Text="版本推荐" FontWeight="Medium" Margin="0,0,0,8"/>
-                <TextBlock TextWrapping="Wrap" FontSize="12">
-                    <Run Text="• Minecraft 1.21+ → JDK 21-25"/>
-                    <LineBreak/>
-                    <Run Text="• Minecraft 1.17-1.20 → JDK 17"/>
-                    <LineBreak/>
-                    <Run Text="• Minecraft 1.12-1.16 → JDK 11"/>
-                    <LineBreak/>
-                    <Run Text="• Minecraft 1.7-1.11 → JDK 8"/>
-                </TextBlock>
+                                        <!-- 第三行：路径 -->
+                                        <TextBlock Grid.Row="2" Text="{Binding HomePath}" 
+                                            FontSize="11" Margin="0,4,0,0"
+                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding HomePath}"/>
+
+                                        <!-- 第四行：java.exe 路径 -->
+                                        <TextBlock Grid.Row="3" Text="{Binding JavaExecutable}" 
+                                            FontSize="11" Margin="0,2,0,0"
+                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding JavaExecutable}"/>
+                                    </Grid>
+
+                                    <!-- 右侧按钮 -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" 
+                                        VerticalAlignment="Center" Margin="0,0,12,0">
+                                        <ui:Button 
+                                            Command="{Binding ViewModel.CopyJavaPathCommand, ElementName=JdkPageRoot}"
+                                            CommandParameter="{Binding}"
+                                            Appearance="Secondary"
+                                            ToolTip="复制 java.exe 路径"
+                                            Margin="0,0,8,0">
+                                            <Grid>
+                                                <ui:SymbolIcon Symbol="Copy24" 
+                                                    Visibility="{Binding IsCopied, Converter={StaticResource InverseBooleanToVisibilityConverter}}"/>
+                                                <ui:SymbolIcon Symbol="Checkmark24" 
+                                                    Visibility="{Binding IsCopied, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                    Foreground="#4CAF50"/>
+                                            </Grid>
+                                        </ui:Button>
+                                        <ui:Button 
+                                            Command="{Binding ViewModel.UninstallJdkCommand, ElementName=JdkPageRoot}"
+                                            CommandParameter="{Binding}"
+                                            Appearance="Danger"
+                                            ToolTip="卸载此 JDK">
+                                            <ui:SymbolIcon Symbol="Delete24"/>
+                                        </ui:Button>
+                                    </StackPanel>
+                                </Grid>
+                            </ui:Card>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- 空状态提示 -->
+            <StackPanel Grid.Column="0" 
+                Visibility="{Binding ViewModel.InstalledJdks.Count, Converter={StaticResource CountToVisibilityConverter}}"
+                VerticalAlignment="Center" HorizontalAlignment="Center">
+                <ui:SymbolIcon Symbol="DeveloperBoard24" FontSize="48" 
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                <TextBlock Text="暂无已安装的 JDK" FontSize="16" 
+                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                    HorizontalAlignment="Center" Margin="0,12,0,0"/>
+                <TextBlock Text="从右侧面板安装一个 JDK 开始使用" FontSize="12"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    HorizontalAlignment="Center" Margin="0,4,0,0"/>
             </StackPanel>
-        </ui:Card>
+
+            <!-- 右侧安装面板 -->
+            <ui:Card Grid.Column="1" Width="300" Padding="16" VerticalAlignment="Top">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="20"
+                            Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="安装新 JDK" FontSize="16" FontWeight="Medium" 
+                            VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- 发行版选择 -->
+                    <TextBlock Text="发行版" Margin="0,0,0,4"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                    <ComboBox SelectedIndex="{Binding ViewModel.SelectedJdkDistributionIndex, Mode=TwoWay}" 
+                        HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="Adoptium (Temurin)"/>
+                        <ComboBoxItem Content="Azul Zulu"/>
+                    </ComboBox>
+
+                    <!-- 版本选择 -->
+                    <TextBlock Text="版本" Margin="0,12,0,4"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                    <Grid>
+                        <ComboBox 
+                            ItemsSource="{Binding ViewModel.AvailableJdkVersions}"
+                            SelectedItem="{Binding ViewModel.SelectedJdkMajorVersion, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch"
+                            IsEnabled="{Binding ViewModel.IsLoadingVersions, Converter={StaticResource InverseBooleanConverter}}"/>
+                        <ui:ProgressRing Grid.Column="0" 
+                            Visibility="{Binding ViewModel.IsLoadingVersions, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Width="16" Height="16"
+                            HorizontalAlignment="Right" Margin="0,0,32,0"
+                            IsIndeterminate="True"/>
+                    </Grid>
+
+                    <!-- 安装按钮 -->
+                    <ui:Button 
+                        Command="{Binding ViewModel.InstallJdkCommand}"
+                        IsEnabled="{Binding ViewModel.IsLoading, Converter={StaticResource InverseBooleanConverter}}"
+                        Appearance="Primary"
+                        Margin="0,16,0,0"
+                        HorizontalAlignment="Stretch">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" 
+                                Visibility="{Binding ViewModel.IsLoading, Converter={StaticResource InverseBooleanConverter}}">
+                                <ui:SymbolIcon Symbol="ArrowDownload24"/>
+                                <TextBlock Text="下载并安装" Margin="8,0,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" 
+                                Visibility="{Binding ViewModel.IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <ui:ProgressRing Width="16" Height="16" IsIndeterminate="True"/>
+                                <TextBlock Text="安装中..." Margin="8,0,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </ui:Button>
+
+                    <!-- 安装状态 -->
+                    <TextBlock Text="{Binding ViewModel.InstallStatus}" 
+                        Margin="0,12,0,0" 
+                        TextWrapping="Wrap"
+                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+
+                    <Separator Margin="0,16,0,16"
+                        Background="{DynamicResource SeparatorBorderBrush}"/>
+
+                    <!-- 版本推荐 -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <ui:SymbolIcon Symbol="Lightbulb24" FontSize="16"
+                            Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                        <TextBlock Text="版本推荐" FontWeight="Medium" 
+                            VerticalAlignment="Center" Margin="6,0,0,0"/>
+                    </StackPanel>
+                    
+                    <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" 
+                        CornerRadius="8" Padding="12">
+                        <TextBlock TextWrapping="Wrap" FontSize="12"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                            <Run Text="• Minecraft 1.21+ → JDK 21-25"/>
+                            <LineBreak/>
+                            <Run Text="• Minecraft 1.17-1.20 → JDK 17"/>
+                            <LineBreak/>
+                            <Run Text="• Minecraft 1.12-1.16 → JDK 11"/>
+                            <LineBreak/>
+                            <Run Text="• Minecraft 1.7-1.11 → JDK 8"/>
+                        </TextBlock>
+                    </Border>
+                </StackPanel>
+            </ui:Card>
+        </Grid>
     </Grid>
 </Page>
