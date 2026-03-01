@@ -1,47 +1,147 @@
-﻿<Page
+<Page
   x:Class="SimplyMinecraftServerManager.Views.Pages.SettingsPage"
   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
   xmlns:helpers="clr-namespace:SimplyMinecraftServerManager.Helpers"
+  xmlns:internals="clr-namespace:SimplyMinecraftServerManager.Internals"
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-  Title="SettingsPage"
-  d:DataContext="{d:DesignInstance local:SettingsPage,
-                                     IsDesignTimeCreatable=False}"
-  d:DesignHeight="450"
+  Title="设置"
+  d:DataContext="{d:DesignInstance local:SettingsPage, IsDesignTimeCreatable=False}"
+  d:DesignHeight="600"
   d:DesignWidth="800"
   ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
   ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
   mc:Ignorable="d"
 >
   <Page.Resources>
-    <helpers:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
+    <helpers:ThemeToBooleanConverter x:Key="ThemeToBooleanConverter" />
+    <helpers:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
   </Page.Resources>
-  <StackPanel>
-    <TextBlock FontSize="20" FontWeight="Medium" Text="个性化" />
-    <TextBlock Margin="0,12,0,0" Text="主题" />
-    <RadioButton
-      Margin="0,12,0,0"
-      Command="{Binding ViewModel.ChangeThemeCommand, Mode=OneWay}"
-      CommandParameter="theme_light"
-      Content="浅色"
-      GroupName="themeSelect"
-      IsChecked="{Binding ViewModel.CurrentTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Light, Mode=OneWay}"
-    />
-    <RadioButton
-      Margin="0,8,0,0"
-      Command="{Binding ViewModel.ChangeThemeCommand, Mode=OneWay}"
-      CommandParameter="theme_dark"
-      Content="深色"
-      GroupName="themeSelect"
-      IsChecked="{Binding ViewModel.CurrentTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Dark, Mode=OneWay}"
-    />
-    <TextBlock Margin="0,24,0,0" FontSize="20" FontWeight="Medium" Text="关于本程序" />
-    <TextBlock Margin="0,12,0,0" Text="{Binding ViewModel.AppVersion, Mode=OneWay}" />
-    <TextBlock Margin="0,12,0,0" Text="SimplyMinecraftServerManager is a Minecraft server manager built on .NET 10, using WPF-UI as the UI library. It features high performance, ease of use, and lightweight design, and is licensed under the MIT License." TextWrapping="WrapWithOverflow"/>
-    <ui:Anchor Appearance="Primary" Margin="0,12,0,0" NavigateUri="https://github.com/We-Are-Starlight-Chaser/SimplyMinecraftServerMinecraft">Github源代码存储库</ui:Anchor>
+
+  <ScrollViewer>
+    <StackPanel Margin="0,0,0,24">
+      <!-- 状态提示 -->
+      <TextBlock Text="{Binding ViewModel.StatusMessage}" 
+        Margin="0,0,0,16">
+        <TextBlock.Visibility>
+          <Binding Path="ViewModel.StatusMessage" Converter="{StaticResource StringToVisibilityConverter}"/>
+        </TextBlock.Visibility>
+      </TextBlock>
+
+      <!-- 个性化 -->
+      <ui:Card Padding="16" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock FontSize="18" FontWeight="Medium" Text="个性化" Margin="0,0,0,12"/>
+          
+          <TextBlock Text="主题" Margin="0,0,0,8"/>
+          <RadioButton
+            Command="{Binding ViewModel.ChangeThemeCommand, Mode=OneWay}"
+            CommandParameter="theme_light"
+            Content="浅色"
+            GroupName="themeSelect"
+            IsChecked="{Binding ViewModel.CurrentTheme, Converter={StaticResource ThemeToBooleanConverter}, ConverterParameter=Light, Mode=OneWay}"
+          />
+          <RadioButton
+            Margin="0,8,0,0"
+            Command="{Binding ViewModel.ChangeThemeCommand, Mode=OneWay}"
+            CommandParameter="theme_dark"
+            Content="深色"
+            GroupName="themeSelect"
+            IsChecked="{Binding ViewModel.CurrentTheme, Converter={StaticResource ThemeToBooleanConverter}, ConverterParameter=Dark, Mode=OneWay}"
+          />
+        </StackPanel>
+      </ui:Card>
+
+      <!-- 服务器设置 -->
+      <ui:Card Padding="16" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock FontSize="18" FontWeight="Medium" Text="服务器设置" Margin="0,0,0,12"/>
+
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="默认最小内存 (MB)" Margin="0,0,0,4"/>
+              <ui:TextBox Text="{Binding ViewModel.DefaultMinMemoryMb, Mode=TwoWay}" Width="200" HorizontalAlignment="Left"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+              <TextBlock Text="默认最大内存 (MB)" Margin="0,0,0,4"/>
+              <ui:TextBox Text="{Binding ViewModel.DefaultMaxMemoryMb, Mode=TwoWay}" Width="200" HorizontalAlignment="Left"/>
+            </StackPanel>
+          </Grid>
+
+          <CheckBox Content="自动接受 EULA" 
+            IsChecked="{Binding ViewModel.AutoAcceptEula, Mode=TwoWay}"
+            Margin="0,12,0,0"/>
+        </StackPanel>
+      </ui:Card>
+
+      <!-- JDK 设置 -->
+      <ui:Card Padding="16" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock FontSize="18" FontWeight="Medium" Text="JDK 设置" Margin="0,0,0,12"/>
+
+          <TextBlock Text="默认 JDK 路径 (java.exe)" Margin="0,0,0,4"/>
+          <ui:TextBox Text="{Binding ViewModel.DefaultJdkPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            PlaceholderText="留空则使用自动安装的 JDK"/>
+
+          <TextBlock Text="首选 JDK 发行版" Margin="0,12,0,4"/>
+          <ComboBox SelectedIndex="{Binding ViewModel.PreferredJdkDistributionIndex, Mode=TwoWay}" Width="200" HorizontalAlignment="Left">
+            <ComboBoxItem Content="Adoptium (Temurin)"/>
+            <ComboBoxItem Content="Azul Zulu"/>
+          </ComboBox>
+        </StackPanel>
+      </ui:Card>
+
+      <!-- 下载设置 -->
+      <ui:Card Padding="16" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock FontSize="18" FontWeight="Medium" Text="下载设置" Margin="0,0,0,12"/>
+
+          <TextBlock Text="并发下载数 (1-32)" Margin="0,0,0,4"/>
+          <ui:TextBox Text="{Binding ViewModel.DownloadThreads, Mode=TwoWay}" Width="100" HorizontalAlignment="Left"/>
+        </StackPanel>
+      </ui:Card>
+
+      <!-- 语言设置 -->
+      <ui:Card Padding="16" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock FontSize="18" FontWeight="Medium" Text="语言" Margin="0,0,0,12"/>
+
+          <ComboBox SelectedItem="{Binding ViewModel.Language, Mode=TwoWay}" Width="200" HorizontalAlignment="Left">
+            <ComboBoxItem Content="简体中文" Tag="zh-CN"/>
+            <ComboBoxItem Content="English" Tag="en-US"/>
+          </ComboBox>
+        </StackPanel>
+      </ui:Card>
+
+      <!-- 操作按钮 -->
+      <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+        <ui:Button Command="{Binding ViewModel.SaveConfigCommand}" Appearance="Primary">
+          保存设置
+        </ui:Button>
+        <ui:Button Command="{Binding ViewModel.ResetToDefaultsCommand}" Margin="8,0,0,0" Appearance="Secondary">
+          重置为默认值
+        </ui:Button>
+      </StackPanel>
+
+      <!-- 关于 -->
+      <ui:Card Padding="16" Margin="0,24,0,0">
+        <StackPanel>
+          <TextBlock FontSize="18" FontWeight="Medium" Text="关于" Margin="0,0,0,12"/>
+          <TextBlock Text="{Binding ViewModel.AppVersion, Mode=OneWay}"/>
+          <TextBlock Text="一个简单易用的 Minecraft 服务器管理器" Margin="0,8,0,0"/>
+          <TextBlock Margin="0,4,0,0">
+            <Run Text="数据目录: "/>
+            <Run Text="{x:Static internals:PathHelper.Root}"/>
+          </TextBlock>
+        </StackPanel>
+      </ui:Card>
     </StackPanel>
+  </ScrollViewer>
 </Page>
