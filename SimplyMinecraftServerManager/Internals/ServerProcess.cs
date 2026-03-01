@@ -195,6 +195,8 @@ namespace SimplyMinecraftServerManager.Internals
             if (!AssignProcessToJobObject(_jobHandle, processHandle))
             {
                 _process.Kill(entireProcessTree: true);
+                CloseHandle(_jobHandle);
+                _jobHandle = IntPtr.Zero;
                 throw new InvalidOperationException($"Failed to assign process to job object: {GetLastError()}");
             }
 

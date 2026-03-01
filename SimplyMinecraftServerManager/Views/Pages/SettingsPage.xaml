@@ -18,18 +18,14 @@
 >
   <Page.Resources>
     <helpers:ThemeToBooleanConverter x:Key="ThemeToBooleanConverter" />
-    <helpers:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
   </Page.Resources>
 
   <ScrollViewer>
     <StackPanel Margin="0,0,0,24">
       <!-- 状态提示 -->
       <TextBlock Text="{Binding ViewModel.StatusMessage}" 
-        Margin="0,0,0,16">
-        <TextBlock.Visibility>
-          <Binding Path="ViewModel.StatusMessage" Converter="{StaticResource StringToVisibilityConverter}"/>
-        </TextBlock.Visibility>
-      </TextBlock>
+        Visibility="{Binding ViewModel.StatusMessage, Converter={StaticResource StringToVisibilityConverter}}"
+        Margin="0,0,0,16"/>
 
       <!-- 个性化 -->
       <ui:Card Padding="16" Margin="0,0,0,12">

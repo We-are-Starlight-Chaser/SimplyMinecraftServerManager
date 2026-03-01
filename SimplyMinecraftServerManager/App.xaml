@@ -15,7 +15,6 @@
         <ui:ControlsDictionary />
       </ResourceDictionary.MergedDictionaries>
       
-      <!-- 全局转换器 -->
       <helpers:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
       <helpers:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
       <helpers:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>

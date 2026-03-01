@@ -93,7 +93,10 @@
 
                     <TextBlock Grid.Row="0" Text="最近的服务器" FontSize="18" FontWeight="Medium" Margin="0,0,0,12"/>
 
-                    <ListView Grid.Row="1" ItemsSource="{Binding ViewModel.RecentInstances}">
+                    <ListView Grid.Row="1" ItemsSource="{Binding ViewModel.RecentInstances}" 
+                        VirtualizingStackPanel.IsVirtualizing="True"
+                        VirtualizingStackPanel.VirtualizationMode="Recycling"
+                        ScrollViewer.IsDeferredScrollingEnabled="True">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <ui:Card Margin="0,0,0,8" Padding="12">

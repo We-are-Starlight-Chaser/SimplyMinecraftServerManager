@@ -92,7 +92,10 @@
 
                     <!-- 构建列表 -->
                     <ListView Grid.Row="2" 
-                        ItemsSource="{Binding ViewModel.ServerBuilds}">
+                        ItemsSource="{Binding ViewModel.ServerBuilds}"
+                        VirtualizingStackPanel.IsVirtualizing="True"
+                        VirtualizingStackPanel.VirtualizationMode="Recycling"
+                        ScrollViewer.IsDeferredScrollingEnabled="True">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,4">
@@ -159,7 +162,10 @@
                     </StackPanel>
 
                     <!-- 搜索结果 -->
-                    <ListView Grid.Row="2" ItemsSource="{Binding ViewModel.PluginSearchResults}">
+                    <ListView Grid.Row="2" ItemsSource="{Binding ViewModel.PluginSearchResults}"
+                        VirtualizingStackPanel.IsVirtualizing="True"
+                        VirtualizingStackPanel.VirtualizationMode="Recycling"
+                        ScrollViewer.IsDeferredScrollingEnabled="True">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,8">
@@ -240,7 +246,10 @@
                     <TextBlock Grid.Row="1" Text="{Binding ViewModel.JdkDownloadStatus}" Margin="0,0,0,8"/>
 
                     <!-- JDK 构建列表 -->
-                    <ListView Grid.Row="2" ItemsSource="{Binding ViewModel.JdkBuilds}">
+                    <ListView Grid.Row="2" ItemsSource="{Binding ViewModel.JdkBuilds}"
+                        VirtualizingStackPanel.IsVirtualizing="True"
+                        VirtualizingStackPanel.VirtualizationMode="Recycling"
+                        ScrollViewer.IsDeferredScrollingEnabled="True">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,8">

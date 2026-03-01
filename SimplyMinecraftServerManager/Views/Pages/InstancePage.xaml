@@ -6,7 +6,6 @@
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-  xmlns:helpers="clr-namespace:SimplyMinecraftServerManager.Helpers"
   Title="实例管理"
   d:DataContext="{d:DesignInstance local:InstancePage, IsDesignTimeCreatable=False}"
   d:DesignHeight="600"
@@ -15,9 +14,6 @@
   ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
   mc:Ignorable="d"
 >
-    <Page.Resources>
-        <helpers:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
-    </Page.Resources>
     
     <Grid>
         <Grid.RowDefinitions>
@@ -117,7 +113,10 @@
                         </ui:Button>
                     </StackPanel>
 
-                    <ListView Grid.Row="1" ItemsSource="{Binding ViewModel.Plugins}">
+                    <ListView Grid.Row="1" ItemsSource="{Binding ViewModel.Plugins}"
+                        VirtualizingStackPanel.IsVirtualizing="True"
+                        VirtualizingStackPanel.VirtualizationMode="Recycling"
+                        ScrollViewer.IsDeferredScrollingEnabled="True">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,4">

@@ -507,10 +507,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private double _progress;
 
         [ObservableProperty]
-        private string _status;
+        private string _status = "";
 
         [ObservableProperty]
-        private string _speed;
+        private string _speed = "";
 
         public DownloadTaskItem(DownloadTask task)
         {

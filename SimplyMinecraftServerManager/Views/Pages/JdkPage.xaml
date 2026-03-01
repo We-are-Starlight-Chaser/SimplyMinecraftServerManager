@@ -6,7 +6,6 @@
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-  xmlns:helpers="clr-namespace:SimplyMinecraftServerManager.Helpers"
   Title="JDK 管理"
   d:DataContext="{d:DesignInstance local:JdkPage, IsDesignTimeCreatable=False}"
   d:DesignHeight="600"
@@ -15,9 +14,6 @@
   ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
   mc:Ignorable="d"
 >
-    <Page.Resources>
-        <helpers:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
-    </Page.Resources>
     
     <Grid>
         <Grid.ColumnDefinitions>
@@ -45,7 +41,10 @@
 
             <TextBlock Grid.Row="1" Text="{Binding ViewModel.StatusMessage}" Margin="0,0,0,8"/>
 
-            <ListView Grid.Row="2" ItemsSource="{Binding ViewModel.InstalledJdks}">
+            <ListView Grid.Row="2" ItemsSource="{Binding ViewModel.InstalledJdks}"
+                VirtualizingStackPanel.IsVirtualizing="True"
+                VirtualizingStackPanel.VirtualizationMode="Recycling"
+                ScrollViewer.IsDeferredScrollingEnabled="True">
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <ui:Card Margin="0,0,0,8" Padding="12">
@@ -59,7 +58,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock FontWeight="Medium" FontSize="16">
                                             <Run Text="JDK "/>
-                                            <Run Text="{Binding MajorVersion}"/>
+                                            <Run Text="{Binding MajorVersion, Mode=OneWay}"/>
                                         </TextBlock>
                                         <Border Background="{DynamicResource AccentFillColorDisabledBrush}" 
                                             CornerRadius="4" Margin="8,0,0,0" Padding="6,2">
@@ -132,7 +131,7 @@
 
                 <TextBlock Text="版本推荐" FontWeight="Medium" Margin="0,0,0,8"/>
                 <TextBlock TextWrapping="Wrap" FontSize="12">
-                    <Run Text="• Minecraft 1.21+ → JDK 21"/>
+                    <Run Text="• Minecraft 1.21+ → JDK 21-25"/>
                     <LineBreak/>
                     <Run Text="• Minecraft 1.17-1.20 → JDK 17"/>
                     <LineBreak/>

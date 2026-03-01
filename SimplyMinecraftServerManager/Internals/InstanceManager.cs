@@ -1,22 +1,24 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using Tomlyn;
 
 namespace SimplyMinecraftServerManager.Internals
 {
-    /// <summary>
-    /// 服务器实例管理器
-    /// </summary>
     public static class InstanceManager
     {
         private static readonly object _lock = new();
         private static List<InstanceInfo> _instances = new();
         private static bool _loaded;
+        private static readonly ConcurrentDictionary<string, InstanceInfo> _idCache = new();
+        private static readonly ConcurrentDictionary<string, List<InstanceInfo>> _searchCache = new();
+        private static Timer? _saveDebounceTimer;
+        private static bool _pendingSave;
 
-        /// <summary>从 instances.toml 加载实例列表。</summary>
         public static void Load()
         {
             lock (_lock)
@@ -36,6 +38,7 @@ namespace SimplyMinecraftServerManager.Internals
                     string toml = File.ReadAllText(PathHelper.InstancesFile, Encoding.UTF8);
                     var model = Toml.ToModel<InstancesFileModel>(toml);
                     _instances = model.Instances ?? new List<InstanceInfo>();
+                    RebuildCache();
                 }
                 catch (Exception)
                 {
@@ -46,7 +49,16 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        /// <summary>将当前实例列表写回 instances.toml。</summary>
+        private static void RebuildCache()
+        {
+            _idCache.Clear();
+            _searchCache.Clear();
+            foreach (var instance in _instances)
+            {
+                _idCache[instance.Id] = instance;
+            }
+        }
+
         private static void Save()
         {
             var model = new InstancesFileModel { Instances = _instances };
@@ -54,12 +66,29 @@ namespace SimplyMinecraftServerManager.Internals
             File.WriteAllText(PathHelper.InstancesFile, toml, Encoding.UTF8);
         }
 
+        private static void DebouncedSave()
+        {
+            if (_pendingSave) return;
+            _pendingSave = true;
+            _saveDebounceTimer?.Dispose();
+            _saveDebounceTimer = new Timer(_ =>
+            {
+                lock (_lock)
+                {
+                    if (_pendingSave)
+                    {
+                        Save();
+                        _pendingSave = false;
+                    }
+                }
+            }, null, 500, Timeout.Infinite);
+        }
+
         private static void EnsureLoaded()
         {
             if (!_loaded) Load();
         }
 
-        /// <summary>获取所有实例的只读快照。</summary>
         public static IReadOnlyList<InstanceInfo> GetAll()
         {
             lock (_lock)
@@ -69,27 +98,23 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        /// <summary>按 ID 获取实例，不存在返回 null。</summary>
         public static InstanceInfo? GetById(string id)
         {
-            lock (_lock)
-            {
-                EnsureLoaded();
-                return _instances.FirstOrDefault(
-                    i => i.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
-            }
+            EnsureLoaded();
+            return _idCache.GetValueOrDefault(id);
         }
 
-        /// <summary>按名称模糊搜索。</summary>
         public static IReadOnlyList<InstanceInfo> Search(string keyword)
         {
             lock (_lock)
             {
                 EnsureLoaded();
-                return _instances
-                    .Where(i => i.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                    .ToList()
-                    .AsReadOnly();
+                string lower = keyword.ToLowerInvariant();
+                return _searchCache.GetOrAdd(lower, _ =>
+                    _instances
+                        .Where(i => i.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                        .ToList()
+                ).AsReadOnly();
             }
         }
 
@@ -186,13 +211,14 @@ namespace SimplyMinecraftServerManager.Internals
                 }
 
                 _instances.Add(info);
-                Save();
+                _idCache[info.Id] = info;
+                _searchCache.Clear();
+                DebouncedSave();
 
                 return info;
             }
         }
 
-        /// <summary>更新实例信息并持久化。</summary>
         public static void UpdateInstance(InstanceInfo info)
         {
             lock (_lock)
@@ -206,11 +232,12 @@ namespace SimplyMinecraftServerManager.Internals
                     throw new KeyNotFoundException($"Instance '{info.Id}' not found.");
 
                 _instances[idx] = info;
-                Save();
+                _idCache[info.Id] = info;
+                _searchCache.Clear();
+                DebouncedSave();
             }
         }
 
-        /// <summary>修改指定实例的 JDK 路径。</summary>
         public static void SetJdkPath(string instanceId, string jdkPath)
         {
             lock (_lock)
@@ -224,11 +251,11 @@ namespace SimplyMinecraftServerManager.Internals
                     throw new KeyNotFoundException($"Instance '{instanceId}' not found.");
 
                 info.JdkPath = jdkPath;
-                Save();
+                _idCache[instanceId] = info;
+                DebouncedSave();
             }
         }
 
-        /// <summary>修改实例的内存设置。</summary>
         public static void SetMemory(string instanceId, int minMb, int maxMb)
         {
             lock (_lock)
@@ -243,16 +270,11 @@ namespace SimplyMinecraftServerManager.Internals
 
                 info.MinMemoryMb = minMb;
                 info.MaxMemoryMb = maxMb;
-                Save();
+                _idCache[instanceId] = info;
+                DebouncedSave();
             }
         }
 
-        /// <summary>
-        /// 删除实例。
-        /// </summary>
-        /// <param name="instanceId">实例 UUID</param>
-        /// <param name="deleteFiles">是否同时删除实例文件夹</param>
-        /// <returns>是否成功删除</returns>
         public static bool DeleteInstance(string instanceId, bool deleteFiles = true)
         {
             lock (_lock)
@@ -264,7 +286,9 @@ namespace SimplyMinecraftServerManager.Internals
 
                 if (removed == 0) return false;
 
-                Save();
+                _idCache.TryRemove(instanceId, out _);
+                _searchCache.Clear();
+                DebouncedSave();
 
                 if (deleteFiles)
                 {
@@ -279,7 +303,6 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        /// <summary>为指定实例写入 eula=true。</summary>
         public static void AcceptEula(string instanceId)
         {
             string path = PathHelper.GetEulaPath(instanceId);
@@ -287,7 +310,6 @@ namespace SimplyMinecraftServerManager.Internals
             File.WriteAllText(path, "# Auto-accepted by SMSM\neula=true\n", Encoding.UTF8);
         }
 
-        /// <summary>获取实例实际使用的 java.exe 路径（实例 > 全局默认）。</summary>
         public static string ResolveJdkPath(string instanceId)
         {
             var info = GetById(instanceId);
@@ -297,14 +319,21 @@ namespace SimplyMinecraftServerManager.Internals
             return ConfigManager.Current.DefaultJdkPath;
         }
 
-        /// <summary>强制重新从磁盘加载。</summary>
         public static void Reload()
         {
             lock (_lock)
             {
                 _loaded = false;
+                _idCache.Clear();
+                _searchCache.Clear();
                 Load();
             }
+        }
+
+        public static void Shutdown()
+        {
+            _saveDebounceTimer?.Dispose();
+            _saveDebounceTimer = null;
         }
     }
 }
