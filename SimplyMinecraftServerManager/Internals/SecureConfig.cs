@@ -36,7 +36,7 @@ namespace SimplyMinecraftServerManager.Internals
 
             try
             {
-                string base64 = encryptedText[Prefix.Length..];
+                string base64 = encryptedText.Substring(Prefix.Length);
                 byte[] encryptedBytes = Convert.FromBase64String(base64);
                 byte[] plainBytes = ProtectedData.Unprotect(
                     encryptedBytes,

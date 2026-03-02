@@ -1,14 +1,29 @@
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
+using SimplyMinecraftServerManager.Services;
+using SimplyMinecraftServerManager.Views.Pages;
 using System.Collections.ObjectModel;
 using System.IO;
+using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
+using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
     public partial class ServersViewModel : ObservableObject, INavigationAware
     {
+        private readonly IContentDialogService _contentDialogService;
+        private readonly INavigationService _navigationService;
+        private readonly NavigationParameterService _navigationParameterService;
+
+        public ServersViewModel(IContentDialogService contentDialogService, INavigationService navigationService, NavigationParameterService navigationParameterService)
+        {
+            _contentDialogService = contentDialogService;
+            _navigationService = navigationService;
+            _navigationParameterService = navigationParameterService;
+        }
+
         [ObservableProperty]
         private ObservableCollection<InstanceDisplayItem> _instances = [];
 
@@ -59,6 +74,129 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         public Task OnNavigatedFromAsync() => Task.CompletedTask;
 
+        [RelayCommand]
+        private async Task CreateNewInstanceAsync()
+        {
+            // 重新加载版本和JDK列表
+            await LoadMinecraftVersionsAsync();
+            LoadAvailableJdks();
+
+            NewInstanceDialogViewModel? dialogViewModel = null;
+            NewInstanceDialog? dialog = null;
+            
+            dialogViewModel = new NewInstanceDialogViewModel(
+                AvailableMinecraftVersions,
+                AvailableJdks,
+                async () =>
+                {
+                    if (dialogViewModel != null && dialog != null)
+                        await CreateInstanceInternalAsync(dialogViewModel, dialog);
+                },
+                () => { }
+            );
+
+            dialog = new NewInstanceDialog
+            {
+                DataContext = dialogViewModel
+            };
+
+            await _contentDialogService.ShowAsync(dialog, CancellationToken.None);
+        }
+
+        private async Task CreateInstanceInternalAsync(NewInstanceDialogViewModel vm, NewInstanceDialog dialog)
+        {
+            if (string.IsNullOrWhiteSpace(vm.InstanceName))
+            {
+                vm.StatusMessage = "请输入实例名称";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(vm.SelectedVersion))
+            {
+                vm.StatusMessage = "请选择 Minecraft 版本";
+                return;
+            }
+
+            try
+            {
+                vm.IsCreating = true;
+                vm.StatusMessage = "正在准备创建实例...";
+
+                string? javaPath = null;
+
+                if (vm.SelectedJdk != null && File.Exists(vm.SelectedJdk.JavaPath))
+                {
+                    javaPath = vm.SelectedJdk.JavaPath;
+                    vm.StatusMessage = $"正在使用已选择的 JDK {vm.SelectedJdk.MajorVersion}...";
+                }
+                else
+                {
+                    int jdkVersion = JdkManager.RecommendJdkVersion(vm.SelectedVersion);
+                    javaPath = JdkManager.GetJavaExecutable(jdkVersion);
+
+                    if (string.IsNullOrEmpty(javaPath))
+                    {
+                        vm.StatusMessage = $"正在安装 JDK {jdkVersion}...";
+                        javaPath = await JdkManager.EnsureJdkAsync(jdkVersion);
+                    }
+                }
+
+                var platform = vm.ServerType.ToLowerInvariant() switch
+                {
+                    "paper" => ServerPlatform.Paper,
+                    "purpur" => ServerPlatform.Purpur,
+                    "leaves" => ServerPlatform.Leaves,
+                    "leaf" => ServerPlatform.Leaf,
+                    _ => ServerPlatform.Paper
+                };
+
+                var provider = ServerProviderFactory.Get(platform);
+                var build = await provider.GetLatestBuildAsync(vm.SelectedVersion);
+
+                if (build == null)
+                {
+                    vm.StatusMessage = "未找到服务端构建";
+                    return;
+                }
+
+                var instance = InstanceManager.CreateInstance(
+                    name: vm.InstanceName,
+                    serverType: vm.ServerType,
+                    minecraftVersion: vm.SelectedVersion,
+                    jdkPath: javaPath,
+                    serverJar: build.FileName,
+                    minMemoryMb: vm.MinMemory,
+                    maxMemoryMb: vm.MaxMemory
+                );
+
+                vm.StatusMessage = "正在下载服务端...";
+                string jarPath = PathHelper.GetServerJarPath(instance.Id, build.FileName);
+                await provider.DownloadAsync(build, jarPath);
+
+                Instances.Add(new InstanceDisplayItem(instance));
+                
+                // 关闭对话框并显示成功消息
+                dialog.Hide();
+                StatusMessage = $"实例 \"{instance.Name}\" 创建成功";
+            }
+            catch (Exception ex)
+            {
+                vm.StatusMessage = $"创建失败: {ex.Message}";
+            }
+            finally
+            {
+                vm.IsCreating = false;
+            }
+        }
+
+        [RelayCommand]
+        private void ViewInstance(InstanceDisplayItem? item)
+        {
+            if (item == null) return;
+            _navigationParameterService.SetInstanceId(item.InstanceId);
+            _navigationService.Navigate(typeof(InstancePage));
+        }
+
         private void LoadAvailableJdks()
         {
             AvailableJdks.Clear();
@@ -84,7 +222,26 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 var instances = InstanceManager.GetAll();
                 foreach (var inst in instances)
                 {
-                    Instances.Add(new InstanceDisplayItem(inst));
+                    var item = new InstanceDisplayItem(inst);
+                    // 从 ServerProcessManager 恢复运行状态
+                    item.ServerProcess = ServerProcessManager.GetProcess(inst.Id);
+                    item.IsRunning = ServerProcessManager.IsRunning(inst.Id);
+                    
+                    // 如果有进程但 IsRunning 为 false，说明进程已退出但未清理
+                    if (item.ServerProcess != null && !item.IsRunning)
+                    {
+                        // 重新订阅退出事件
+                        item.ServerProcess.Exited += (_, code) =>
+                        {
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                item.IsRunning = false;
+                                StatusMessage = $"服务器已退出，代码: {code}";
+                            });
+                        };
+                    }
+                    
+                    Instances.Add(item);
                 }
                 StatusMessage = $"共 {instances.Count} 个实例";
             }
@@ -127,92 +284,28 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         [RelayCommand]
-        private async Task CreateNewInstanceAsync()
-        {
-            if (string.IsNullOrWhiteSpace(NewInstanceName))
-            {
-                StatusMessage = "请输入实例名称";
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(NewInstanceMinecraftVersion))
-            {
-                StatusMessage = "请选择 Minecraft 版本";
-                return;
-            }
-
-            try
-            {
-                StatusMessage = "正在创建实例...";
-
-                string? javaPath = null;
-
-                if (SelectedJdk != null && File.Exists(SelectedJdk.JavaPath))
-                {
-                    javaPath = SelectedJdk.JavaPath;
-                    StatusMessage = $"正在使用已选择的 JDK {SelectedJdk.MajorVersion}...";
-                }
-                else
-                {
-                    int jdkVersion = JdkManager.RecommendJdkVersion(NewInstanceMinecraftVersion);
-                    javaPath = JdkManager.GetJavaExecutable(jdkVersion);
-
-                    if (string.IsNullOrEmpty(javaPath))
-                    {
-                        StatusMessage = $"正在安装 JDK {jdkVersion}...";
-                        javaPath = await JdkManager.EnsureJdkAsync(jdkVersion);
-                    }
-                }
-
-                var platform = NewInstanceServerType.ToLowerInvariant() switch
-                {
-                    "paper" => ServerPlatform.Paper,
-                    "purpur" => ServerPlatform.Purpur,
-                    "leaves" => ServerPlatform.Leaves,
-                    "leaf" => ServerPlatform.Leaf,
-                    _ => ServerPlatform.Paper
-                };
-
-                var provider = ServerProviderFactory.Get(platform);
-                var build = await provider.GetLatestBuildAsync(NewInstanceMinecraftVersion);
-
-                if (build == null)
-                {
-                    StatusMessage = "未找到服务端构建";
-                    return;
-                }
-                var instance = InstanceManager.CreateInstance(
-                    name: NewInstanceName,
-                    serverType: NewInstanceServerType,
-                    minecraftVersion: NewInstanceMinecraftVersion,
-                    jdkPath: javaPath,
-                    serverJar: build.FileName,
-                    minMemoryMb: NewInstanceMinMemory,
-                    maxMemoryMb: NewInstanceMaxMemory
-                );
-
-                StatusMessage = "正在下载服务端...";
-                string jarPath = PathHelper.GetServerJarPath(instance.Id, build.FileName);
-                await provider.DownloadAsync(build, jarPath);
-
-                Instances.Add(new InstanceDisplayItem(instance));
-
-                NewInstanceName = "";
-                StatusMessage = $"实例 \"{instance.Name}\" 创建成功";
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = $"创建失败: {ex.Message}";
-            }
-        }
-
-        [RelayCommand]
-        private void DeleteInstance(InstanceDisplayItem? item)
+        private async Task DeleteInstanceAsync(InstanceDisplayItem? item)
         {
             if (item == null) return;
 
+            var dialog = new ContentDialog
+            {
+                Title = "确认删除",
+                Content = $"确定要删除实例 \"{item.Name}\" 吗？\n\n此操作将删除所有相关文件且不可恢复！",
+                PrimaryButtonText = "删除",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            var result = await _contentDialogService.ShowAsync(dialog, CancellationToken.None);
+
+            if (result != ContentDialogResult.Primary) return;
+
             try
             {
+                // 如果服务器正在运行，先强制终止
+                ServerProcessManager.KillAndRemove(item.InstanceId);
+
                 InstanceManager.DeleteInstance(item.InstanceId, deleteFiles: true);
                 Instances.Remove(item);
                 StatusMessage = "实例已删除";
@@ -230,16 +323,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             try
             {
-                if (item.ServerProcess != null && item.ServerProcess.IsRunning)
+                // 检查 ServerProcessManager 中是否已有运行中的进程
+                if (ServerProcessManager.IsRunning(item.InstanceId))
                 {
                     StatusMessage = "服务器已在运行";
                     return;
                 }
 
-                item.ServerProcess?.Dispose();
-                item.ServerProcess = new ServerProcess(item.InstanceId);
+                // 获取或创建进程
+                var existingProcess = ServerProcessManager.GetProcess(item.InstanceId);
+                if (existingProcess != null)
+                {
+                    existingProcess.Dispose();
+                }
 
-                item.ServerProcess.OutputReceived += (_, line) =>
+                var process = new ServerProcess(item.InstanceId);
+
+                process.OutputReceived += (_, line) =>
                 {
                     Application.Current.Dispatcher.Invoke(() =>
                     {
@@ -247,7 +347,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     });
                 };
 
-                item.ServerProcess.Exited += (_, code) =>
+                process.Exited += (_, code) =>
                 {
                     Application.Current.Dispatcher.Invoke(() =>
                     {
@@ -256,7 +356,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     });
                 };
 
-                item.ServerProcess.Start();
+                process.Start();
+                
+                // 注册到全局管理器
+                ServerProcessManager.Register(item.InstanceId, process);
+                item.ServerProcess = process;
                 item.IsRunning = true;
                 StatusMessage = "服务器已启动";
             }
@@ -269,17 +373,38 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private void StopInstance(InstanceDisplayItem? item)
         {
-            if (item == null || item.ServerProcess == null || !item.ServerProcess.IsRunning) return;
+            if (item == null) return;
+
+            var process = item.ServerProcess ?? ServerProcessManager.GetProcess(item.InstanceId);
+            if (process == null || !process.IsRunning) return;
 
             try
             {
-                item.ServerProcess.Stop();
+                process.Stop();
                 item.IsRunning = false;
                 StatusMessage = "正在停止服务器...";
             }
             catch (Exception ex)
             {
                 StatusMessage = $"停止失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private void TerminateInstance(InstanceDisplayItem? item)
+        {
+            if (item == null) return;
+
+            try
+            {
+                ServerProcessManager.KillAndRemove(item.InstanceId);
+                item.IsRunning = false;
+                item.ServerProcess = null;
+                StatusMessage = "服务器已被强制终止";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"终止失败: {ex.Message}";
             }
         }
 
@@ -310,13 +435,28 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public string StatusText => IsRunning ? "运行中" : "已停止";
 
         public string StatusColor => IsRunning ? "#4CAF50" : "#9E9E9E";
+
+        // 当 IsRunning 改变时，通知 StatusText 和 StatusColor 也改变了
+        partial void OnIsRunningChanged(bool value)
+        {
+            OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(StatusColor));
+        }
     }
 
-    public class JdkDisplayItem(InstalledJdk jdk)
+    public class JdkDisplayItem
     {
-        public string DisplayName { get; } = $"{jdk.Distribution} JDK {jdk.MajorVersion} ({jdk.Architecture})";
-        public string JavaPath { get; } = jdk.JavaExecutable;
-        public int MajorVersion { get; } = jdk.MajorVersion;
-        public string Distribution { get; } = jdk.Distribution.ToString();
+        public string DisplayName { get; }
+        public string JavaPath { get; }
+        public int MajorVersion { get; }
+        public string Distribution { get; }
+
+        public JdkDisplayItem(InstalledJdk jdk)
+        {
+            DisplayName = $"{jdk.Distribution} JDK {jdk.MajorVersion} ({jdk.Architecture})";
+            JavaPath = jdk.JavaExecutable;
+            MajorVersion = jdk.MajorVersion;
+            Distribution = jdk.Distribution.ToString();
+        }
     }
 }

@@ -18,6 +18,14 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         [ObservableProperty]
         private ObservableCollection<MenuItem> _trayMenuItems;
 
+        [ObservableProperty]
+        private int _downloadTaskCount = 0;
+
+        /// <summary>
+        /// 下载任务导航项（用于显示角标）
+        /// </summary>
+        private Wpf.Ui.Controls.NavigationViewItem? _downloadTasksNavItem;
+
         public MainWindowViewModel()
         {
             _menuItems =
@@ -64,10 +72,28 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
                 }
             ];
 
+            // 保存下载任务导航项的引用以便更新角标
+            _downloadTasksNavItem = _footerMenuItems[0] as Wpf.Ui.Controls.NavigationViewItem;
+
             _trayMenuItems =
             [
                 new MenuItem { Header = "主页", Tag = "tray_home" }
             ];
+        }
+
+        /// <summary>
+        /// 更新下载任务角标显示
+        /// </summary>
+        /// <param name="count">当前进行中的任务数</param>
+        public void UpdateDownloadTaskBadge(int count)
+        {
+            DownloadTaskCount = count;
+            if (_downloadTasksNavItem != null)
+            {
+                _downloadTasksNavItem.Content = count > 0 
+                    ? $"下载任务 ({count})" 
+                    : "下载任务";
+            }
         }
 
         /// <summary>

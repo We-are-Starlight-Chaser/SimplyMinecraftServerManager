@@ -26,6 +26,7 @@
       <helpers:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
       <helpers:JdkStatusToBackgroundConverter x:Key="JdkStatusToBackgroundConverter"/>
       <helpers:JdkStatusToForegroundConverter x:Key="JdkStatusToForegroundConverter"/>
+      <helpers:RunningToIconConverter x:Key="RunningToIconConverter"/>
     </ResourceDictionary>
   </Application.Resources>
 </Application>

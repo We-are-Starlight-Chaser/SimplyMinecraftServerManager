@@ -7,12 +7,17 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
     /// Azul Zulu JDK 提供者。
     /// https://api.azul.com/metadata/v1/zulu/packages/
     /// </summary>
-    public class ZuluProvider(HttpClient? httpClient = null) : IJdkProvider
+    public class ZuluProvider : IJdkProvider
     {
         private const string BaseUrl = "https://api.azul.com/metadata/v1/zulu/packages/";
-        private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
+        private readonly HttpClient _http;
 
         public JdkDistribution Distribution => JdkDistribution.Zulu;
+
+        public ZuluProvider(HttpClient? httpClient = null)
+        {
+            _http = httpClient ?? CreateDefaultClient();
+        }
 
         // ────────── 可用版本 ──────────
 

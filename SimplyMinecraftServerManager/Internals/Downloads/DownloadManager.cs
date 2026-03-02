@@ -10,7 +10,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     public sealed class DownloadManager : IDisposable
     {
-        private static readonly Lock _defaultLock = new();
+        private static readonly object _defaultLock = new();
         private static DownloadManager? _default;
 
         public static DownloadManager Default
@@ -40,6 +40,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         private readonly HttpClient _httpClient;
         private readonly bool _ownsHttpClient;
         private readonly ConcurrentDictionary<string, DownloadTask> _tasks = new();
+        private readonly ConcurrentDictionary<string, bool> _pausedTasks = new();
         private const int BufferSize = 81920;
 
         private volatile SemaphoreSlim _semaphore;
@@ -51,8 +52,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
         public int MaxConcurrentDownloads => _maxConcurrent;
 
-        private static readonly string[] AllowedHosts =
-        [
+        private static readonly string[] AllowedHosts = new[]
+        {
             "api.papermc.io",
             "papermc.io",
             "download.mojang.com",
@@ -66,7 +67,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             "adoptium.net",
             "azul.com",
             "zulu.org"
-        ];
+        };
 
         private static readonly ConcurrentDictionary<string, Func<HashAlgorithm>> HashAlgorithmFactories = new()
         {
@@ -220,12 +221,70 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             }
         }
 
+        // 暂停
+
+        public void Pause(string taskId)
+        {
+            if (_tasks.TryGetValue(taskId, out var task) && task.Status == DownloadStatus.Downloading)
+            {
+                task.PausedPosition = task.BytesDownloaded;
+                _pausedTasks[taskId] = true;  // 标记为暂停
+                task.Status = DownloadStatus.Paused;
+                RaiseProgress(task, 0, isPaused: true);
+            }
+        }
+
+        public void PauseAll()
+        {
+            foreach (var task in _tasks.Values)
+            {
+                if (task.Status == DownloadStatus.Downloading)
+                {
+                    task.PausedPosition = task.BytesDownloaded;
+                    _pausedTasks[task.Id] = true;  // 标记为暂停
+                    task.Status = DownloadStatus.Paused;
+                    RaiseProgress(task, 0, isPaused: true);
+                }
+            }
+        }
+
+        // 继续
+
+        public async Task ResumeAsync(string taskId)
+        {
+            if (_tasks.TryGetValue(taskId, out var task) && task.Status == DownloadStatus.Paused)
+            {
+                _pausedTasks.TryRemove(taskId, out _);  // 移除暂停标记
+                
+                // 创建新的 CancellationTokenSource 以便可以再次取消
+                task.Cts.Dispose();
+                task.Cts = new CancellationTokenSource();
+                
+                var semaphore = _semaphore;
+                _ = Task.Run(() => ExecuteAsync(task, semaphore));
+            }
+        }
+
+        public async Task ResumeAllAsync()
+        {
+            var pausedTasks = _tasks.Values.Where(t => t.Status == DownloadStatus.Paused).ToList();
+            foreach (var task in pausedTasks)
+            {
+                task.Cts.Dispose();
+                task.Cts = new CancellationTokenSource();
+                
+                var semaphore = _semaphore;
+                _ = Task.Run(() => ExecuteAsync(task, semaphore));
+            }
+        }
+
         public void ClearFinished()
         {
             var toRemove = _tasks.Values
                 .Where(t => t.Status is DownloadStatus.Completed
                     or DownloadStatus.Failed
-                    or DownloadStatus.Cancelled)
+                    or DownloadStatus.Cancelled
+                    or DownloadStatus.Paused)
                 .Select(t => t.Id)
                 .ToList();
 
@@ -250,24 +309,44 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
                 string tempPath = task.DestinationPath + ".smsmtmp";
 
-                using var response = await _httpClient.GetAsync(
-                    task.Url, HttpCompletionOption.ResponseHeadersRead, task.Cts.Token);
+                // 检查是否支持断点续传
+                bool supportsResume = task.PausedPosition > 0 && File.Exists(tempPath);
+                var request = new HttpRequestMessage(HttpMethod.Get, task.Url);
+                if (supportsResume)
+                {
+                    request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(task.PausedPosition, null);
+                }
+
+                using var response = await _httpClient.SendAsync(
+                    request, HttpCompletionOption.ResponseHeadersRead, task.Cts.Token);
 
                 response.EnsureSuccessStatusCode();
 
+                // 检测是否支持断点续传（检查 Accept-Ranges 头）
+                var acceptRangesHeader = response.Headers.FirstOrDefault(h => 
+                    h.Key.Equals("Accept-Ranges", StringComparison.OrdinalIgnoreCase));
+                task.IsResumable = acceptRangesHeader.Value?.FirstOrDefault() == "bytes" 
+                    || response.StatusCode == System.Net.HttpStatusCode.PartialContent;
+
                 task.TotalBytes = response.Content.Headers.ContentLength ?? -1;
+                if (task.IsResumable && task.PausedPosition > 0 && task.TotalBytes > 0)
+                {
+                    task.TotalBytes += task.PausedPosition;
+                }
 
                 await using var contentStream =
                     await response.Content.ReadAsStreamAsync(task.Cts.Token);
 
                 {
+                    // 如果支持断点续传且有暂停位置，则追加写入；否则创建新文件
+                    var fileMode = (supportsResume && task.PausedPosition > 0) ? FileMode.Append : FileMode.Create;
                     await using var fileStream = new FileStream(
-                        tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
+                        tempPath, fileMode, FileAccess.Write, FileShare.None,
                         BufferSize, useAsync: true);
 
                     var buffer = new byte[BufferSize];
                     var sw = Stopwatch.StartNew();
-                    long lastReportedBytes = 0;
+                    long lastReportedBytes = task.PausedPosition;
                     long lastReportTime = 0;
                     long speed = 0;
 
@@ -275,6 +354,16 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                     while ((bytesRead = await contentStream.ReadAsync(
                         buffer.AsMemory(0, BufferSize), task.Cts.Token)) > 0)
                     {
+                        // 检查是否被暂停
+                        if (_pausedTasks.ContainsKey(task.Id))
+                        {
+                            // 暂停下载
+                            task.Status = DownloadStatus.Paused;
+                            _pausedTasks.TryRemove(task.Id, out _);
+                            RaiseProgress(task, 0, isPaused: true);
+                            return task;
+                        }
+
                         await fileStream.WriteAsync(
                             buffer.AsMemory(0, bytesRead), task.Cts.Token);
                         task.BytesDownloaded += bytesRead;
@@ -347,7 +436,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         }
 
         private void RaiseProgress(DownloadTask task, long speed,
-            bool isCompleted = false, bool isFailed = false, string? errorMessage = null)
+            bool isCompleted = false, bool isFailed = false, bool isPaused = false, string? errorMessage = null)
         {
             ProgressChanged?.Invoke(this, new DownloadProgressInfo
             {
@@ -358,6 +447,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 SpeedBytesPerSecond = speed,
                 IsCompleted = isCompleted,
                 IsFailed = isFailed,
+                IsPaused = isPaused,
                 ErrorMessage = errorMessage ?? task.ErrorMessage
             });
         }

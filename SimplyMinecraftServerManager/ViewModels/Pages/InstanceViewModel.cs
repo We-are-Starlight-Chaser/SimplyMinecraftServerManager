@@ -1,4 +1,5 @@
 using SimplyMinecraftServerManager.Internals;
+using SimplyMinecraftServerManager.Services;
 using System.Collections.ObjectModel;
 using System.Text;
 using Wpf.Ui;
@@ -9,6 +10,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     public partial class InstanceViewModel : ObservableObject, INavigationAware
     {
         private readonly INavigationService _navigationService;
+        private readonly NavigationParameterService _navigationParameterService;
         private readonly StringBuilder _consoleBuilder = new();
         private const int MaxConsoleLines = 1000;
         private int _lineCount = 0;
@@ -20,7 +22,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private InstanceInfo? _instanceInfo;
 
         [ObservableProperty]
-        private string _instanceName = "";
+        private string _instanceName = "加载中...";
+
+        [ObservableProperty]
+        private string _serverType = "";
+
+        [ObservableProperty]
+        private string _minecraftVersion = "";
 
         [ObservableProperty]
         private bool _isRunning = false;
@@ -52,14 +60,20 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private ServerProcess? _serverProcess;
 
-        public InstanceViewModel(INavigationService navigationService)
+        public InstanceViewModel(INavigationService navigationService, NavigationParameterService navigationParameterService)
         {
             _navigationService = navigationService;
+            _navigationParameterService = navigationParameterService;
         }
 
         public async Task OnNavigatedToAsync()
         {
-            // 从导航参数获取实例 ID
+            // 从导航参数服务获取实例 ID
+            var instanceId = _navigationParameterService.GetAndClearInstanceId();
+            if (!string.IsNullOrEmpty(instanceId))
+            {
+                LoadInstance(instanceId);
+            }
             await Task.CompletedTask;
         }
 
@@ -71,15 +85,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             var info = InstanceManager.GetById(instanceId);
             if (info == null)
             {
+                InstanceName = "实例不存在";
                 StatusMessage = "实例不存在";
                 return;
             }
 
             InstanceInfo = info;
             InstanceName = info.Name;
+            ServerType = info.ServerType;
+            MinecraftVersion = info.MinecraftVersion;
             EditMinMemory = info.MinMemoryMb.ToString();
             EditMaxMemory = info.MaxMemoryMb.ToString();
             EditJdkPath = info.JdkPath;
+            StatusMessage = $"{info.ServerType} - Minecraft {info.MinecraftVersion}";
 
             LoadPlugins();
             LoadServerProperties();
@@ -185,6 +203,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             catch (Exception ex)
             {
                 StatusMessage = $"停止失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private void TerminateServer()
+        {
+            if (!IsRunning || _serverProcess == null) return;
+
+            try
+            {
+                _serverProcess.Kill();
+                IsRunning = false;
+                StatusMessage = "服务器已被强制终止";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"终止失败: {ex.Message}";
             }
         }
 

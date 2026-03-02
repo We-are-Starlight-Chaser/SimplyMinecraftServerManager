@@ -1,6 +1,6 @@
 ﻿namespace SimplyMinecraftServerManager.Internals
 {
-    public record class AppConfig
+    public class AppConfig
     {
         public string DefaultJdkPath { get; set; } = "";
         public string Language { get; set; } = "zh-CN";

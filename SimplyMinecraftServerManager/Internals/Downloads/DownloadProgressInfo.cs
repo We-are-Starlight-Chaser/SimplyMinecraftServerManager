@@ -30,6 +30,9 @@
         /// <summary>是否失败</summary>
         public bool IsFailed { get; init; }
 
+        /// <summary>是否已暂停</summary>
+        public bool IsPaused { get; init; }
+
         /// <summary>错误信息</summary>
         public string? ErrorMessage { get; init; }
     }

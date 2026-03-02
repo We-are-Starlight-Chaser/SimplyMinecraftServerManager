@@ -3,7 +3,7 @@
     /// <summary>
     /// 从插件 JAR 内的 plugin.yml 提取的元信息。
     /// </summary>
-    public record class PluginInfo
+    public class PluginInfo
     {
         /// <summary>插件名称 (plugin.yml → name)</summary>
         public string Name { get; set; } = "";

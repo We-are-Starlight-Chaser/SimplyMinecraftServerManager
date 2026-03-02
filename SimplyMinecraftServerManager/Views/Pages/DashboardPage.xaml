@@ -31,7 +31,7 @@
                 <!-- Logo -->
                 <Border Grid.Column="0" Width="80" Height="80" CornerRadius="12" 
                     Background="{DynamicResource AccentFillColorDefaultBrush}" Margin="0,0,24,0">
-                    <Image Source="pack://application:,,,/Assets/Pictures/SMSM-icon-256.jpg" 
+                    <Image Source="pack://application:,,,/Assets/wpfui-icon-256.png" 
                         Width="64" Height="64"/>
                 </Border>
 

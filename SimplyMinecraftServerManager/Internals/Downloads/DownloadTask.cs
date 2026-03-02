@@ -7,6 +7,7 @@
     {
         Pending,
         Downloading,
+        Paused,
         Completed,
         Failed,
         Cancelled
@@ -48,7 +49,13 @@
         public string? ErrorMessage { get; internal set; }
 
         /// <summary>取消令牌</summary>
-        public CancellationTokenSource Cts { get; } = new();
+        public CancellationTokenSource Cts { get; internal set; } = new();
+
+        /// <summary>暂停时已下载的字节位置，用于恢复下载</summary>
+        public long PausedPosition { get; internal set; }
+
+        /// <summary>是否支持断点续传（服务器支持 Range 请求）</summary>
+        public bool IsResumable { get; internal set; }
 
         /// <summary>开始时间</summary>
         public DateTime? StartTime { get; internal set; }
