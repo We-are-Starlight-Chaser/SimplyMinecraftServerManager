@@ -8,10 +8,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     /// 支持搜索插件、获取项目详情、版本列表、下载。
     /// https://docs.modrinth.com/api/
     /// </summary>
-    public class ModrinthProvider
+    public class ModrinthProvider(HttpClient? httpClient = null)
     {
         private const string BaseUrl = "https://api.modrinth.com/v2";
-        private readonly HttpClient _http;
+        private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
 
         // JSON 选项：Modrinth 返回 snake_case
         private static readonly JsonSerializerOptions JsonOptions = new()
@@ -19,11 +19,6 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
             PropertyNameCaseInsensitive = true
         };
-
-        public ModrinthProvider(HttpClient? httpClient = null)
-        {
-            _http = httpClient ?? CreateDefaultClient();
-        }
 
         // 搜索
 
@@ -194,7 +189,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         /// <summary>
         /// 下载指定版本的主文件到目标路径。
         /// </summary>
-        public async Task<DownloadTask> DownloadVersionAsync(
+        public static async Task<DownloadTask> DownloadVersionAsync(
             ModrinthVersion version,
             string destinationPath,
             DownloadManager? downloadManager = null,
@@ -210,7 +205,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         /// <summary>
         /// 下载指定文件。
         /// </summary>
-        public async Task<DownloadTask> DownloadFileAsync(
+        public static async Task<DownloadTask> DownloadFileAsync(
             ModrinthFile file,
             string destinationPath,
             string? displayName = null,
@@ -263,7 +258,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             // 搜索
             var searchResult = await SearchAsync(
                 query,
-                loaders: loaders ?? new[] { "bukkit", "spigot", "paper", "purpur" },
+                loaders: loaders ?? ["bukkit", "spigot", "paper", "purpur"],
                 gameVersions: mcVersion != null ? new[] { mcVersion } : null,
                 projectType: "plugin",
                 limit: 1,
@@ -277,7 +272,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             // 获取版本
             var versions = await GetVersionsAsync(
                 project.ProjectId,
-                loaders: loaders ?? new[] { "bukkit", "spigot", "paper", "purpur" },
+                loaders: loaders ?? ["bukkit", "spigot", "paper", "purpur"],
                 gameVersions: mcVersion != null ? new[] { mcVersion } : null,
                 ct: ct);
 
@@ -322,16 +317,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
             if (elem.TryGetProperty("versions", out var versions))
             {
-                project.GameVersions = versions.EnumerateArray()
-                    .Select(v => v.GetString()!)
-                    .ToList();
+                project.GameVersions = [.. versions.EnumerateArray().Select(v => v.GetString()!)];
             }
 
             if (elem.TryGetProperty("categories", out var cats))
             {
-                project.Loaders = cats.EnumerateArray()
-                    .Select(c => c.GetString()!)
-                    .ToList();
+                project.Loaders = [.. cats.EnumerateArray().Select(c => c.GetString()!)];
             }
 
             // display_categories 中也可能有加载器信息
@@ -368,14 +359,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
             if (elem.TryGetProperty("game_versions", out var gv))
             {
-                project.GameVersions = gv.EnumerateArray()
-                    .Select(v => v.GetString()!).ToList();
+                project.GameVersions = [.. gv.EnumerateArray().Select(v => v.GetString()!)];
             }
 
             if (elem.TryGetProperty("loaders", out var loaders))
             {
-                project.Loaders = loaders.EnumerateArray()
-                    .Select(l => l.GetString()!).ToList();
+                project.Loaders = [.. loaders.EnumerateArray().Select(l => l.GetString()!)];
             }
 
             return project;
@@ -397,14 +386,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
             if (elem.TryGetProperty("game_versions", out var gv))
             {
-                version.GameVersions = gv.EnumerateArray()
-                    .Select(v => v.GetString()!).ToList();
+                version.GameVersions = [.. gv.EnumerateArray().Select(v => v.GetString()!)];
             }
 
             if (elem.TryGetProperty("loaders", out var loaders))
             {
-                version.Loaders = loaders.EnumerateArray()
-                    .Select(l => l.GetString()!).ToList();
+                version.Loaders = [.. loaders.EnumerateArray().Select(l => l.GetString()!)];
             }
 
             if (elem.TryGetProperty("files", out var files))

@@ -68,10 +68,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                if (item != null)
-                {
-                    item.UpdateFromTask(task);
-                }
+                item?.UpdateFromTask(task);
                 UpdateCounts();
             });
         }
@@ -81,10 +78,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                if (item != null)
-                {
-                    item.UpdateFromTask(task);
-                }
+                item?.UpdateFromTask(task);
                 UpdateCounts();
             });
         }

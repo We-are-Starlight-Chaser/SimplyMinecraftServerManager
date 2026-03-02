@@ -3,15 +3,11 @@ using System.Text.RegularExpressions;
 
 namespace SimplyMinecraftServerManager.Internals
 {
-    public static class SecurityHelper
+    public static partial class SecurityHelper
     {
-        private static readonly Regex ValidInstanceNameRegex = new(
-            @"^[a-zA-Z0-9_\-\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af ]{1,64}$",
-            RegexOptions.Compiled);
+        private static readonly Regex ValidInstanceNameRegex = ValidInstanceNameRegexPG();
 
-        private static readonly Regex SafePathRegex = new(
-            @"^[a-zA-Z0-9_\-\.]+$",
-            RegexOptions.Compiled);
+        private static readonly Regex SafePathRegex = SafeRegex();
 
         public static bool IsValidInstanceName(string name)
         {
@@ -37,8 +33,8 @@ namespace SimplyMinecraftServerManager.Internals
             if (string.IsNullOrWhiteSpace(args)) return true;
             if (args.Length > 4096) return false;
 
-            string[] dangerousPatterns = new[]
-            {
+            string[] dangerousPatterns =
+            [
                 "--add-opens",
                 "--add-exports",
                 "-XX:+IgnoreUnrecognizedVMOptions",
@@ -47,12 +43,12 @@ namespace SimplyMinecraftServerManager.Internals
                 "--module-path",
                 "-cp ",
                 "-classpath"
-            };
+            ];
 
             string lowerArgs = args.ToLowerInvariant();
             foreach (var pattern in dangerousPatterns)
             {
-                if (lowerArgs.Contains(pattern.ToLowerInvariant()))
+                if (lowerArgs.Contains(pattern, StringComparison.InvariantCultureIgnoreCase))
                 {
                     return false;
                 }
@@ -78,7 +74,7 @@ namespace SimplyMinecraftServerManager.Internals
             if (string.IsNullOrWhiteSpace(path)) return false;
 
             path = path.Replace('\\', '/');
-            return path.Contains("..") || path.StartsWith("/") || path.Contains(":/") || path.Contains(":\\");
+            return path.Contains("..") || path.StartsWith('/') || path.Contains(":/") || path.Contains(":\\");
         }
 
         public static string ValidateAndNormalizePath(string inputPath, string baseDirectory)
@@ -97,5 +93,10 @@ namespace SimplyMinecraftServerManager.Internals
 
             return fullPath;
         }
+
+        [GeneratedRegex(@"^[a-zA-Z0-9_\-\.]+$", RegexOptions.Compiled)]
+        private static partial Regex SafeRegex();
+        [GeneratedRegex(@"^[a-zA-Z0-9_\-\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af ]{1,64}$", RegexOptions.Compiled)]
+        private static partial Regex ValidInstanceNameRegexPG();
     }
 }

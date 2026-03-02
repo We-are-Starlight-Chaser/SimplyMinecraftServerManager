@@ -8,17 +8,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     /// API 兼容 PaperMC v2 格式。
     /// https://api.leavesmc.org/v2/projects/leaves
     /// </summary>
-    public class LeavesProvider : IServerProvider
+    public class LeavesProvider(HttpClient? httpClient = null) : IServerProvider
     {
         private const string BaseUrl = "https://api.leavesmc.org/v2/projects/leaves";
-        private readonly HttpClient _http;
+        private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
 
         public ServerPlatform Platform => ServerPlatform.Leaves;
-
-        public LeavesProvider(HttpClient? httpClient = null)
-        {
-            _http = httpClient ?? CreateDefaultClient();
-        }
 
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {

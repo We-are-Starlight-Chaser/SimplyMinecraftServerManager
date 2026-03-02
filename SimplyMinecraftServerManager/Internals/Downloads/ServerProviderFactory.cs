@@ -6,7 +6,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     {
         private static HttpClient? _sharedClient;
         private static readonly Dictionary<ServerPlatform, IServerProvider> _cache = [];
-        private static readonly object _lock = new();
+        private static readonly Lock _lock = new();
 
         private static HttpClient SharedClient
         {

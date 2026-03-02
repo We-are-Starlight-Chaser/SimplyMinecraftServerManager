@@ -106,7 +106,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             StatusMessage = "已重置为默认值（需点击保存）";
         }
 
-        private string GetAssemblyVersion()
+        private static string GetAssemblyVersion()
         {
             return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString()
                 ?? String.Empty;

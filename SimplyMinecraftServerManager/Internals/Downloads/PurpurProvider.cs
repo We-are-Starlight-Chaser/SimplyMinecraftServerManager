@@ -7,17 +7,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     /// Purpur 服务端提供者。
     /// https://api.purpurmc.org/v2/purpur
     /// </summary>
-    public class PurpurProvider : IServerProvider
+    public class PurpurProvider(HttpClient? httpClient = null) : IServerProvider
     {
         private const string BaseUrl = "https://api.purpurmc.org/v2/purpur";
-        private readonly HttpClient _http;
+        private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
 
         public ServerPlatform Platform => ServerPlatform.Purpur;
-
-        public PurpurProvider(HttpClient? httpClient = null)
-        {
-            _http = httpClient ?? CreateDefaultClient();
-        }
 
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {
