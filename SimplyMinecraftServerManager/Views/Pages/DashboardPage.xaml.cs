@@ -14,6 +14,6 @@ namespace SimplyMinecraftServerManager.Views.Pages
 
             InitializeComponent();
         }
-        
+
     }
 }

@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace SimplyMinecraftServerManager.Internals.Downloads
+﻿namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     /// <summary>
     /// 下载进度信息。

@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace SimplyMinecraftServerManager.Internals
+﻿namespace SimplyMinecraftServerManager.Internals
 {
     /// <summary>
     /// 单个服务器实例的元信息 POCO，持久化到 instances.toml。
@@ -44,6 +42,6 @@ namespace SimplyMinecraftServerManager.Internals
     /// </summary>
     internal class InstancesFileModel
     {
-        public List<InstanceInfo> Instances { get; set; } = new();
+        public List<InstanceInfo> Instances { get; set; } = [];
     }
 }

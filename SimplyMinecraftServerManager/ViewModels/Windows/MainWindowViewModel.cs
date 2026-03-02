@@ -1,5 +1,5 @@
-using System.Collections.ObjectModel;
 using SimplyMinecraftServerManager.Internals;
+using System.Collections.ObjectModel;
 using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Windows
@@ -20,8 +20,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
 
         public MainWindowViewModel()
         {
-            _menuItems = new ObservableCollection<object>
-            {
+            _menuItems =
+            [
                 new NavigationViewItem()
                 {
                     Content = "主页",
@@ -46,10 +46,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
                     Icon = new SymbolIcon { Symbol = SymbolRegular.DeveloperBoard24 },
                     TargetPageType = typeof(Views.Pages.JdkPage)
                 }
-            };
+            ];
 
-            _footerMenuItems = new ObservableCollection<object>
-            {
+            _footerMenuItems =
+            [
                 new NavigationViewItem()
                 {
                     Content = "下载任务",
@@ -62,12 +62,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
                     Icon = new SymbolIcon { Symbol = SymbolRegular.Settings24 },
                     TargetPageType = typeof(Views.Pages.SettingsPage)
                 }
-            };
+            ];
 
-            _trayMenuItems = new ObservableCollection<MenuItem>
-            {
+            _trayMenuItems =
+            [
                 new MenuItem { Header = "主页", Tag = "tray_home" }
-            };
+            ];
         }
 
         /// <summary>

@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -27,7 +24,7 @@ namespace SimplyMinecraftServerManager.Internals
         {
             string pluginsDir = PathHelper.GetPluginsDir(instanceId);
             if (!Directory.Exists(pluginsDir))
-                return new List<PluginInfo>();
+                return [];
 
             var result = new List<PluginInfo>();
 
@@ -193,14 +190,14 @@ namespace SimplyMinecraftServerManager.Internals
         private static List<string> GetStringList(Dictionary<string, object> dict, string key)
         {
             if (!dict.TryGetValue(key, out object? value))
-                return new List<string>();
+                return [];
 
             if (value is IList<object> list)
                 return list.Select(o => o?.ToString() ?? "").Where(s => s.Length > 0).ToList();
 
             // 有时写成单个字符串
             string? s = value?.ToString();
-            return string.IsNullOrEmpty(s) ? new List<string>() : new List<string> { s };
+            return string.IsNullOrEmpty(s) ? [] : [s];
         }
     }
 }

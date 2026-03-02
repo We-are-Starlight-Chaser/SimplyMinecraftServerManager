@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace SimplyMinecraftServerManager.Internals.Downloads
+﻿namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     /// <summary>
     /// Modrinth 搜索结果中的单个项目。
@@ -35,10 +33,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         public int Follows { get; set; }
 
         /// <summary>支持的 Minecraft 版本</summary>
-        public List<string> GameVersions { get; set; } = new();
+        public List<string> GameVersions { get; set; } = [];
 
         /// <summary>支持的加载器 (bukkit / spigot / paper / purpur …)</summary>
-        public List<string> Loaders { get; set; } = new();
+        public List<string> Loaders { get; set; } = [];
 
         /// <summary>服务端/客户端支持</summary>
         public string ServerSide { get; set; } = ""; // required / optional / unsupported
@@ -56,7 +54,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     /// </summary>
     public class ModrinthSearchResponse
     {
-        public List<ModrinthProject> Hits { get; set; } = new();
+        public List<ModrinthProject> Hits { get; set; } = [];
         public int Offset { get; set; }
         public int Limit { get; set; }
         public int TotalHits { get; set; }

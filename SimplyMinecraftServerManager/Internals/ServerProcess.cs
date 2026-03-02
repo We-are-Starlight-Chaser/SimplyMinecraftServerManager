@@ -1,5 +1,3 @@
-using System;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -7,13 +5,13 @@ using System.Text;
 
 namespace SimplyMinecraftServerManager.Internals
 {
-    public class ServerProcess : IDisposable
+    public partial class ServerProcess(string instanceId) : IDisposable
     {
         private Process? _process;
         private bool _disposed;
         private IntPtr _jobHandle = IntPtr.Zero;
 
-        public string InstanceId { get; }
+        public string InstanceId { get; } = instanceId;
 
         public bool IsRunning => _process is { HasExited: false };
 
@@ -21,25 +19,23 @@ namespace SimplyMinecraftServerManager.Internals
         public event EventHandler<string>? ErrorReceived;
         public event EventHandler<int>? Exited;
 
-        public ServerProcess(string instanceId)
-        {
-            InstanceId = instanceId;
-        }
+        [LibraryImport("kernel32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+        private static partial IntPtr CreateJobObjectA(IntPtr lpJobAttributes, string lpName);
 
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        private static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
+        [LibraryImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool SetInformationJobObject(IntPtr hJob, uint JobObjectInfoClass, IntPtr lpInfo, uint cbInfo);
 
-        [DllImport("kernel32.dll")]
-        private static extern bool SetJobObjectLimits(IntPtr hJob, uint JobObjectInfoClass, IntPtr lpInfo, uint cbInfo);
+        [LibraryImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
 
-        [DllImport("kernel32.dll")]
-        private static extern bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
+        [LibraryImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool CloseHandle(IntPtr hObject);
 
-        [DllImport("kernel32.dll")]
-        private static extern bool CloseHandle(IntPtr hObject);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern uint GetLastError();
+        [LibraryImport("kernel32.dll", SetLastError = true)]
+        private static partial uint GetLastError();
 
         private const uint JOB_OBJECT_LIMIT_PROCESS_TIME = 0x00000002;
         private const uint JOB_OBJECT_LIMIT_MEMORY = 0x00000001;
@@ -84,7 +80,7 @@ namespace SimplyMinecraftServerManager.Internals
 
         private void CreateJobObject()
         {
-            _jobHandle = CreateJobObject(IntPtr.Zero, $"SMSM_{InstanceId}_{Guid.NewGuid():N}");
+            _jobHandle = CreateJobObjectA(IntPtr.Zero, $"SMSM_{InstanceId}_{Guid.NewGuid():N}");
             if (_jobHandle == IntPtr.Zero)
             {
                 throw new InvalidOperationException($"Failed to create job object: {GetLastError()}");
@@ -103,7 +99,7 @@ namespace SimplyMinecraftServerManager.Internals
             try
             {
                 Marshal.StructureToPtr(limitInfo, limitInfoPtr, false);
-                if (!SetJobObjectLimits(_jobHandle, JobObjectExtendedLimitInformation, limitInfoPtr, (uint)size))
+                if (!SetInformationJobObject(_jobHandle, JobObjectExtendedLimitInformation, limitInfoPtr, (uint)size))
                 {
                     throw new InvalidOperationException($"Failed to set job object limits: {GetLastError()}");
                 }
@@ -126,7 +122,7 @@ namespace SimplyMinecraftServerManager.Internals
             if (string.IsNullOrWhiteSpace(javaPath))
                 throw new InvalidOperationException("JDK path is not configured.");
 
-            if (SecurityHelper.IsPathTraversal(javaPath))
+            if (!SecurityHelper.IsPathTraversal(javaPath))
                 throw new InvalidOperationException("Invalid JDK path");
 
             string workDir = PathHelper.GetInstanceDir(InstanceId);

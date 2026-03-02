@@ -1,6 +1,6 @@
-using System.Collections.ObjectModel;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
+using System.Collections.ObjectModel;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
@@ -14,10 +14,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _statisticsText = "";
 
         [ObservableProperty]
-        private ObservableCollection<QuickInstanceItem> _recentInstances = new();
+        private ObservableCollection<QuickInstanceItem> _recentInstances = [];
 
         [ObservableProperty]
-        private ObservableCollection<string> _announcements = new();
+        private ObservableCollection<string> _announcements = [];
 
         [ObservableProperty]
         private string _jdkStatus = "";

@@ -1,8 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace SimplyMinecraftServerManager.Internals.Downloads
+﻿namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     /// <summary>
     /// 服务端下载提供者统一接口。

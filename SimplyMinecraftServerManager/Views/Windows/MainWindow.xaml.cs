@@ -26,7 +26,7 @@ namespace SimplyMinecraftServerManager.Views.Windows
             SetPageService(navigationViewPageProvider);
 
             navigationService.SetNavigationControl(RootNavigation);
-            
+
             // 设置对话框宿主
             contentDialogService.SetDialogHost(RootContentDialogPresenter);
         }

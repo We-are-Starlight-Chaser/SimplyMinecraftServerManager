@@ -1,13 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net.Http;
+﻿using System.Net.Http;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     public static class ServerProviderFactory
     {
         private static HttpClient? _sharedClient;
-        private static readonly Dictionary<ServerPlatform, IServerProvider> _cache = new();
+        private static readonly Dictionary<ServerPlatform, IServerProvider> _cache = [];
         private static readonly object _lock = new();
 
         private static HttpClient SharedClient

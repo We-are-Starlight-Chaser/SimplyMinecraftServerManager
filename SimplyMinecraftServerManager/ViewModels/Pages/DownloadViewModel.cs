@@ -1,8 +1,8 @@
-using System.Collections.ObjectModel;
 using Microsoft.Win32;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
+using System.Collections.ObjectModel;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
@@ -15,7 +15,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private int _selectedServerPlatformIndex = 0;
 
         [ObservableProperty]
-        private ObservableCollection<ServerVersionCard> _serverVersionCards = new();
+        private ObservableCollection<ServerVersionCard> _serverVersionCards = [];
 
         [ObservableProperty]
         private bool _isLoadingVersions = false;
@@ -37,7 +37,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _pluginSearchQuery = "";
 
         [ObservableProperty]
-        private ObservableCollection<ModrinthProject> _pluginSearchResults = new();
+        private ObservableCollection<ModrinthProject> _pluginSearchResults = [];
 
         [ObservableProperty]
         private bool _isSearchingPlugins = false;
@@ -49,7 +49,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _pluginTargetInstanceId = "";
 
         [ObservableProperty]
-        private ObservableCollection<InstanceInfo> _availableInstances = new();
+        private ObservableCollection<InstanceInfo> _availableInstances = [];
 
         #endregion
 
@@ -59,13 +59,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private int _selectedJdkDistributionIndex = 0;
 
         [ObservableProperty]
-        private ObservableCollection<int> _availableJdkVersions = new();
+        private ObservableCollection<int> _availableJdkVersions = [];
 
         [ObservableProperty]
         private int _selectedJdkMajorVersion = 21;
 
         [ObservableProperty]
-        private ObservableCollection<JdkInfo> _jdkBuilds = new();
+        private ObservableCollection<JdkInfo> _jdkBuilds = [];
 
         [ObservableProperty]
         private bool _isLoadingJdkVersions = false;
@@ -78,7 +78,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         #endregion
 
-        private readonly Dictionary<ServerPlatform, IServerProvider> _serverProviders = new();
+        private readonly Dictionary<ServerPlatform, IServerProvider> _serverProviders = [];
 
         public DownloadViewModel()
         {
@@ -134,8 +134,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 var versionsToLoad = versions.Take(15).ToList();
                 var cards = new List<ServerVersionCard>();
 
-                // 使用信号量限制并发数，避免请求过多失败
-                var semaphore = new SemaphoreSlim(5, 5); // 最多5个并发
+                using var semaphore = new SemaphoreSlim(5, 5);
 
                 var tasks = versionsToLoad.Select(async v =>
                 {
@@ -169,7 +168,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 });
 
                 var results = await Task.WhenAll(tasks);
-                
+
                 // 按版本号正确排序（使用 Version 类比较）
                 var sortedCards = results
                     .Where(c => c != null)

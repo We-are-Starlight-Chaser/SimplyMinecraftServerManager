@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace SimplyMinecraftServerManager.Internals
+﻿namespace SimplyMinecraftServerManager.Internals
 {
     /// <summary>
     /// 从插件 JAR 内的 plugin.yml 提取的元信息。
@@ -20,16 +18,16 @@ namespace SimplyMinecraftServerManager.Internals
         public string MainClass { get; set; } = "";
 
         /// <summary>作者列表</summary>
-        public List<string> Authors { get; set; } = new();
+        public List<string> Authors { get; set; } = [];
 
         /// <summary>API 版本 (plugin.yml → api-version)</summary>
         public string ApiVersion { get; set; } = "";
 
         /// <summary>依赖列表 (plugin.yml → depend)</summary>
-        public List<string> Dependencies { get; set; } = new();
+        public List<string> Dependencies { get; set; } = [];
 
         /// <summary>软依赖列表 (plugin.yml → softdepend)</summary>
-        public List<string> SoftDependencies { get; set; } = new();
+        public List<string> SoftDependencies { get; set; } = [];
 
         /// <summary>JAR 文件名</summary>
         public string FileName { get; set; } = "";

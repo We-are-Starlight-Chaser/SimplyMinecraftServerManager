@@ -1,6 +1,5 @@
 using SimplyMinecraftServerManager.ViewModels.Pages;
 using System.Windows.Input;
-using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.Views.Pages

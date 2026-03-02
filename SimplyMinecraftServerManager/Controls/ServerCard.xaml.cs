@@ -1,8 +1,5 @@
-using System;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
 using SimplyMinecraftServerManager.Internals;
+using System.Windows.Controls;
 
 namespace SimplyMinecraftServerManager.Controls
 {

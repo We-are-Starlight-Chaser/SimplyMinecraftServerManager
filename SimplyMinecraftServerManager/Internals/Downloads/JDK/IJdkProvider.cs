@@ -1,8 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
+﻿namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
 {
     /// <summary>
     /// JDK 下载提供者统一接口。

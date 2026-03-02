@@ -1,7 +1,8 @@
-using System.Collections.ObjectModel;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
+using System.Collections.ObjectModel;
+using System.IO;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
@@ -9,7 +10,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     public partial class ServersViewModel : ObservableObject, INavigationAware
     {
         [ObservableProperty]
-        private ObservableCollection<InstanceDisplayItem> _instances = new();
+        private ObservableCollection<InstanceDisplayItem> _instances = [];
 
         [ObservableProperty]
         private bool _isLoading = false;
@@ -34,10 +35,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private int _newInstanceMaxMemory = 2048;
 
         [ObservableProperty]
-        private ObservableCollection<string> _availableMinecraftVersions = new();
+        private ObservableCollection<string> _availableMinecraftVersions = [];
 
         [ObservableProperty]
         private bool _isLoadingVersions = false;
+
+        [ObservableProperty]
+        private ObservableCollection<JdkDisplayItem> _availableJdks = [];
+
+        [ObservableProperty]
+        private JdkDisplayItem? _selectedJdk;
 
         // 批量操作
         [ObservableProperty]
@@ -47,9 +54,24 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             await LoadInstancesAsync();
             await LoadMinecraftVersionsAsync();
+            LoadAvailableJdks();
         }
 
         public Task OnNavigatedFromAsync() => Task.CompletedTask;
+
+        private void LoadAvailableJdks()
+        {
+            AvailableJdks.Clear();
+            var jdks = JdkManager.GetInstalledJdks();
+            foreach (var jdk in jdks)
+            {
+                AvailableJdks.Add(new JdkDisplayItem(jdk));
+            }
+            if (AvailableJdks.Count > 0)
+            {
+                SelectedJdk = AvailableJdks[0];
+            }
+        }
 
         [RelayCommand]
         private async Task LoadInstancesAsync()
@@ -123,18 +145,25 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 StatusMessage = "正在创建实例...";
 
-                // 获取推荐 JDK
-                int jdkVersion = JdkManager.RecommendJdkVersion(NewInstanceMinecraftVersion);
-                string? javaPath = JdkManager.GetJavaExecutable(jdkVersion);
+                string? javaPath = null;
 
-                // 如果没有安装 JDK，自动安装
-                if (string.IsNullOrEmpty(javaPath))
+                if (SelectedJdk != null && File.Exists(SelectedJdk.JavaPath))
                 {
-                    StatusMessage = $"正在安装 JDK {jdkVersion}...";
-                    javaPath = await JdkManager.EnsureJdkAsync(jdkVersion);
+                    javaPath = SelectedJdk.JavaPath;
+                    StatusMessage = $"正在使用已选择的 JDK {SelectedJdk.MajorVersion}...";
+                }
+                else
+                {
+                    int jdkVersion = JdkManager.RecommendJdkVersion(NewInstanceMinecraftVersion);
+                    javaPath = JdkManager.GetJavaExecutable(jdkVersion);
+
+                    if (string.IsNullOrEmpty(javaPath))
+                    {
+                        StatusMessage = $"正在安装 JDK {jdkVersion}...";
+                        javaPath = await JdkManager.EnsureJdkAsync(jdkVersion);
+                    }
                 }
 
-                // 下载服务端
                 var platform = NewInstanceServerType.ToLowerInvariant() switch
                 {
                     "paper" => ServerPlatform.Paper,
@@ -152,8 +181,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     StatusMessage = "未找到服务端构建";
                     return;
                 }
-
-                // 创建实例
                 var instance = InstanceManager.CreateInstance(
                     name: NewInstanceName,
                     serverType: NewInstanceServerType,
@@ -164,15 +191,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     maxMemoryMb: NewInstanceMaxMemory
                 );
 
-                // 下载服务端 JAR
                 StatusMessage = "正在下载服务端...";
                 string jarPath = PathHelper.GetServerJarPath(instance.Id, build.FileName);
                 await provider.DownloadAsync(build, jarPath);
 
-                // 添加到列表
                 Instances.Add(new InstanceDisplayItem(instance));
 
-                // 清空表单
                 NewInstanceName = "";
                 StatusMessage = $"实例 \"{instance.Name}\" 创建成功";
             }
@@ -266,14 +290,14 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
-    public partial class InstanceDisplayItem : ObservableObject
+    public partial class InstanceDisplayItem(InstanceInfo info) : ObservableObject
     {
-        public string InstanceId { get; }
-        public string Name { get; }
-        public string ServerType { get; }
-        public string MinecraftVersion { get; }
-        public int MinMemoryMb { get; }
-        public int MaxMemoryMb { get; }
+        public string InstanceId { get; } = info.Id;
+        public string Name { get; } = info.Name;
+        public string ServerType { get; } = info.ServerType;
+        public string MinecraftVersion { get; } = info.MinecraftVersion;
+        public int MinMemoryMb { get; } = info.MinMemoryMb;
+        public int MaxMemoryMb { get; } = info.MaxMemoryMb;
 
         [ObservableProperty]
         private bool _isRunning;
@@ -286,15 +310,21 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public string StatusText => IsRunning ? "运行中" : "已停止";
 
         public string StatusColor => IsRunning ? "#4CAF50" : "#9E9E9E";
+    }
 
-        public InstanceDisplayItem(InstanceInfo info)
+    public class JdkDisplayItem
+    {
+        public string DisplayName { get; }
+        public string JavaPath { get; }
+        public int MajorVersion { get; }
+        public string Distribution { get; }
+
+        public JdkDisplayItem(InstalledJdk jdk)
         {
-            InstanceId = info.Id;
-            Name = info.Name;
-            ServerType = info.ServerType;
-            MinecraftVersion = info.MinecraftVersion;
-            MinMemoryMb = info.MinMemoryMb;
-            MaxMemoryMb = info.MaxMemoryMb;
+            DisplayName = $"{jdk.Distribution} JDK {jdk.MajorVersion} ({jdk.Architecture})";
+            JavaPath = jdk.JavaExecutable;
+            MajorVersion = jdk.MajorVersion;
+            Distribution = jdk.Distribution.ToString();
         }
     }
 }

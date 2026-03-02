@@ -8,7 +8,6 @@ using SimplyMinecraftServerManager.ViewModels.Windows;
 using SimplyMinecraftServerManager.Views.Pages;
 using SimplyMinecraftServerManager.Views.Windows;
 using System.IO;
-using System.Windows;
 using System.Windows.Threading;
 using Wpf.Ui;
 using Wpf.Ui.DependencyInjection;
@@ -23,8 +22,8 @@ namespace SimplyMinecraftServerManager
 
         private static readonly IHost _host = Host
             .CreateDefaultBuilder()
-            .ConfigureAppConfiguration(c => 
-            { 
+            .ConfigureAppConfiguration(c =>
+            {
                 var basePath = Path.GetDirectoryName(AppContext.BaseDirectory);
                 if (!string.IsNullOrEmpty(basePath))
                     c.SetBasePath(basePath);
@@ -45,22 +44,22 @@ namespace SimplyMinecraftServerManager
 
                 services.AddSingleton<DashboardPage>();
                 services.AddSingleton<DashboardViewModel>();
-                
+
                 services.AddSingleton<DownloadPage>();
                 services.AddSingleton<DownloadViewModel>();
-                
+
                 services.AddSingleton<ServersPage>();
                 services.AddSingleton<ServersViewModel>();
-                
+
                 services.AddSingleton<JdkPage>();
                 services.AddSingleton<JdkViewModel>();
-                
+
                 services.AddSingleton<InstancePage>();
                 services.AddSingleton<InstanceViewModel>();
-                
+
                 services.AddSingleton<DownloadsPage>();
                 services.AddSingleton<DownloadsViewModel>();
-                
+
                 services.AddSingleton<SettingsPage>();
                 services.AddSingleton<SettingsViewModel>();
             }).Build();

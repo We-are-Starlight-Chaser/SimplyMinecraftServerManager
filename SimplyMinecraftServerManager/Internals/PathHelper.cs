@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 
 namespace SimplyMinecraftServerManager.Internals
@@ -66,7 +65,7 @@ namespace SimplyMinecraftServerManager.Internals
             string normalizedPath = Path.GetFullPath(path);
             string normalizedInstanceDir = Path.GetFullPath(GetInstanceDir(instanceId));
 
-            if (!normalizedPath.StartsWith(normalizedInstanceDir + Path.DirectorySeparatorChar) && 
+            if (!normalizedPath.StartsWith(normalizedInstanceDir + Path.DirectorySeparatorChar) &&
                 normalizedPath != normalizedInstanceDir)
             {
                 throw new InvalidOperationException("Path is outside instance directory");

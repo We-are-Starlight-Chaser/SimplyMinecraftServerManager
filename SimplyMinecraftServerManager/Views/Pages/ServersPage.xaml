@@ -88,7 +88,7 @@
                                 <!-- 操作按钮 -->
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                     <ui:Button 
-                                        Command="{Binding DataContext.StartInstanceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                        Command="{Binding ViewModel.StartInstanceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                         CommandParameter="{Binding}"
                                         Appearance="Success"
                                         IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBooleanConverter}}"
@@ -96,7 +96,7 @@
                                         <ui:SymbolIcon Symbol="Play24"/>
                                     </ui:Button>
                                     <ui:Button 
-                                        Command="{Binding DataContext.StopInstanceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                        Command="{Binding ViewModel.StopInstanceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                         CommandParameter="{Binding}"
                                         Appearance="Danger"
                                         IsEnabled="{Binding IsRunning}"
@@ -104,7 +104,7 @@
                                         <ui:SymbolIcon Symbol="Stop24"/>
                                     </ui:Button>
                                     <ui:Button 
-                                        Command="{Binding DataContext.DeleteInstanceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                        Command="{Binding ViewModel.DeleteInstanceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                         CommandParameter="{Binding}"
                                         Appearance="Secondary">
                                         <ui:SymbolIcon Symbol="Delete24"/>
@@ -138,6 +138,13 @@
                 <ComboBox 
                     ItemsSource="{Binding ViewModel.AvailableMinecraftVersions}"
                     SelectedItem="{Binding ViewModel.NewInstanceMinecraftVersion, Mode=TwoWay}"
+                    Width="280" HorizontalAlignment="Left"/>
+
+                <TextBlock Text="JDK 版本" Margin="0,12,0,4"/>
+                <ComboBox 
+                    ItemsSource="{Binding ViewModel.AvailableJdks}"
+                    SelectedItem="{Binding ViewModel.SelectedJdk, Mode=TwoWay}"
+                    DisplayMemberPath="DisplayName"
                     Width="280" HorizontalAlignment="Left"/>
 
                 <TextBlock Text="最小内存 (MB)" Margin="0,12,0,4"/>

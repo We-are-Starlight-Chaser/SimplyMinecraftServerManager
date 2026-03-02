@@ -23,6 +23,7 @@
     <WpfDisableXamlLineInfo>true</WpfDisableXamlLineInfo>
     <DebugType>none</DebugType>
     <Optimize>true</Optimize>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

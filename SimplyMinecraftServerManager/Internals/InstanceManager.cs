@@ -1,18 +1,14 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading;
 using Tomlyn;
 
 namespace SimplyMinecraftServerManager.Internals
 {
     public static class InstanceManager
     {
-        private static readonly object _lock = new();
-        private static List<InstanceInfo> _instances = new();
+        private static readonly Lock _lock = new();
+        private static List<InstanceInfo> _instances = [];
         private static bool _loaded;
         private static readonly ConcurrentDictionary<string, InstanceInfo> _idCache = new();
         private static readonly ConcurrentDictionary<string, List<InstanceInfo>> _searchCache = new();
@@ -27,7 +23,7 @@ namespace SimplyMinecraftServerManager.Internals
 
                 if (!File.Exists(PathHelper.InstancesFile))
                 {
-                    _instances = new List<InstanceInfo>();
+                    _instances = [];
                     _loaded = true;
                     Save();
                     return;
@@ -37,12 +33,12 @@ namespace SimplyMinecraftServerManager.Internals
                 {
                     string toml = File.ReadAllText(PathHelper.InstancesFile, Encoding.UTF8);
                     var model = Toml.ToModel<InstancesFileModel>(toml);
-                    _instances = model.Instances ?? new List<InstanceInfo>();
+                    _instances = model.Instances ?? [];
                     RebuildCache();
                 }
                 catch (Exception)
                 {
-                    _instances = new List<InstanceInfo>();
+                    _instances = [];
                 }
 
                 _loaded = true;
@@ -111,9 +107,7 @@ namespace SimplyMinecraftServerManager.Internals
                 EnsureLoaded();
                 string lower = keyword.ToLowerInvariant();
                 return _searchCache.GetOrAdd(lower, _ =>
-                    _instances
-                        .Where(i => i.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                        .ToList()
+                    [.. _instances.Where(i => i.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase))]
                 ).AsReadOnly();
             }
         }
@@ -169,7 +163,7 @@ namespace SimplyMinecraftServerManager.Internals
             if (!SecurityHelper.IsValidJvmArgs(extraJvmArgs))
                 throw new ArgumentException("JVM arguments contain dangerous patterns", nameof(extraJvmArgs));
 
-            if (!string.IsNullOrWhiteSpace(jdkPath) && SecurityHelper.IsPathTraversal(jdkPath))
+            if (string.IsNullOrWhiteSpace(jdkPath) && !SecurityHelper.IsPathTraversal(jdkPath))
                 throw new ArgumentException("Invalid JDK path", nameof(jdkPath));
 
             lock (_lock)
@@ -193,7 +187,7 @@ namespace SimplyMinecraftServerManager.Internals
                 };
 
                 string instanceDir = PathHelper.GetInstanceDir(info.Id);
-                if (SecurityHelper.IsPathTraversal(instanceDir))
+                if (!SecurityHelper.IsPathTraversal(instanceDir))
                     throw new InvalidOperationException("Invalid instance directory path");
 
                 Directory.CreateDirectory(instanceDir);
@@ -245,11 +239,7 @@ namespace SimplyMinecraftServerManager.Internals
                 EnsureLoaded();
 
                 var info = _instances.FirstOrDefault(
-                    i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
-
-                if (info == null)
-                    throw new KeyNotFoundException($"Instance '{instanceId}' not found.");
-
+                    i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase)) ?? throw new KeyNotFoundException($"Instance '{instanceId}' not found.");
                 info.JdkPath = jdkPath;
                 _idCache[instanceId] = info;
                 DebouncedSave();
@@ -263,11 +253,7 @@ namespace SimplyMinecraftServerManager.Internals
                 EnsureLoaded();
 
                 var info = _instances.FirstOrDefault(
-                    i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
-
-                if (info == null)
-                    throw new KeyNotFoundException($"Instance '{instanceId}' not found.");
-
+                    i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase)) ?? throw new KeyNotFoundException($"Instance '{instanceId}' not found.");
                 info.MinMemoryMb = minMb;
                 info.MaxMemoryMb = maxMb;
                 _idCache[instanceId] = info;

@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using Wpf.Ui.Appearance;
@@ -107,7 +106,7 @@ namespace SimplyMinecraftServerManager.Helpers
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             bool inverse = parameter?.ToString() == "inverse";
-            
+
             if (value is int count)
             {
                 bool hasItems = count > 0;
@@ -160,7 +159,7 @@ namespace SimplyMinecraftServerManager.Helpers
         {
             // 检测当前主题
             var isDark = Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark;
-            
+
             var (lightColor, darkColor) = value switch
             {
                 "Paper" => (Color.FromRgb(0xC9, 0xA2, 0x27), Color.FromRgb(0xE8, 0xC5, 0x47)),
@@ -170,7 +169,7 @@ namespace SimplyMinecraftServerManager.Helpers
                 "Leaf" => (Color.FromRgb(0x00, 0x97, 0xA7), Color.FromRgb(0x00, 0xBC, 0xD4)),
                 _ => (Color.FromRgb(0x60, 0x7D, 0x8B), Color.FromRgb(0x78, 0x90, 0x9C))
             };
-            
+
             return new SolidColorBrush(isDark ? darkColor : lightColor);
         }
 
@@ -190,7 +189,7 @@ namespace SimplyMinecraftServerManager.Helpers
             if (values.Length >= 2 && values[0] is string lightColor && values[1] is string darkColor)
             {
                 var isDark = Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark;
-                
+
                 var colorHex = isDark ? darkColor : lightColor;
                 if (colorHex.StartsWith("#") && colorHex.Length == 7)
                 {
@@ -264,18 +263,18 @@ namespace SimplyMinecraftServerManager.Helpers
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             var isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
-            
+
             if (value is string status)
             {
                 return status switch
                 {
-                    "Valid" => new SolidColorBrush(isDark 
+                    "Valid" => new SolidColorBrush(isDark
                         ? Color.FromRgb(0x2E, 0x7D, 0x32)   // 深色模式：绿色
                         : Color.FromRgb(0xE8, 0xF5, 0xE9)), // 浅色模式：很浅的绿
-                    "Invalid" => new SolidColorBrush(isDark 
+                    "Invalid" => new SolidColorBrush(isDark
                         ? Color.FromRgb(0xC6, 0x28, 0x28)   // 深色模式：红色
                         : Color.FromRgb(0xFF, 0xEB, 0xEE)), // 浅色模式：很浅的红
-                    _ => new SolidColorBrush(isDark 
+                    _ => new SolidColorBrush(isDark
                         ? Color.FromRgb(0x42, 0x42, 0x42)
                         : Color.FromRgb(0xF5, 0xF5, 0xF5))
                 };
@@ -297,18 +296,18 @@ namespace SimplyMinecraftServerManager.Helpers
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             var isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
-            
+
             if (value is string status)
             {
                 return status switch
                 {
-                    "Valid" => new SolidColorBrush(isDark 
+                    "Valid" => new SolidColorBrush(isDark
                         ? Color.FromRgb(0x81, 0xC7, 0x84)   // 深色模式：亮绿
                         : Color.FromRgb(0x1B, 0x5E, 0x20)), // 浅色模式：深绿
-                    "Invalid" => new SolidColorBrush(isDark 
+                    "Invalid" => new SolidColorBrush(isDark
                         ? Color.FromRgb(0xEF, 0x9A, 0x9A)   // 深色模式：亮红
                         : Color.FromRgb(0xB7, 0x1C, 0x1C)), // 浅色模式：深红
-                    _ => new SolidColorBrush(isDark 
+                    _ => new SolidColorBrush(isDark
                         ? Color.FromRgb(0xBD, 0xBD, 0xBD)
                         : Color.FromRgb(0x61, 0x61, 0x61))
                 };

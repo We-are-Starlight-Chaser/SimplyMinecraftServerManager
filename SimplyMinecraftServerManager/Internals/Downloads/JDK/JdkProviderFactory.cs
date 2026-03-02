@@ -1,13 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net.Http;
+﻿using System.Net.Http;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
 {
     public static class JdkProviderFactory
     {
         private static HttpClient? _sharedClient;
-        private static readonly Dictionary<JdkDistribution, IJdkProvider> _cache = new();
+        private static readonly Dictionary<JdkDistribution, IJdkProvider> _cache = [];
         private static readonly object _lock = new();
 
         private static HttpClient SharedClient

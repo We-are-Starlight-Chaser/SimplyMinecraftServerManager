@@ -1,7 +1,6 @@
-using System.Collections.ObjectModel;
 using SimplyMinecraftServerManager.Internals;
-using SimplyMinecraftServerManager.Internals.Downloads;
-using SimplyMinecraftServerManager.Internals.Downloads.JDK;
+using System.Collections.ObjectModel;
+using System.Text;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 
@@ -10,6 +9,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     public partial class InstanceViewModel : ObservableObject, INavigationAware
     {
         private readonly INavigationService _navigationService;
+        private readonly StringBuilder _consoleBuilder = new();
+        private const int MaxConsoleLines = 1000;
+        private int _lineCount = 0;
 
         [ObservableProperty]
         private string _instanceId = "";
@@ -30,10 +32,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _commandInput = "";
 
         [ObservableProperty]
-        private ObservableCollection<PluginDisplayItem> _plugins = new();
+        private ObservableCollection<PluginDisplayItem> _plugins = [];
 
         [ObservableProperty]
-        private ObservableCollection<KeyValuePair<string, string>> _serverProperties = new();
+        private ObservableCollection<KeyValuePair<string, string>> _serverProperties = [];
 
         [ObservableProperty]
         private string _statusMessage = "";
@@ -131,11 +133,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 _serverProcess?.Dispose();
                 _serverProcess = new ServerProcess(InstanceId);
 
+                _consoleBuilder.Clear();
+                _lineCount = 0;
+                ConsoleOutput = "";
+
                 _serverProcess.OutputReceived += (_, line) =>
                 {
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        ConsoleOutput += line + "\n";
+                        AppendConsoleLine(line);
                     });
                 };
 
@@ -143,7 +149,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        ConsoleOutput += "[ERR] " + line + "\n";
+                        AppendConsoleLine("[ERR] " + line);
                     });
                 };
 
@@ -248,7 +254,35 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private void ClearConsole()
         {
+            _consoleBuilder.Clear();
+            _lineCount = 0;
             ConsoleOutput = "";
+        }
+
+        private void AppendConsoleLine(string line)
+        {
+            _consoleBuilder.AppendLine(line);
+            _lineCount++;
+
+            if (_lineCount > MaxConsoleLines)
+            {
+                int removeCount = _lineCount - MaxConsoleLines;
+                var content = _consoleBuilder.ToString();
+                var lines = content.Split('\n');
+                if (lines.Length > MaxConsoleLines)
+                {
+                    var newLines = lines.Skip(lines.Length - MaxConsoleLines);
+                    _consoleBuilder.Clear();
+                    foreach (var l in newLines)
+                    {
+                        if (!string.IsNullOrEmpty(l))
+                            _consoleBuilder.AppendLine(l);
+                    }
+                    _lineCount = MaxConsoleLines;
+                }
+            }
+
+            ConsoleOutput = _consoleBuilder.ToString();
         }
     }
 

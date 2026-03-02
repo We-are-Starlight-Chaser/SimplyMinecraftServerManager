@@ -1,15 +1,10 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
 {
@@ -73,6 +68,14 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             "zulu.org"
         };
 
+        private static readonly ConcurrentDictionary<string, Func<HashAlgorithm>> HashAlgorithmFactories = new()
+        {
+            ["SHA1"] = () => SHA1.Create(),
+            ["SHA256"] = () => SHA256.Create(),
+            ["SHA512"] = () => SHA512.Create(),
+            ["MD5"] = () => MD5.Create()
+        };
+
         public DownloadManager(int maxConcurrentDownloads = 4, HttpClient? httpClient = null)
         {
             _maxConcurrent = Math.Clamp(maxConcurrentDownloads, 1, 32);
@@ -109,8 +112,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             if (certificate == null) return false;
 
             string host = message.RequestUri?.Host ?? "";
-            bool isAllowedHost = AllowedHosts.Any(h => 
-                host.Equals(h, StringComparison.OrdinalIgnoreCase) || 
+            bool isAllowedHost = AllowedHosts.Any(h =>
+                host.Equals(h, StringComparison.OrdinalIgnoreCase) ||
                 host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase));
 
             if (!isAllowedHost)
@@ -372,14 +375,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         private static async Task<string> ComputeHashAsync(
             string filePath, string algorithm, CancellationToken ct)
         {
-            using var ha = algorithm.ToUpperInvariant() switch
-            {
-                "SHA1" => (HashAlgorithm)SHA1.Create(),
-                "SHA256" => SHA256.Create(),
-                "SHA512" => SHA512.Create(),
-                "MD5" => MD5.Create(),
-                _ => SHA256.Create()
-            };
+            var factory = HashAlgorithmFactories.GetValueOrDefault(
+                algorithm.ToUpperInvariant(), () => SHA256.Create());
+
+            using var ha = factory();
 
             await using var fs = new FileStream(
                 filePath, FileMode.Open, FileAccess.Read,

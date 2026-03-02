@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace SimplyMinecraftServerManager.Internals.Downloads
+﻿namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     /// <summary>
     /// Modrinth 版本中的单个文件。
@@ -13,7 +11,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         public bool Primary { get; set; }
 
         /// <summary>哈希表 ("sha1" → "...", "sha512" → "...")</summary>
-        public Dictionary<string, string> Hashes { get; set; } = new();
+        public Dictionary<string, string> Hashes { get; set; } = [];
     }
 
     /// <summary>
@@ -30,9 +28,9 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         /// <summary>release / beta / alpha</summary>
         public string VersionType { get; set; } = "";
 
-        public List<string> GameVersions { get; set; } = new();
-        public List<string> Loaders { get; set; } = new();
-        public List<ModrinthFile> Files { get; set; } = new();
+        public List<string> GameVersions { get; set; } = [];
+        public List<string> Loaders { get; set; } = [];
+        public List<ModrinthFile> Files { get; set; } = [];
         public int Downloads { get; set; }
 
         /// <summary>发布日期 ISO-8601</summary>

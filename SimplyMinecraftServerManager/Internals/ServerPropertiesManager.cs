@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using System.IO;
 using System.Text;
 
 namespace SimplyMinecraftServerManager.Internals
@@ -83,7 +80,7 @@ namespace SimplyMinecraftServerManager.Internals
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             var lines = File.Exists(path)
                 ? File.ReadAllLines(path, Encoding.UTF8).ToList()
-                : new List<string>();
+                : [];
 
             bool found = false;
 
@@ -121,7 +118,7 @@ namespace SimplyMinecraftServerManager.Internals
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             var lines = File.Exists(path)
                 ? File.ReadAllLines(path, Encoding.UTF8).ToList()
-                : new List<string>();
+                : [];
 
             var remaining = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
 

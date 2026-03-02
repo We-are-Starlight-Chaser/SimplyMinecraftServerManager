@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading;
-
-namespace SimplyMinecraftServerManager.Internals.Downloads
+﻿namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     /// <summary>
     /// 下载任务状态枚举。

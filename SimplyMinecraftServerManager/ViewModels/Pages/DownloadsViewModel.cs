@@ -1,5 +1,5 @@
-using System.Collections.ObjectModel;
 using SimplyMinecraftServerManager.Internals.Downloads;
+using System.Collections.ObjectModel;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
@@ -7,7 +7,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     public partial class DownloadsViewModel : ObservableObject, INavigationAware
     {
         [ObservableProperty]
-        private ObservableCollection<DownloadTaskItem> _downloadTasks = new();
+        private ObservableCollection<DownloadTaskItem> _downloadTasks = [];
 
         [ObservableProperty]
         private int _activeCount = 0;

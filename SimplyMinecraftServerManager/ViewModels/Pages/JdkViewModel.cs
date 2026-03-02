@@ -1,8 +1,5 @@
-using System.Collections.ObjectModel;
-using System.Threading;
-using System.Windows;
-using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
+using System.Collections.ObjectModel;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
@@ -14,7 +11,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private readonly IContentDialogService _contentDialogService;
 
         [ObservableProperty]
-        private ObservableCollection<InstalledJdkDisplayItem> _installedJdks = new();
+        private ObservableCollection<InstalledJdkDisplayItem> _installedJdks = [];
 
         [ObservableProperty]
         private bool _isLoading = false;
@@ -26,7 +23,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private int _selectedJdkDistributionIndex = 0;
 
         [ObservableProperty]
-        private ObservableCollection<int> _availableJdkVersions = new();
+        private ObservableCollection<int> _availableJdkVersions = [];
 
         [ObservableProperty]
         private int _selectedJdkMajorVersion = 21;

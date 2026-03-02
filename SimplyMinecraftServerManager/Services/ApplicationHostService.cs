@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SimplyMinecraftServerManager.Views.Pages;
 using SimplyMinecraftServerManager.Views.Windows;
