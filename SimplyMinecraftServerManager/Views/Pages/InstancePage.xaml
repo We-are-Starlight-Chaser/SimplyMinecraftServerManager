@@ -13,6 +13,7 @@
   ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
   ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
   mc:Ignorable="d"
+  x:Name="PageRoot"
 >
     
     <Grid>
@@ -22,21 +23,40 @@
         </Grid.RowDefinitions>
 
         <!-- 标题栏 -->
-        <Grid Grid.Row="0" Margin="0,0,0,12">
+        <Grid Grid.Row="0" Margin="16,16,16,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0">
-                <TextBlock Text="{Binding ViewModel.InstanceName}" FontSize="24" FontWeight="Medium"/>
-                <TextBlock Text="{Binding ViewModel.StatusMessage}" Margin="0,4,0,0"/>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding ViewModel.InstanceName, ElementName=PageRoot}" FontSize="24" FontWeight="Medium" VerticalAlignment="Center"/>
+                    <!-- 状态指示器 -->
+                    <Border Background="#4CAF50" CornerRadius="4" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center"
+                        Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="运行中" FontSize="12" Foreground="White" FontWeight="Medium"/>
+                    </Border>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <!-- 服务端类型标签 -->
+                    <Border Background="#B388FF" CornerRadius="4" Padding="8,2">
+                        <TextBlock Text="{Binding ViewModel.ServerType, ElementName=PageRoot}" FontSize="12" Foreground="White" FontWeight="Medium"/>
+                    </Border>
+                    <!-- 版本标签 -->
+                    <Border Background="#B388FF" CornerRadius="4" Padding="8,2" Margin="8,0,0,0">
+                        <TextBlock Text="{Binding ViewModel.MinecraftVersion, ElementName=PageRoot}" FontSize="12" Foreground="White" FontWeight="Medium"/>
+                    </Border>
+                    <TextBlock Text="{Binding ViewModel.InstanceId, ElementName=PageRoot}" 
+                        FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" 
+                        Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="Consolas"/>
+                </StackPanel>
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <ui:Button 
-                    Command="{Binding ViewModel.StartServerCommand}"
-                    IsEnabled="{Binding ViewModel.IsRunning, Converter={StaticResource InverseBooleanConverter}}"
+                    Command="{Binding ViewModel.StartServerCommand, ElementName=PageRoot}"
+                    IsEnabled="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource InverseBooleanConverter}}"
                     Appearance="Success"
                     Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal">
@@ -45,8 +65,8 @@
                     </StackPanel>
                 </ui:Button>
                 <ui:Button 
-                    Command="{Binding ViewModel.StopServerCommand}"
-                    IsEnabled="{Binding ViewModel.IsRunning}"
+                    Command="{Binding ViewModel.StopServerCommand, ElementName=PageRoot}"
+                    IsEnabled="{Binding ViewModel.IsRunning, ElementName=PageRoot}"
                     Appearance="Danger">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Stop24"/>
@@ -57,7 +77,7 @@
         </Grid>
 
         <!-- 主内容区域 -->
-        <TabControl Grid.Row="1">
+        <TabControl Grid.Row="1" Margin="16,16,16,0">
             <!-- 控制台 -->
             <TabItem Header="控制台">
                 <Grid Margin="8">
@@ -67,7 +87,7 @@
                     </Grid.RowDefinitions>
 
                     <TextBox Grid.Row="0"
-                        Text="{Binding ViewModel.ConsoleOutput, Mode=OneWay}"
+                        Text="{Binding ViewModel.ConsoleOutput, ElementName=PageRoot, Mode=OneWay}"
                         IsReadOnly="True"
                         VerticalScrollBarVisibility="Auto"
                         HorizontalScrollBarVisibility="Auto"
@@ -82,12 +102,12 @@
                         </Grid.ColumnDefinitions>
 
                         <ui:TextBox Grid.Column="0"
-                            Text="{Binding ViewModel.CommandInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            Text="{Binding ViewModel.CommandInput, ElementName=PageRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             PlaceholderText="输入命令..."
                             KeyDown="OnCommandKeyDown"/>
 
                         <ui:Button Grid.Column="1"
-                            Command="{Binding ViewModel.SendCommandCommand}"
+                            Command="{Binding ViewModel.SendCommandCommand, ElementName=PageRoot}"
                             Margin="8,0,0,0">
                             发送
                         </ui:Button>
@@ -106,14 +126,14 @@
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
                         <TextBlock Text="已安装插件" FontSize="16" FontWeight="Medium" VerticalAlignment="Center"/>
                         <ui:Button 
-                            Command="{Binding ViewModel.RefreshPluginsCommand}"
+                            Command="{Binding ViewModel.RefreshPluginsCommand, ElementName=PageRoot}"
                             Margin="16,0,0,0"
                             Appearance="Secondary">
                             <ui:SymbolIcon Symbol="ArrowSync24"/>
                         </ui:Button>
                     </StackPanel>
 
-                    <ListView Grid.Row="1" ItemsSource="{Binding ViewModel.Plugins}"
+                    <ListView Grid.Row="1" ItemsSource="{Binding ViewModel.Plugins, ElementName=PageRoot}"
                         VirtualizingStackPanel.IsVirtualizing="True"
                         VirtualizingStackPanel.VirtualizationMode="Recycling"
                         ScrollViewer.IsDeferredScrollingEnabled="True">
@@ -136,7 +156,7 @@
                                     </StackPanel>
 
                                     <ui:Button Grid.Column="1" 
-                                        Command="{Binding DataContext.DeletePluginCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                        Command="{Binding ViewModel.DeletePluginCommand, ElementName=PageRoot}"
                                         CommandParameter="{Binding}"
                                         Appearance="Secondary">
                                         <ui:SymbolIcon Symbol="Delete24"/>
@@ -170,11 +190,11 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
                                             <TextBlock Text="最小内存 (MB)" Margin="0,0,0,4"/>
-                                            <ui:TextBox Text="{Binding ViewModel.EditMinMemory, Mode=TwoWay}"/>
+                                            <ui:TextBox Text="{Binding ViewModel.EditMinMemory, ElementName=PageRoot, Mode=TwoWay}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Margin="12,0,0,0">
                                             <TextBlock Text="最大内存 (MB)" Margin="0,0,0,4"/>
-                                            <ui:TextBox Text="{Binding ViewModel.EditMaxMemory, Mode=TwoWay}"/>
+                                            <ui:TextBox Text="{Binding ViewModel.EditMaxMemory, ElementName=PageRoot, Mode=TwoWay}"/>
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
@@ -183,13 +203,13 @@
                             <ui:Card Padding="16" Margin="0,0,0,12">
                                 <StackPanel>
                                     <TextBlock Text="JDK 路径" FontWeight="Medium" Margin="0,0,0,8"/>
-                                    <ui:TextBox Text="{Binding ViewModel.EditJdkPath, Mode=TwoWay}" 
+                                    <ui:TextBox Text="{Binding ViewModel.EditJdkPath, ElementName=PageRoot, Mode=TwoWay}" 
                                         PlaceholderText="留空使用全局默认 JDK"/>
                                 </StackPanel>
                             </ui:Card>
 
                             <ui:Button 
-                                Command="{Binding ViewModel.SaveSettingsCommand}"
+                                Command="{Binding ViewModel.SaveSettingsCommand, ElementName=PageRoot}"
                                 Appearance="Primary"
                                 HorizontalAlignment="Left">
                                 保存设置
@@ -210,7 +230,7 @@
                     <TextBlock Grid.Row="0" Text="server.properties" FontSize="16" FontWeight="Medium" Margin="0,0,0,12"/>
 
                     <DataGrid Grid.Row="1"
-                        ItemsSource="{Binding ViewModel.ServerProperties}"
+                        ItemsSource="{Binding ViewModel.ServerProperties, ElementName=PageRoot}"
                         AutoGenerateColumns="False"
                         IsReadOnly="False"
                         CanUserAddRows="True"

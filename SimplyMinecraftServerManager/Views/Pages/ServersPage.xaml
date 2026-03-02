@@ -13,157 +13,297 @@
   ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
   ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
   mc:Ignorable="d"
+  x:Name="PageRoot"
 >
+    <Page.Resources>
+        <!-- 卡片悬停样式 -->
+        <Style x:Key="InstanceCardStyle" TargetType="Border">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="RenderTransform">
+                        <Setter.Value>
+                            <ScaleTransform ScaleX="1.02" ScaleY="1.02"/>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Page.Resources>
     
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="320"/>
-        </Grid.ColumnDefinitions>
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- 实例列表 -->
-        <Grid Grid.Column="0" Margin="0,0,12,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
+        <!-- 标题栏 -->
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
-                <TextBlock Text="服务器实例" FontSize="20" FontWeight="Medium" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:SymbolIcon Symbol="Server24" FontSize="28" 
+                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,0,12,0"/>
+                <TextBlock Text="服务器实例" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 <ui:Button 
-                    Command="{Binding ViewModel.RefreshInstancesCommand}"
+                    Command="{Binding ViewModel.RefreshInstancesCommand, ElementName=PageRoot}"
                     Margin="16,0,0,0"
-                    Appearance="Secondary">
-                    <ui:SymbolIcon Symbol="ArrowSync24"/>
+                    Appearance="Transparent"
+                    ToolTip="刷新列表">
+                    <ui:SymbolIcon Symbol="ArrowSync24" FontSize="18"/>
                 </ui:Button>
             </StackPanel>
 
-            <TextBlock Grid.Row="1" Text="{Binding ViewModel.StatusMessage}" Margin="0,0,0,8"/>
-
-            <ListView Grid.Row="2" 
-                ItemsSource="{Binding ViewModel.Instances}"
-                VirtualizingStackPanel.IsVirtualizing="True"
-                VirtualizingStackPanel.VirtualizationMode="Recycling"
-                ScrollViewer.IsDeferredScrollingEnabled="True">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <ui:Card Margin="0,0,0,8" Padding="12">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- 状态指示器 -->
-                                <Border Grid.Column="0" 
-                                    Width="12" Height="12" 
-                                    CornerRadius="6"
-                                    Background="{Binding StatusColor}"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,12,0"/>
-
-                                <StackPanel Grid.Column="1">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="16"/>
-                                        <Border Background="{DynamicResource AccentFillColorDisabledBrush}" 
-                                            CornerRadius="4" Margin="8,0,0,0" Padding="6,2">
-                                            <TextBlock Text="{Binding ServerType}" FontSize="11"/>
-                                        </Border>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                        <TextBlock Text="MC " FontSize="12"/>
-                                        <TextBlock Text="{Binding MinecraftVersion}" FontSize="12"/>
-                                        <TextBlock Text=" | 内存: " FontSize="12"/>
-                                        <TextBlock Text="{Binding MinMemoryMb}" FontSize="12"/>
-                                        <TextBlock Text="-" FontSize="12"/>
-                                        <TextBlock Text="{Binding MaxMemoryMb}" FontSize="12"/>
-                                        <TextBlock Text=" MB" FontSize="12"/>
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding StatusText}" FontSize="11" 
-                                        Foreground="{Binding StatusColor}" Margin="0,4,0,0"/>
-                                </StackPanel>
-
-                                <!-- 操作按钮 -->
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <ui:Button 
-                                        Command="{Binding ViewModel.StartInstanceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                        CommandParameter="{Binding}"
-                                        Appearance="Success"
-                                        IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBooleanConverter}}"
-                                        Margin="0,0,4,0">
-                                        <ui:SymbolIcon Symbol="Play24"/>
-                                    </ui:Button>
-                                    <ui:Button 
-                                        Command="{Binding ViewModel.StopInstanceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                        CommandParameter="{Binding}"
-                                        Appearance="Danger"
-                                        IsEnabled="{Binding IsRunning}"
-                                        Margin="0,0,4,0">
-                                        <ui:SymbolIcon Symbol="Stop24"/>
-                                    </ui:Button>
-                                    <ui:Button 
-                                        Command="{Binding ViewModel.DeleteInstanceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                        CommandParameter="{Binding}"
-                                        Appearance="Secondary">
-                                        <ui:SymbolIcon Symbol="Delete24"/>
-                                    </ui:Button>
-                                </StackPanel>
-                            </Grid>
-                        </ui:Card>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+            <ui:Button Grid.Column="1"
+                Command="{Binding ViewModel.CreateNewInstanceCommand, ElementName=PageRoot}"
+                Appearance="Primary">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="Add24" FontSize="16"/>
+                    <TextBlock Text="新建实例" Margin="8,0,0,0" FontWeight="Medium"/>
+                </StackPanel>
+            </ui:Button>
         </Grid>
 
-        <!-- 新建实例面板 -->
-        <ui:Card Grid.Column="1" Padding="16" VerticalAlignment="Top">
-            <StackPanel>
-                <TextBlock Text="新建实例" FontSize="16" FontWeight="Medium" Margin="0,0,0,16"/>
+        <!-- 实例列表 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding ViewModel.Instances, ElementName=PageRoot}"
+                HorizontalAlignment="Stretch">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="3" HorizontalAlignment="Stretch"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource InstanceCardStyle}"
+                            Height="200"
+                            Margin="6"
+                            CornerRadius="12"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform ScaleX="1" ScaleY="1"/>
+                            </Border.RenderTransform>
+                            
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                <TextBlock Text="实例名称" Margin="0,0,0,4"/>
-                <ui:TextBox Text="{Binding ViewModel.NewInstanceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    PlaceholderText="输入名称"/>
+                                <!-- 左侧状态指示条 -->
+                                <Border Grid.Column="0" 
+                                    Background="{Binding StatusColor}"
+                                    CornerRadius="4,0,0,4">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                    <Setter Property="Effect">
+                                                        <Setter.Value>
+                                                            <DropShadowEffect Color="#4CAF50" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
 
-                <TextBlock Text="服务端类型" Margin="0,12,0,4"/>
-                <ComboBox SelectedItem="{Binding ViewModel.NewInstanceServerType, Mode=TwoWay}" Width="280" HorizontalAlignment="Left">
-                    <ComboBoxItem Content="paper"/>
-                    <ComboBoxItem Content="purpur"/>
-                    <ComboBoxItem Content="leaves"/>
-                    <ComboBoxItem Content="leaf"/>
-                </ComboBox>
+                                <!-- 主内容 -->
+                                <Grid Grid.Column="1" Margin="16,14,14,14">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
 
-                <TextBlock Text="Minecraft 版本" Margin="0,12,0,4"/>
-                <ComboBox 
-                    ItemsSource="{Binding ViewModel.AvailableMinecraftVersions}"
-                    SelectedItem="{Binding ViewModel.NewInstanceMinecraftVersion, Mode=TwoWay}"
-                    Width="280" HorizontalAlignment="Left"/>
+                                    <!-- 第一行：名称和状态徽章 -->
+                                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
 
-                <TextBlock Text="JDK 版本" Margin="0,12,0,4"/>
-                <ComboBox 
-                    ItemsSource="{Binding ViewModel.AvailableJdks}"
-                    SelectedItem="{Binding ViewModel.SelectedJdk, Mode=TwoWay}"
-                    DisplayMemberPath="DisplayName"
-                    Width="280" HorizontalAlignment="Left"/>
+                                        <TextBlock Grid.Column="0" 
+                                            Text="{Binding Name}" 
+                                            FontWeight="SemiBold" 
+                                            FontSize="16"
+                                            TextTrimming="CharacterEllipsis"
+                                            VerticalAlignment="Center"/>
 
-                <TextBlock Text="最小内存 (MB)" Margin="0,12,0,4"/>
-                <ui:TextBox Text="{Binding ViewModel.NewInstanceMinMemory, Mode=TwoWay}" Width="280" HorizontalAlignment="Left"/>
+                                        <!-- 状态徽章 -->
+                                        <Border Grid.Column="1" 
+                                            CornerRadius="10" 
+                                            Padding="10,4"
+                                            Background="{Binding StatusColor}"
+                                            Opacity="0.9">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:SymbolIcon Symbol="{Binding IsRunning, Converter={StaticResource RunningToIconConverter}}" 
+                                                    FontSize="10" Foreground="White" Margin="0,0,4,0"/>
+                                                <TextBlock Text="{Binding StatusText}" 
+                                                    FontSize="10" 
+                                                    FontWeight="SemiBold"
+                                                    Foreground="White"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
 
-                <TextBlock Text="最大内存 (MB)" Margin="0,12,0,4"/>
-                <ui:TextBox Text="{Binding ViewModel.NewInstanceMaxMemory, Mode=TwoWay}" Width="280" HorizontalAlignment="Left"/>
+                                    <!-- 第二行：标签 -->
+                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+                                        <Border CornerRadius="6" Padding="10,4" Margin="0,0,6,0">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                    <GradientStop Color="#7C4DFF" Offset="0"/>
+                                                    <GradientStop Color="#B388FF" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <TextBlock Text="{Binding ServerType}" FontSize="11" Foreground="White" FontWeight="Medium"/>
+                                        </Border>
+                                        <Border CornerRadius="6" Padding="10,4">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                    <GradientStop Color="#00BCD4" Offset="0"/>
+                                                    <GradientStop Color="#4DD0E1" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <TextBlock Text="{Binding MinecraftVersion}" FontSize="11" Foreground="White" FontWeight="Medium"/>
+                                        </Border>
+                                    </StackPanel>
 
-                <ui:Button 
-                    Command="{Binding ViewModel.CreateNewInstanceCommand}"
-                    Appearance="Primary"
-                    Margin="0,16,0,0"
-                    HorizontalAlignment="Stretch">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="Add24"/>
-                        <TextBlock Text="创建实例" Margin="8,0,0,0"/>
-                    </StackPanel>
-                </ui:Button>
-            </StackPanel>
-        </ui:Card>
+                                    <!-- 第三行：分隔线 -->
+                                    <Border Grid.Row="2" 
+                                        Height="1" 
+                                        Background="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                        Margin="0,0,0,12"/>
+
+                                    <!-- 第四行：内存信息 -->
+                                    <StackPanel Grid.Row="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
+                                        <ui:SymbolIcon Symbol="DeveloperBoard24" FontSize="12" 
+                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,6,0"/>
+                                        <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                            <Run Text="{Binding MinMemoryMb, Mode=OneWay}"/>
+                                            <Run Text="-"/>
+                                            <Run Text="{Binding MaxMemoryMb, Mode=OneWay}"/>
+                                            <Run Text="MB"/>
+                                        </TextBlock>
+                                    </StackPanel>
+
+                                    <!-- 第五行：操作按钮 -->
+                                    <Grid Grid.Row="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- 左侧主操作按钮 -->
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <!-- 启动按钮 - 未运行时显示 -->
+                                            <ui:Button
+                                                Command="{Binding ViewModel.StartInstanceCommand, ElementName=PageRoot}"
+                                                CommandParameter="{Binding}"
+                                                Appearance="Success"
+                                                Height="34"
+                                                Padding="12,0"
+                                                Visibility="{Binding IsRunning, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                                                ToolTip="启动服务器">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Symbol="Play24" FontSize="14"/>
+                                                    <TextBlock Text="启动" Margin="6,0,0,0" FontWeight="Medium"/>
+                                                </StackPanel>
+                                            </ui:Button>
+                                            
+                                            <!-- 停止按钮 - 运行时显示 -->
+                                            <ui:Button
+                                                Command="{Binding ViewModel.StopInstanceCommand, ElementName=PageRoot}"
+                                                CommandParameter="{Binding}"
+                                                Appearance="Secondary"
+                                                Height="34"
+                                                Padding="12,0"
+                                                Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                ToolTip="优雅停止服务器">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Symbol="Stop24" FontSize="14"/>
+                                                    <TextBlock Text="停止" Margin="6,0,0,0" FontWeight="Medium"/>
+                                                </StackPanel>
+                                            </ui:Button>
+                                            
+                                            <!-- 终止按钮 - 运行时显示 -->
+                                            <ui:Button
+                                                Command="{Binding ViewModel.TerminateInstanceCommand, ElementName=PageRoot}"
+                                                CommandParameter="{Binding}"
+                                                Appearance="Danger"
+                                                Height="34"
+                                                Padding="12,0"
+                                                Margin="6,0,0,0"
+                                                Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                ToolTip="强制终止服务器进程">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Symbol="Dismiss24" FontSize="14"/>
+                                                    <TextBlock Text="终止" Margin="6,0,0,0" FontWeight="Medium"/>
+                                                </StackPanel>
+                                            </ui:Button>
+                                        </StackPanel>
+
+                                        <!-- 右侧次要操作 -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <ui:Button
+                                                Command="{Binding ViewModel.ViewInstanceCommand, ElementName=PageRoot}"
+                                                CommandParameter="{Binding}"
+                                                Appearance="Transparent"
+                                                Height="34" Width="34"
+                                                Padding="0"
+                                                ToolTip="查看详情">
+                                                <ui:SymbolIcon Symbol="Settings24" FontSize="16"/>
+                                            </ui:Button>
+                                            <ui:Button
+                                                Command="{Binding ViewModel.DeleteInstanceCommand, ElementName=PageRoot}"
+                                                CommandParameter="{Binding}"
+                                                Appearance="Transparent"
+                                                Height="34" Width="34"
+                                                Padding="0"
+                                                Margin="4,0,0,0"
+                                                ToolTip="删除实例">
+                                                <ui:SymbolIcon Symbol="Delete24" FontSize="16" 
+                                                    Foreground="{DynamicResource SystemFillColorCriticalBrush}"/>
+                                            </ui:Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- 空状态提示 -->
+        <StackPanel Grid.Row="1" 
+            VerticalAlignment="Center" 
+            HorizontalAlignment="Center"
+            Visibility="{Binding ViewModel.Instances.Count, ElementName=PageRoot, Converter={StaticResource IntToVisibilityConverter}, ConverterParameter=inverse}">
+            <Border Width="80" Height="80" CornerRadius="20" 
+                Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                HorizontalAlignment="Center">
+                <ui:SymbolIcon Symbol="Server24" FontSize="36" 
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+            </Border>
+            <TextBlock Text="暂无服务器实例" 
+                FontSize="18" 
+                FontWeight="SemiBold"
+                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                HorizontalAlignment="Center" Margin="0,20,0,0"/>
+            <TextBlock Text="点击右上角「新建实例」按钮创建您的第一个服务器" 
+                FontSize="13" 
+                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                HorizontalAlignment="Center" Margin="0,8,0,0"/>
+        </StackPanel>
     </Grid>
 </Page>

@@ -8,8 +8,6 @@ namespace SimplyMinecraftServerManager.Views.Pages
     {
         public InstanceViewModel ViewModel { get; }
 
-        private string? _pendingInstanceId;
-
         public InstancePage(InstanceViewModel viewModel)
         {
             ViewModel = viewModel;
@@ -23,7 +21,6 @@ namespace SimplyMinecraftServerManager.Views.Pages
         /// </summary>
         public void SetInstanceId(string instanceId)
         {
-            _pendingInstanceId = instanceId;
             ViewModel.LoadInstance(instanceId);
         }
 

@@ -3,7 +3,7 @@
     /// <summary>
     /// 某个服务端的一次构建信息。
     /// </summary>
-    public record class ServerBuild
+    public class ServerBuild
     {
         /// <summary>平台</summary>
         public ServerPlatform Platform { get; init; }

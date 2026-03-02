@@ -45,12 +45,21 @@
 
             <StackPanel Grid.Column="2" Orientation="Horizontal">
                 <ui:Button 
-                    Command="{Binding ViewModel.CancelAllTasksCommand}"
+                    Command="{Binding ViewModel.PauseAllTasksCommand}"
                     Appearance="Secondary"
                     Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="Dismiss24"/>
-                        <TextBlock Text="全部取消" Margin="8,0,0,0"/>
+                        <ui:SymbolIcon Symbol="Pause24"/>
+                        <TextBlock Text="全部暂停" Margin="8,0,0,0"/>
+                    </StackPanel>
+                </ui:Button>
+                <ui:Button 
+                    Command="{Binding ViewModel.ResumeAllTasksCommand}"
+                    Appearance="Secondary"
+                    Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Play24"/>
+                        <TextBlock Text="全部继续" Margin="8,0,0,0"/>
                     </StackPanel>
                 </ui:Button>
                 <ui:Button 
@@ -117,26 +126,38 @@
 
                                 <!-- 操作按钮 -->
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="16,0,0,0">
-                                    <!-- 取消按钮（仅下载中显示） -->
+                                    <!-- 暂停/继续按钮（仅下载中或暂停时显示） -->
                                     <ui:Button 
-                                        Command="{Binding DataContext.ViewModel.CancelTaskCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                        Command="{Binding DataContext.ViewModel.PauseTaskCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                         CommandParameter="{Binding}"
                                         Appearance="Secondary"
                                         Height="32" Width="32"
                                         Padding="0"
                                         Margin="0,0,4,0"
-                                        ToolTip="取消下载"
+                                        ToolTip="暂停下载"
                                         Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="14"/>
+                                        <ui:SymbolIcon Symbol="Pause24" FontSize="14"/>
                                     </ui:Button>
-                                    <!-- 移除按钮 -->
+                                    <ui:Button 
+                                        Command="{Binding DataContext.ViewModel.ResumeTaskCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                        CommandParameter="{Binding}"
+                                        Appearance="Primary"
+                                        Height="32" Width="32"
+                                        Padding="0"
+                                        Margin="0,0,4,0"
+                                        ToolTip="继续下载"
+                                        Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ui:SymbolIcon Symbol="Play24" FontSize="14"/>
+                                    </ui:Button>
+                                    <!-- 删除按钮（仅非下载中时可用） -->
                                     <ui:Button 
                                         Command="{Binding DataContext.ViewModel.RemoveTaskCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                         CommandParameter="{Binding}"
                                         Appearance="Secondary"
                                         Height="32" Width="32"
                                         Padding="0"
-                                        ToolTip="移除">
+                                        ToolTip="移除"
+                                        IsEnabled="{Binding IsActive, Converter={StaticResource InverseBooleanConverter}}">
                                         <ui:SymbolIcon Symbol="Delete24" FontSize="14"/>
                                     </ui:Button>
                                 </StackPanel>

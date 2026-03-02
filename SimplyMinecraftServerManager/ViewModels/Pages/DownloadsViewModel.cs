@@ -15,6 +15,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private int _completedCount = 0;
 
+        /// <summary>
+        /// 任务数变化时触发
+        /// </summary>
+        public event EventHandler<int>? TaskCountChanged;
+
         public DownloadsViewModel()
         {
             // 订阅下载管理器事件
@@ -68,7 +73,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                item?.UpdateFromTask(task);
+                if (item != null)
+                {
+                    item.UpdateFromTask(task);
+                }
                 UpdateCounts();
             });
         }
@@ -78,7 +86,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                item?.UpdateFromTask(task);
+                if (item != null)
+                {
+                    item.UpdateFromTask(task);
+                }
                 UpdateCounts();
             });
         }
@@ -98,8 +109,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private void UpdateCounts()
         {
-            ActiveCount = DownloadTasks.Count(t => t.IsActive);
+            // ActiveCount: 进行中 + 暂停 + 等待中（所有未完成的任务）
+            ActiveCount = DownloadTasks.Count(t => t.IsActive || t.IsPaused || (!t.IsCompleted && !t.IsFailed && !t.IsActive && !t.IsPaused));
             CompletedCount = DownloadTasks.Count(t => t.IsCompleted || t.IsFailed);
+            TaskCountChanged?.Invoke(this, ActiveCount);
         }
 
         [RelayCommand]
@@ -125,9 +138,70 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         [RelayCommand]
+        private async Task PauseTaskAsync(DownloadTaskItem? item)
+        {
+            if (item == null || !item.IsActive) return;
+            DownloadManager.Default.Pause(item.TaskId);
+            item.IsPaused = true;
+            item.IsActive = false;
+            item.Status = "已暂停";
+            UpdateCounts();
+        }
+
+        [RelayCommand]
+        private async Task ResumeTaskAsync(DownloadTaskItem? item)
+        {
+            if (item == null || !item.IsPaused) return;
+            await DownloadManager.Default.ResumeAsync(item.TaskId);
+            item.IsPaused = false;
+            item.IsActive = true;
+            item.Status = "下载中";
+            UpdateCounts();
+        }
+
+        [RelayCommand]
+        private void PauseAllTasks()
+        {
+            DownloadManager.Default.PauseAll();
+            foreach (var item in DownloadTasks.Where(t => t.IsActive).ToList())
+            {
+                item.IsPaused = true;
+                item.IsActive = false;
+                item.Status = "已暂停";
+            }
+            UpdateCounts();
+        }
+
+        [RelayCommand]
+        private async Task ResumeAllTasksAsync()
+        {
+            await DownloadManager.Default.ResumeAllAsync();
+            foreach (var item in DownloadTasks.Where(t => t.IsPaused).ToList())
+            {
+                item.IsPaused = false;
+                item.IsActive = true;
+                item.Status = "下载中";
+            }
+            UpdateCounts();
+        }
+
+        [RelayCommand]
         private void RemoveTask(DownloadTaskItem? item)
         {
             if (item == null) return;
+            
+            // 任务进行中时不允许删除
+            if (item.IsActive)
+            {
+                return;
+            }
+            
+            // 暂停时删除则为取消下载
+            if (item.IsPaused)
+            {
+                DownloadManager.Default.Cancel(item.TaskId);
+            }
+            
             item.CancelAutoRemove();
             DownloadTasks.Remove(item);
             UpdateCounts();
@@ -136,6 +210,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private void ClearCompleted()
         {
+            // 先从 DownloadManager 中移除已完成的任务
+            DownloadManager.Default.ClearFinished();
+            
+            // 再从 UI 列表中移除
             foreach (var item in DownloadTasks.Where(t => t.IsCompleted || t.IsFailed).ToList())
             {
                 item.CancelAutoRemove();
@@ -171,6 +249,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         [ObservableProperty]
         private bool _isActive;
+
+        [ObservableProperty]
+        private bool _isPaused;
 
         private System.Timers.Timer? _autoRemoveTimer;
 
@@ -208,6 +289,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             IsCompleted = task.Status == DownloadStatus.Completed;
             IsFailed = task.Status == DownloadStatus.Failed || task.Status == DownloadStatus.Cancelled;
             IsActive = task.Status == DownloadStatus.Downloading;
+            IsPaused = task.Status == DownloadStatus.Paused;
             Status = GetStatusText(task.Status);
             Speed = "";
 
@@ -233,9 +315,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             IsCompleted = info.IsCompleted;
             IsFailed = info.IsFailed;
-            IsActive = !info.IsCompleted && !info.IsFailed;
+            IsPaused = info.IsPaused;
+            IsActive = !info.IsCompleted && !info.IsFailed && !info.IsPaused;
 
-            if (info.IsCompleted)
+            if (info.IsPaused)
+            {
+                Status = "已暂停";
+                Speed = "";
+            }
+            else if (info.IsCompleted)
             {
                 Status = "已完成";
                 Speed = "";
@@ -261,6 +349,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             DownloadStatus.Pending => "等待中",
             DownloadStatus.Downloading => "下载中",
+            DownloadStatus.Paused => "已暂停",
             DownloadStatus.Completed => "已完成",
             DownloadStatus.Failed => "失败",
             DownloadStatus.Cancelled => "已取消",

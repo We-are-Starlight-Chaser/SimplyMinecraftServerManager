@@ -381,7 +381,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     PathHelper.GetPluginsDir(targetInstanceId),
                     latestVersion.PrimaryFile!.FileName);
 
-                await ModrinthProvider.DownloadVersionAsync(latestVersion, destPath);
+                await modrinth.DownloadVersionAsync(latestVersion, destPath);
                 PluginSearchStatus = $"已添加下载任务: {project.Title}";
             }
             catch (Exception ex)

@@ -7,12 +7,17 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
     /// Eclipse Adoptium (Temurin) JDK 提供者。
     /// https://api.adoptium.net/v3
     /// </summary>
-    public class AdoptiumProvider(HttpClient? httpClient = null) : IJdkProvider
+    public class AdoptiumProvider : IJdkProvider
     {
         private const string BaseUrl = "https://api.adoptium.net/v3";
-        private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
+        private readonly HttpClient _http;
 
         public JdkDistribution Distribution => JdkDistribution.Adoptium;
+
+        public AdoptiumProvider(HttpClient? httpClient = null)
+        {
+            _http = httpClient ?? CreateDefaultClient();
+        }
 
         // ────────── 可用版本 ──────────
 
