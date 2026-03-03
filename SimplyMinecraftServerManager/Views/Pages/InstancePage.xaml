@@ -32,10 +32,15 @@
             <StackPanel Grid.Column="0">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{Binding ViewModel.InstanceName, ElementName=PageRoot}" FontSize="24" FontWeight="Medium" VerticalAlignment="Center"/>
-                    <!-- 状态指示器 -->
+                    <!-- 状态指示器 - 运行中 -->
                     <Border Background="#4CAF50" CornerRadius="4" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center"
                         Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock Text="运行中" FontSize="12" Foreground="White" FontWeight="Medium"/>
+                    </Border>
+                    <!-- 状态指示器 - 已停止 -->
+                    <Border Background="#9E9E9E" CornerRadius="4" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center"
+                        Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                        <TextBlock Text="已停止" FontSize="12" Foreground="White" FontWeight="Medium"/>
                     </Border>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
@@ -54,48 +59,108 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <!-- 启动按钮 - 未运行时显示 -->
                 <ui:Button 
                     Command="{Binding ViewModel.StartServerCommand, ElementName=PageRoot}"
-                    IsEnabled="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource InverseBooleanConverter}}"
-                    Appearance="Success"
-                    Margin="0,0,8,0">
+                    Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                    Appearance="Success">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Play24"/>
                         <TextBlock Text="启动" Margin="8,0,0,0"/>
                     </StackPanel>
                 </ui:Button>
+                <!-- 停止按钮 - 运行时显示 -->
                 <ui:Button 
                     Command="{Binding ViewModel.StopServerCommand, ElementName=PageRoot}"
-                    IsEnabled="{Binding ViewModel.IsRunning, ElementName=PageRoot}"
-                    Appearance="Danger">
+                    Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Appearance="Caution"
+                    Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Stop24"/>
                         <TextBlock Text="停止" Margin="8,0,0,0"/>
+                    </StackPanel>
+                </ui:Button>
+                <!-- 终止按钮 - 运行时显示 -->
+                <ui:Button 
+                    Command="{Binding ViewModel.TerminateServerCommand, ElementName=PageRoot}"
+                    Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Appearance="Danger"
+                    ToolTip="强制终止服务器进程">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Dismiss24"/>
+                        <TextBlock Text="终止" Margin="8,0,0,0"/>
                     </StackPanel>
                 </ui:Button>
             </StackPanel>
         </Grid>
 
         <!-- 主内容区域 -->
-        <TabControl Grid.Row="1" Margin="16,16,16,0">
+        <TabControl Grid.Row="1" Margin="16,16,16,0" SelectionChanged="OnTabSelectionChanged">
             <!-- 控制台 -->
             <TabItem Header="控制台">
                 <Grid Margin="8">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBox Grid.Row="0"
-                        Text="{Binding ViewModel.ConsoleOutput, ElementName=PageRoot, Mode=OneWay}"
-                        IsReadOnly="True"
-                        VerticalScrollBarVisibility="Auto"
-                        HorizontalScrollBarVisibility="Auto"
-                        FontFamily="Consolas"
-                        FontSize="12"
-                        Padding="8"/>
+                    <!-- 控制台工具栏 -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <ui:Button
+                            Command="{Binding ViewModel.ClearConsoleCommand, ElementName=PageRoot}"
+                            Appearance="Secondary"
+                            Padding="8,4">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="14"/>
+                                <TextBlock Text="清空" Margin="4,0,0,0" FontSize="12"/>
+                            </StackPanel>
+                        </ui:Button>
+                        <ui:Button
+                            Command="{Binding ViewModel.CopyConsoleCommand, ElementName=PageRoot}"
+                            Appearance="Secondary"
+                            Padding="8,4"
+                            Margin="8,0,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
+                                <TextBlock Text="复制全部" Margin="4,0,0,0" FontSize="12"/>
+                            </StackPanel>
+                        </ui:Button>
+                        <CheckBox
+                            IsChecked="{Binding ViewModel.AutoScroll, ElementName=PageRoot, Mode=TwoWay}"
+                            Margin="16,0,0,0"
+                            VerticalAlignment="Center">
+                            <TextBlock Text="自动滚动" FontSize="12"/>
+                        </CheckBox>
+                    </StackPanel>
 
-                    <Grid Grid.Row="1" Margin="0,8,0,0">
+                    <!-- 控制台输出区域 - 使用 FlowDocumentScrollViewer 支持选择和复制 -->
+                    <Border Grid.Row="1"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="8"
+                        BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                        BorderThickness="1">
+                        <FlowDocumentScrollViewer
+                            x:Name="ConsoleScrollViewer"
+                            HorizontalScrollBarVisibility="Auto"
+                            VerticalScrollBarVisibility="Auto">
+                            <FlowDocument
+                                x:Name="ConsoleDocument"
+                                FontFamily="Consolas"
+                                FontSize="12"
+                                PageWidth="9999"
+                                LineHeight="18">
+                                <Paragraph
+                                    x:Name="ConsoleParagraph"
+                                    Margin="8,4"
+                                    FontFamily="Consolas"
+                                    FontSize="12"/>
+                            </FlowDocument>
+                        </FlowDocumentScrollViewer>
+                    </Border>
+
+                    <!-- 命令输入区域 -->
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -104,14 +169,164 @@
                         <ui:TextBox Grid.Column="0"
                             Text="{Binding ViewModel.CommandInput, ElementName=PageRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             PlaceholderText="输入命令..."
-                            KeyDown="OnCommandKeyDown"/>
+                            KeyDown="OnCommandKeyDown"
+                            IsEnabled="{Binding ViewModel.IsRunning, ElementName=PageRoot}"/>
 
                         <ui:Button Grid.Column="1"
                             Command="{Binding ViewModel.SendCommandCommand, ElementName=PageRoot}"
-                            Margin="8,0,0,0">
+                            Margin="8,0,0,0"
+                            IsEnabled="{Binding ViewModel.IsRunning, ElementName=PageRoot}">
                             发送
                         </ui:Button>
                     </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- 性能监控 -->
+            <TabItem Header="性能" x:Name="PerformanceTabItem">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 实时指标卡片 -->
+                    <Grid Grid.Row="0" Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- CPU 使用率 -->
+                        <ui:Card Grid.Column="0" Padding="16" Margin="0,0,8,0" MinHeight="120">
+                            <Grid>
+                                <!-- 运行时显示 -->
+                                <StackPanel Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Gauge24" FontSize="24" Foreground="#00BCD4"/>
+                                        <TextBlock Text="CPU 使用率" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock
+                                        Text="{Binding ViewModel.CpuUsage, ElementName=PageRoot, StringFormat='{}{0:F1} %'}"
+                                        FontSize="32"
+                                        FontWeight="Bold"
+                                        Margin="0,8,0,0"/>
+                                    <ProgressBar
+                                        Value="{Binding ViewModel.CpuUsage, ElementName=PageRoot}"
+                                        Maximum="100"
+                                        Height="4"
+                                        Margin="0,8,0,0"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        Foreground="#00BCD4"/>
+                                </StackPanel>
+                                <!-- 停止时显示 -->
+                                <StackPanel Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Gauge24" FontSize="32" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                    <TextBlock Text="请启动后查看" Margin="0,8,0,0" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                </StackPanel>
+                            </Grid>
+                        </ui:Card>
+
+                        <!-- 内存使用 -->
+                        <ui:Card Grid.Column="1" Padding="16" Margin="4,0,4,0" MinHeight="120">
+                            <Grid>
+                                <!-- 运行时显示 -->
+                                <StackPanel Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="DeveloperBoard24" FontSize="24" Foreground="#7C4DFF"/>
+                                        <TextBlock Text="内存使用" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock
+                                        Text="{Binding ViewModel.MemoryUsage, ElementName=PageRoot, StringFormat='{}{0:F0} MB'}"
+                                        FontSize="32"
+                                        FontWeight="Bold"
+                                        Margin="0,8,0,0"/>
+                                    <ProgressBar
+                                        Value="{Binding ViewModel.MemoryUsage, ElementName=PageRoot}"
+                                        Maximum="{Binding ViewModel.MaxMemoryMb, ElementName=PageRoot}"
+                                        Height="4"
+                                        Margin="0,8,0,0"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        Foreground="#7C4DFF"/>
+                                </StackPanel>
+                                <!-- 停止时显示 -->
+                                <StackPanel Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="DeveloperBoard24" FontSize="32" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                    <TextBlock Text="请启动后查看" Margin="0,8,0,0" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                </StackPanel>
+                            </Grid>
+                        </ui:Card>
+
+                        <!-- 存储空间 -->
+                        <ui:Card Grid.Column="2" Padding="16" Margin="8,0,0,0">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="HardDrive24" FontSize="24" Foreground="#4CAF50"/>
+                                    <TextBlock Text="总存储" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock
+                                    Text="{Binding ViewModel.TotalStorage, ElementName=PageRoot}"
+                                    FontSize="32"
+                                    FontWeight="Bold"
+                                    Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </ui:Card>
+                    </Grid>
+
+                    <!-- 世界文件夹详情 -->
+                    <ui:Card Grid.Row="1" Padding="16">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                Text="世界文件夹占用"
+                                FontSize="16"
+                                FontWeight="SemiBold"
+                                Margin="0,0,0,12"/>
+
+                            <ListView Grid.Row="1"
+                                ItemsSource="{Binding ViewModel.WorldStorageInfo, ElementName=PageRoot}"
+                                BorderThickness="0">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="120"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                Text="{Binding WorldName}"
+                                                VerticalAlignment="Center"/>
+
+                                            <TextBlock Grid.Column="1"
+                                                Text="{Binding SizeFormatted}"
+                                                FontFamily="Consolas"
+                                                VerticalAlignment="Center"
+                                                Margin="16,0"/>
+
+                                            <ProgressBar Grid.Column="2"
+                                                Value="{Binding SizePercent}"
+                                                Maximum="100"
+                                                Height="6"
+                                                VerticalAlignment="Center"
+                                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                                Foreground="{DynamicResource AccentFillColorDefaultBrush}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Grid>
+                    </ui:Card>
                 </Grid>
             </TabItem>
 
