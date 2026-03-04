@@ -10,10 +10,31 @@ namespace SimplyMinecraftServerManager.Internals
         private Process? _process;
         private bool _disposed;
         private IntPtr _jobHandle = IntPtr.Zero;
+        private int _processId;
+        private bool _startCompleted;
 
         public string InstanceId { get; } = instanceId;
 
-        public bool IsRunning => _process is { HasExited: false };
+        public int? ProcessId => _processId > 0 ? _processId : null;
+
+        public bool IsRunning
+        {
+            get
+            {
+                if (_disposed) return false;
+                if (_process == null) return false;
+                try
+                {
+                    return !_process.HasExited;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
+        public bool StartCompleted => _startCompleted;
 
         public event EventHandler<string>? OutputReceived;
         public event EventHandler<string>? ErrorReceived;
@@ -118,6 +139,12 @@ namespace SimplyMinecraftServerManager.Internals
             var info = InstanceManager.GetById(InstanceId)
                 ?? throw new InvalidOperationException($"Instance '{InstanceId}' not found.");
 
+            // 检查并自动接受 EULA
+            if (ConfigManager.Current.AutoAcceptEula)
+            {
+                InstanceManager.AcceptEula(InstanceId);
+            }
+
             string javaPath = InstanceManager.ResolveJdkPath(InstanceId);
             if (string.IsNullOrWhiteSpace(javaPath))
                 throw new InvalidOperationException("JDK path is not configured.");
@@ -186,6 +213,7 @@ namespace SimplyMinecraftServerManager.Internals
             };
 
             _process.Start();
+            _processId = _process.Id;
 
             IntPtr processHandle = _process.Handle;
             if (!AssignProcessToJobObject(_jobHandle, processHandle))
@@ -193,11 +221,13 @@ namespace SimplyMinecraftServerManager.Internals
                 _process.Kill(entireProcessTree: true);
                 CloseHandle(_jobHandle);
                 _jobHandle = IntPtr.Zero;
+                _processId = 0;
                 throw new InvalidOperationException($"Failed to assign process to job object: {GetLastError()}");
             }
 
             _process.BeginOutputReadLine();
             _process.BeginErrorReadLine();
+            _startCompleted = true;
         }
 
         public void SendCommand(string command)
@@ -219,8 +249,14 @@ namespace SimplyMinecraftServerManager.Internals
 
         public void Kill()
         {
-            if (IsRunning)
-                _process!.Kill(entireProcessTree: true);
+            if (_process != null && !_process.HasExited)
+            {
+                try
+                {
+                    _process.Kill(entireProcessTree: true);
+                }
+                catch { }
+            }
         }
 
         public void WaitForExit() => _process?.WaitForExit();
@@ -233,17 +269,26 @@ namespace SimplyMinecraftServerManager.Internals
             if (_disposed) return;
             _disposed = true;
 
-            if (IsRunning)
+            try
             {
-                try { _process!.Kill(entireProcessTree: true); } catch { }
+                if (_process != null && !_process.HasExited)
+                {
+                    try { _process.Kill(entireProcessTree: true); } catch { }
+                }
             }
+            catch { }
 
-            _process?.Dispose();
+            try
+            {
+                _process?.Dispose();
+            }
+            catch { }
             _process = null;
+            _processId = 0;
 
             if (_jobHandle != IntPtr.Zero)
             {
-                CloseHandle(_jobHandle);
+                try { CloseHandle(_jobHandle); } catch { }
                 _jobHandle = IntPtr.Zero;
             }
 

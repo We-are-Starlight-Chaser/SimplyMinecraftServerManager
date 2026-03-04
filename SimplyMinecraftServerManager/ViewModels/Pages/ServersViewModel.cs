@@ -11,7 +11,7 @@ using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
-    public partial class ServersViewModel : ObservableObject, INavigationAware
+    public partial class ServersViewModel : ObservableObject, INavigationAware, IDisposable
     {
         private readonly IContentDialogService _contentDialogService;
         private readonly INavigationService _navigationService;
@@ -22,6 +22,29 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _contentDialogService = contentDialogService;
             _navigationService = navigationService;
             _navigationParameterService = navigationParameterService;
+
+            // 订阅全局状态变化事件
+            ServerProcessManager.InstanceStatusChanged += OnInstanceStatusChanged;
+        }
+
+        private void OnInstanceStatusChanged(object? sender, (string InstanceId, bool IsRunning) e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                var item = Instances.FirstOrDefault(i => i.InstanceId == e.InstanceId);
+                if (item != null && item.IsRunning != e.IsRunning)
+                {
+                    item.IsRunning = e.IsRunning;
+                    if (!e.IsRunning)
+                    {
+                        item.ServerProcess = null;
+                    }
+                    else
+                    {
+                        item.ServerProcess = ServerProcessManager.GetProcess(e.InstanceId);
+                    }
+                }
+            });
         }
 
         [ObservableProperty]
@@ -72,7 +95,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             LoadAvailableJdks();
         }
 
-        public Task OnNavigatedFromAsync() => Task.CompletedTask;
+        public Task OnNavigatedFromAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            ServerProcessManager.InstanceStatusChanged -= OnInstanceStatusChanged;
+        }
 
         [RelayCommand]
         private async Task CreateNewInstanceAsync()
@@ -219,28 +250,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             try
             {
+                // 清理已停止的进程记录
+                ServerProcessManager.CleanupStoppedProcesses();
+
                 var instances = InstanceManager.GetAll();
                 foreach (var inst in instances)
                 {
                     var item = new InstanceDisplayItem(inst);
                     // 从 ServerProcessManager 恢复运行状态
-                    item.ServerProcess = ServerProcessManager.GetProcess(inst.Id);
-                    item.IsRunning = ServerProcessManager.IsRunning(inst.Id);
-                    
-                    // 如果有进程但 IsRunning 为 false，说明进程已退出但未清理
-                    if (item.ServerProcess != null && !item.IsRunning)
-                    {
-                        // 重新订阅退出事件
-                        item.ServerProcess.Exited += (_, code) =>
-                        {
-                            Application.Current.Dispatcher.Invoke(() =>
-                            {
-                                item.IsRunning = false;
-                                StatusMessage = $"服务器已退出，代码: {code}";
-                            });
-                        };
-                    }
-                    
+                    var process = ServerProcessManager.GetProcess(inst.Id);
+                    bool isRunning = process?.IsRunning ?? false;
+
+                    item.ServerProcess = isRunning ? process : null;
+                    item.IsRunning = isRunning;
                     Instances.Add(item);
                 }
                 StatusMessage = $"共 {instances.Count} 个实例";
@@ -317,72 +339,127 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         [RelayCommand]
-        private void StartInstance(InstanceDisplayItem? item)
+        private async Task StartInstance(InstanceDisplayItem? item)
         {
             if (item == null) return;
 
             try
             {
-                // 检查 ServerProcessManager 中是否已有运行中的进程
+                // 检查是否已经在运行
                 if (ServerProcessManager.IsRunning(item.InstanceId))
                 {
                     StatusMessage = "服务器已在运行";
+                    item.IsRunning = true;
                     return;
                 }
 
-                // 获取或创建进程
-                var existingProcess = ServerProcessManager.GetProcess(item.InstanceId);
-                if (existingProcess != null)
+                // 清理控制台输出
+                item.ConsoleOutput = "";
+                StatusMessage = "正在启动服务器...";
+
+                // 在后台线程执行启动操作，避免阻塞 UI
+                var (process, success, errorMessage) = await Task.Run(() =>
                 {
-                    existingProcess.Dispose();
+                    try
+                    {
+                        var proc = new ServerProcess(item.InstanceId);
+
+                        // 订阅事件
+                        proc.OutputReceived += (_, line) =>
+                        {
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                item.ConsoleOutput += line + "\n";
+                            });
+                        };
+
+                        // 启动进程（这个操作可能耗时）
+                        proc.Start();
+
+                        return (proc, true, (string?)null);
+                    }
+                    catch (Exception ex)
+                    {
+                        return ((ServerProcess?)null, false, ex.Message);
+                    }
+                });
+
+                if (!success || process == null)
+                {
+                    StatusMessage = $"启动失败: {errorMessage}";
+                    item.IsRunning = false;
+                    item.ServerProcess = null;
+                    return;
                 }
 
-                var process = new ServerProcess(item.InstanceId);
+                // 短暂等待，检查是否快速退出
+                await Task.Delay(500);
 
-                process.OutputReceived += (_, line) =>
+                if (!process.IsRunning)
                 {
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        item.ConsoleOutput += line + "\n";
-                    });
-                };
+                    StatusMessage = "服务器启动失败，进程已退出";
+                    try { process.Dispose(); } catch { }
+                    item.IsRunning = false;
+                    item.ServerProcess = null;
+                    return;
+                }
 
-                process.Exited += (_, code) =>
-                {
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        item.IsRunning = false;
-                        StatusMessage = $"服务器已退出，代码: {code}";
-                    });
-                };
-
-                process.Start();
-                
-                // 注册到全局管理器
+                // 注册到全局管理器（这会触发 InstanceStatusChanged 事件）
                 ServerProcessManager.Register(item.InstanceId, process);
+
+                // 直接更新 UI 状态
                 item.ServerProcess = process;
                 item.IsRunning = true;
                 StatusMessage = "服务器已启动";
             }
             catch (Exception ex)
             {
+                item.IsRunning = false;
+                item.ServerProcess = null;
                 StatusMessage = $"启动失败: {ex.Message}";
             }
         }
 
         [RelayCommand]
-        private void StopInstance(InstanceDisplayItem? item)
+        private async Task StopInstance(InstanceDisplayItem? item)
         {
             if (item == null) return;
 
-            var process = item.ServerProcess ?? ServerProcessManager.GetProcess(item.InstanceId);
-            if (process == null || !process.IsRunning) return;
+            // 从 ServerProcessManager 获取进程
+            var process = ServerProcessManager.GetProcess(item.InstanceId);
+            if (process == null || !process.IsRunning)
+            {
+                // 进程不存在或已停止，同步状态
+                if (item.IsRunning)
+                {
+                    item.IsRunning = false;
+                    item.ServerProcess = null;
+                }
+                StatusMessage = "服务器未在运行";
+                return;
+            }
 
             try
             {
                 process.Stop();
-                item.IsRunning = false;
                 StatusMessage = "正在停止服务器...";
+
+                // 等待进程退出（最多10秒）
+                for (int i = 0; i < 20; i++)
+                {
+                    await Task.Delay(500);
+                    if (!process.IsRunning) break;
+                }
+
+                // 状态更新由 ServerProcessManager 的事件处理
+                if (!ServerProcessManager.IsRunning(item.InstanceId))
+                {
+                    StatusMessage = "服务器已停止";
+                }
+                else
+                {
+                    StatusMessage = "服务器停止超时";
+                }
             }
             catch (Exception ex)
             {
@@ -391,16 +468,29 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         [RelayCommand]
-        private void TerminateInstance(InstanceDisplayItem? item)
+        private async Task TerminateInstance(InstanceDisplayItem? item)
         {
             if (item == null) return;
 
             try
             {
+                // 检查进程是否真的在运行
+                if (!ServerProcessManager.IsRunning(item.InstanceId))
+                {
+                    item.IsRunning = false;
+                    item.ServerProcess = null;
+                    StatusMessage = "服务器未在运行";
+                    return;
+                }
+
                 ServerProcessManager.KillAndRemove(item.InstanceId);
+
+                // 立即更新 UI 状态
                 item.IsRunning = false;
                 item.ServerProcess = null;
                 StatusMessage = "服务器已被强制终止";
+
+                await Task.CompletedTask;
             }
             catch (Exception ex)
             {
@@ -435,6 +525,32 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public string StatusText => IsRunning ? "运行中" : "已停止";
 
         public string StatusColor => IsRunning ? "#4CAF50" : "#9E9E9E";
+
+        // 从 server.properties 读取服务器地址和端口
+        public string ServerAddress
+        {
+            get
+            {
+                try
+                {
+                    var props = ServerPropertiesManager.Read(InstanceId);
+                    string ip = props.GetValueOrDefault("server-ip", "");
+                    string port = props.GetValueOrDefault("server-port", "25565");
+
+                    // 如果 IP 为空，显示本地地址
+                    if (string.IsNullOrWhiteSpace(ip))
+                    {
+                        ip = "localhost";
+                    }
+
+                    return $"{ip}:{port}";
+                }
+                catch
+                {
+                    return "localhost:25565";
+                }
+            }
+        }
 
         // 当 IsRunning 改变时，通知 StatusText 和 StatusColor 也改变了
         partial void OnIsRunningChanged(bool value)

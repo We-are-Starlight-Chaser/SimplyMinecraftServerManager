@@ -79,17 +79,18 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Border Style="{StaticResource InstanceCardStyle}"
-                            Height="200"
+                            Height="220"
                             Margin="6"
                             CornerRadius="12"
                             Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
-                            RenderTransformOrigin="0.5,0.5">
+                            RenderTransformOrigin="0.5,0.5"
+                            MouseLeftButtonDown="OnCardClick">
                             <Border.RenderTransform>
                                 <ScaleTransform ScaleX="1" ScaleY="1"/>
                             </Border.RenderTransform>
-                            
+
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="4"/>
@@ -118,6 +119,7 @@
                                 <!-- 主内容 -->
                                 <Grid Grid.Column="1" Margin="16,14,14,14">
                                     <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
@@ -185,8 +187,8 @@
                                         Margin="0,0,0,12"/>
 
                                     <!-- 第四行：内存信息 -->
-                                    <StackPanel Grid.Row="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
-                                        <ui:SymbolIcon Symbol="DeveloperBoard24" FontSize="12" 
+                                    <StackPanel Grid.Row="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
+                                        <ui:SymbolIcon Symbol="DeveloperBoard24" FontSize="12"
                                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,6,0"/>
                                         <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}">
                                             <Run Text="{Binding MinMemoryMb, Mode=OneWay}"/>
@@ -196,8 +198,18 @@
                                         </TextBlock>
                                     </StackPanel>
 
-                                    <!-- 第五行：操作按钮 -->
-                                    <Grid Grid.Row="4">
+                                    <!-- 第五行：服务器地址 -->
+                                    <StackPanel Grid.Row="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
+                                        <ui:SymbolIcon Symbol="Globe24" FontSize="12"
+                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding ServerAddress}"
+                                            FontSize="11"
+                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                            FontFamily="Consolas"/>
+                                    </StackPanel>
+
+                                    <!-- 第六行：操作按钮 -->
+                                    <Grid Grid.Row="5">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
@@ -255,21 +267,11 @@
                                         <!-- 右侧次要操作 -->
                                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                                             <ui:Button
-                                                Command="{Binding ViewModel.ViewInstanceCommand, ElementName=PageRoot}"
-                                                CommandParameter="{Binding}"
-                                                Appearance="Transparent"
-                                                Height="34" Width="34"
-                                                Padding="0"
-                                                ToolTip="查看详情">
-                                                <ui:SymbolIcon Symbol="Settings24" FontSize="16"/>
-                                            </ui:Button>
-                                            <ui:Button
                                                 Command="{Binding ViewModel.DeleteInstanceCommand, ElementName=PageRoot}"
                                                 CommandParameter="{Binding}"
                                                 Appearance="Transparent"
                                                 Height="34" Width="34"
                                                 Padding="0"
-                                                Margin="4,0,0,0"
                                                 ToolTip="删除实例">
                                                 <ui:SymbolIcon Symbol="Delete24" FontSize="16" 
                                                     Foreground="{DynamicResource SystemFillColorCriticalBrush}"/>
