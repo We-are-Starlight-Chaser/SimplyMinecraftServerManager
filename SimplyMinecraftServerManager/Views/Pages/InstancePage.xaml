@@ -41,7 +41,7 @@
                 <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                     <!-- 服务端类型标签 -->
                     <Border Background="#B388FF" CornerRadius="4" Padding="8,2">
-                        <TextBlock Text="{Binding ViewModel.ServerType, ElementName=PageRoot}" FontSize="12" Foreground="White" FontWeight="Medium"/>
+                        <TextBlock Text="{Binding ViewModel.ServerType}" FontSize="12" Foreground="White" FontWeight="Medium"/>
                     </Border>
                     <!-- 版本标签 -->
                     <Border Background="#B388FF" CornerRadius="4" Padding="8,2" Margin="8,0,0,0">

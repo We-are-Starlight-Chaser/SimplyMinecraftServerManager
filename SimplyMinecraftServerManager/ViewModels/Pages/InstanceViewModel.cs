@@ -7,10 +7,10 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
-    public partial class InstanceViewModel : ObservableObject, INavigationAware
+    public partial class InstanceViewModel(INavigationService navigationService, NavigationParameterService navigationParameterService) : ObservableObject, INavigationAware
     {
-        private readonly INavigationService _navigationService;
-        private readonly NavigationParameterService _navigationParameterService;
+        private readonly INavigationService _navigationService = navigationService;
+        private readonly NavigationParameterService _navigationParameterService = navigationParameterService;
         private readonly StringBuilder _consoleBuilder = new();
         private const int MaxConsoleLines = 1000;
         private int _lineCount = 0;
@@ -59,12 +59,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _editJdkPath = "";
 
         private ServerProcess? _serverProcess;
-
-        public InstanceViewModel(INavigationService navigationService, NavigationParameterService navigationParameterService)
-        {
-            _navigationService = navigationService;
-            _navigationParameterService = navigationParameterService;
-        }
 
         public async Task OnNavigatedToAsync()
         {
@@ -321,21 +315,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
-    public class PluginDisplayItem
+    public class PluginDisplayItem(PluginInfo info)
     {
-        public string Name { get; }
-        public string Version { get; }
-        public string Description { get; }
-        public string FileName { get; }
-        public string Authors { get; }
-
-        public PluginDisplayItem(PluginInfo info)
-        {
-            Name = info.Name;
-            Version = info.Version;
-            Description = info.Description;
-            FileName = info.FileName;
-            Authors = string.Join(", ", info.Authors);
-        }
+        public string Name { get; } = info.Name;
+        public string Version { get; } = info.Version;
+        public string Description { get; } = info.Description;
+        public string FileName { get; } = info.FileName;
+        public string Authors { get; } = string.Join(", ", info.Authors);
     }
 }
