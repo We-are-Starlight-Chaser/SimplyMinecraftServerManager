@@ -18,6 +18,8 @@
   WindowCornerPreference="Round"
   WindowStartupLocation="CenterScreen"
   mc:Ignorable="d" WindowStyle="None"
+  MinHeight="650"
+  MinWidth="1100"
 >
   <ui:FluentWindow.InputBindings>
     <KeyBinding

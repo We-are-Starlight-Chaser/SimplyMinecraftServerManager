@@ -98,7 +98,7 @@
         <TabControl Grid.Row="1" Margin="16,16,16,0" SelectionChanged="OnTabSelectionChanged">
             <!-- 控制台 -->
             <TabItem Header="控制台">
-                <Grid Margin="8">
+                <Grid Margin="8" VerticalAlignment="Top" >
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -130,7 +130,7 @@
                             IsChecked="{Binding ViewModel.AutoScroll, ElementName=PageRoot, Mode=TwoWay}"
                             Margin="16,0,0,0"
                             VerticalAlignment="Center">
-                            <TextBlock Text="自动滚动" FontSize="12"/>
+                            自动滚动
                         </CheckBox>
                     </StackPanel>
 
@@ -141,14 +141,16 @@
                         BorderBrush="{DynamicResource ControlElevationBorderBrush}"
                         BorderThickness="1">
                         <FlowDocumentScrollViewer
+                            MinHeight="300"
                             x:Name="ConsoleScrollViewer"
-                            HorizontalScrollBarVisibility="Auto"
-                            VerticalScrollBarVisibility="Auto">
+                            HorizontalScrollBarVisibility="Visible"
+                            VerticalScrollBarVisibility="Visible">
                             <FlowDocument
                                 x:Name="ConsoleDocument"
                                 FontFamily="Consolas"
                                 FontSize="12"
                                 PageWidth="9999"
+                                PageHeight="376"
                                 LineHeight="18">
                                 <Paragraph
                                     x:Name="ConsoleParagraph"
@@ -208,12 +210,12 @@
                                         <TextBlock Text="CPU 使用率" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                     </StackPanel>
                                     <TextBlock
-                                        Text="{Binding ViewModel.CpuUsage, ElementName=PageRoot, StringFormat='{}{0:F1} %'}"
+                                        Text="{Binding ViewModel.CpuUsage, StringFormat='{}{0:F1} %'}"
                                         FontSize="32"
                                         FontWeight="Bold"
                                         Margin="0,8,0,0"/>
                                     <ProgressBar
-                                        Value="{Binding ViewModel.CpuUsage, ElementName=PageRoot}"
+                                        Value="{Binding ViewModel.CpuUsage, Mode=OneWay}"
                                         Maximum="100"
                                         Height="4"
                                         Margin="0,8,0,0"
@@ -245,8 +247,8 @@
                                         FontWeight="Bold"
                                         Margin="0,8,0,0"/>
                                     <ProgressBar
-                                        Value="{Binding ViewModel.MemoryUsage, ElementName=PageRoot}"
-                                        Maximum="{Binding ViewModel.MaxMemoryMb, ElementName=PageRoot}"
+                                        Value="{Binding ViewModel.MemoryUsage,Mode=OneWay}"
+                                        Maximum="{Binding ViewModel.MaxMemoryMb,Mode=OneWay}"
                                         Height="4"
                                         Margin="0,8,0,0"
                                         Background="{DynamicResource ControlFillColorSecondaryBrush}"
@@ -452,8 +454,14 @@
                         CanUserDeleteRows="True"
                         GridLinesVisibility="Horizontal">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="属性名" Binding="{Binding Key, Mode=TwoWay}" Width="*"/>
-                            <DataGridTextColumn Header="值" Binding="{Binding Value, Mode=TwoWay}" Width="*"/>
+                            <DataGridTextColumn Header="属性名" Binding="{Binding Key, Mode=OneWay}" Width="*"/>
+                            <DataGridTemplateColumn Header="值" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding Value,Mode=OneWay}"></TextBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

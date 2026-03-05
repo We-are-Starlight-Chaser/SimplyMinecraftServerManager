@@ -14,7 +14,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private readonly NavigationParameterService _navigationParameterService;
         private PerformanceMonitor? _performanceMonitor;
 
-        private readonly object _consoleLock = new();
+        private readonly Lock _consoleLock = new();
 
         [ObservableProperty]
         private string _instanceId = "";
@@ -44,7 +44,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public event EventHandler<string>? ConsoleLineAdded;
         public event EventHandler? ConsoleCleared;
 
-        public int MaxConsoleLines => 1000;
+        public static int MaxConsoleLines => 1000;
 
         [ObservableProperty]
         private string _commandInput = "";
@@ -82,7 +82,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _totalStorage = "0 MB";
 
         [ObservableProperty]
-        private ObservableCollection<WorldStorageInfo> _worldStorageInfo = new();
+        private ObservableCollection<WorldStorageInfo> _worldStorageInfo = [];
 
         public int MaxMemoryMb => InstanceInfo?.MaxMemoryMb ?? 2048;
 
@@ -273,7 +273,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 // 获取各个世界的大小
                 WorldStorageInfo.Clear();
-                string[] worldFolders = new[] { "world", "world_nether", "world_the_end" };
+                string[] worldFolders = ["world", "world_nether", "world_the_end"];
                 var worldSizes = new Dictionary<string, long>();
                 long maxSize = 0;
 
@@ -326,7 +326,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-        private long GetDirectorySize(string path)
+        private static long GetDirectorySize(string path)
         {
             long size = 0;
             try
@@ -628,11 +628,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-        public void Dispose()
-        {
-            ServerProcessManager.InstanceStatusChanged -= OnInstanceStatusChanged;
-            StopPerformanceMonitoring();
-        }
+        public void Dispose() => GC.SuppressFinalize(this);
 
         [RelayCommand]
         private void SaveSettings()
@@ -684,20 +680,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
     public class PluginDisplayItem(PluginInfo info)
     {
-        public string Name { get; }
-        public string Version { get; }
-        public string Description { get; }
-        public string FileName { get; }
-        public string Authors { get; }
-
-        public PluginDisplayItem(PluginInfo info)
-        {
-            Name = info.Name;
-            Version = info.Version;
-            Description = info.Description;
-            FileName = info.FileName;
-            Authors = string.Join(", ", info.Authors);
-        }
+        public string Name { get; } = info.Name;
+        public string Version { get; } = info.Version;
+        public string Description { get; } = info.Description;
+        public string FileName { get; } = info.FileName;
+        public string Authors { get; } = string.Join(", ", info.Authors);
     }
 
     /// <summary>

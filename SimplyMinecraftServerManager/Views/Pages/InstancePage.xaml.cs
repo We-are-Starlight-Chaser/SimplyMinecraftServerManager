@@ -10,6 +10,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
 {
     public partial class InstancePage : INavigableView<InstanceViewModel>
     {
+        ScrollViewer sv;
         public InstanceViewModel ViewModel { get; }
 
         public InstancePage(InstanceViewModel viewModel)
@@ -31,6 +32,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
         {
             // 初始化 FlowDocument 内容
             InitializeConsole();
+            sv = ConsoleScrollViewer.Template.FindName("PART_ContentHost", ConsoleScrollViewer) as ScrollViewer;
         }
 
         private void InitializeConsole()
@@ -64,7 +66,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
                 ConsoleParagraph.Inlines.Add(new LineBreak());
 
                 // 限制行数
-                while (ConsoleParagraph.Inlines.Count > ViewModel.MaxConsoleLines * 2)
+                while (ConsoleParagraph.Inlines.Count > InstanceViewModel.MaxConsoleLines * 2)
                 {
                     // 移除前两个元素（Run + LineBreak）
                     if (ConsoleParagraph.Inlines.FirstInline != null)
@@ -80,9 +82,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
                 // 自动滚动 - 将滚动条移动到底部
                 if (ViewModel.AutoScroll && ConsoleScrollViewer != null)
                 {
-                    // 获取 ScrollViewer 并滚动到底部
-                    var scrollViewer = FindVisualChild<ScrollViewer>(ConsoleScrollViewer);
-                    scrollViewer?.ScrollToEnd();
+                    sv.ScrollToBottom();
                 }
             });
         }
