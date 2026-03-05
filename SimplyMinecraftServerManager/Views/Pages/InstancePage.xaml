@@ -98,7 +98,7 @@
         <TabControl Grid.Row="1" Margin="16,16,16,0" SelectionChanged="OnTabSelectionChanged">
             <!-- 控制台 -->
             <TabItem Header="控制台">
-                <Grid Margin="8" VerticalAlignment="Top" >
+                <Grid Margin="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -141,7 +141,6 @@
                         BorderBrush="{DynamicResource ControlElevationBorderBrush}"
                         BorderThickness="1">
                         <FlowDocumentScrollViewer
-                            MinHeight="300"
                             x:Name="ConsoleScrollViewer"
                             HorizontalScrollBarVisibility="Visible"
                             VerticalScrollBarVisibility="Visible">
