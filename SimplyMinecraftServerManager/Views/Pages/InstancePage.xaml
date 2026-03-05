@@ -63,7 +63,7 @@
                 <ui:Button 
                     Command="{Binding ViewModel.StartServerCommand, ElementName=PageRoot}"
                     Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
-                    Appearance="Success">
+                    Appearance="Success" Margin="0,0,5,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Play24"/>
                         <TextBlock Text="启动" Margin="8,0,0,0"/>
@@ -74,7 +74,7 @@
                     Command="{Binding ViewModel.StopServerCommand, ElementName=PageRoot}"
                     Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}"
                     Appearance="Caution"
-                    Margin="0,0,8,0">
+                    Margin="0,0,5,0">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Stop24"/>
                         <TextBlock Text="停止" Margin="8,0,0,0"/>
@@ -85,7 +85,7 @@
                     Command="{Binding ViewModel.TerminateServerCommand, ElementName=PageRoot}"
                     Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}"
                     Appearance="Danger"
-                    ToolTip="强制终止服务器进程">
+                    ToolTipService.ToolTip="强制终止服务器进程！小心！这样可能丢失所有未保存进度！">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Dismiss24"/>
                         <TextBlock Text="终止" Margin="8,0,0,0"/>
@@ -458,7 +458,7 @@
                             <DataGridTemplateColumn Header="值" Width="*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBox Text="{Binding Value,Mode=OneWay}"></TextBox>
+                                        <TextBox Text="{Binding Value,Mode=TwoWay}"></TextBox>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>

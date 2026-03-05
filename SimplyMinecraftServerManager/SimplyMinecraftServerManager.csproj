@@ -11,17 +11,10 @@
     <StartupObject></StartupObject>
     
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <SelfContained>true</SelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
-    <PublishReadyToRun>true</PublishReadyToRun>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     
     <TieredCompilation>true</TieredCompilation>
-    <ReadyToRun>true</ReadyToRun>
     
     <WpfDisableXamlLineInfo>true</WpfDisableXamlLineInfo>
-    <DebugType>none</DebugType>
     <Optimize>true</Optimize>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     

@@ -1,4 +1,5 @@
 using SimplyMinecraftServerManager.Internals;
+using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -53,7 +54,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private ObservableCollection<PluginDisplayItem> _plugins = [];
 
         [ObservableProperty]
-        private ObservableCollection<KeyValuePair<string, string>> _serverProperties = [];
+        private ObservableCollection<ServerProperty> _serverProperties = [];
 
         [ObservableProperty]
         private string _statusMessage = "";
@@ -450,7 +451,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 var props = ServerPropertiesManager.Read(InstanceId);
                 foreach (var kvp in props)
                 {
-                    ServerProperties.Add(new KeyValuePair<string, string>(kvp.Key, kvp.Value));
+                    ServerProperties.Add(new ServerProperty(kvp.Key, kvp.Value));
                 }
             }
             catch (Exception ex)
