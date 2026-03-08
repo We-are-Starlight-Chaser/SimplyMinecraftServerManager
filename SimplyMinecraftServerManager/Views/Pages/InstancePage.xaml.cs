@@ -26,13 +26,16 @@ namespace SimplyMinecraftServerManager.Views.Pages
 
             // 页面加载完成后初始化控制台
             Loaded += OnPageLoaded;
-            sv = (ScrollViewer?)ConsoleScrollViewer.FindName("PART_ContentHost");
         }
 
         private void OnPageLoaded(object sender, RoutedEventArgs e)
         {
             // 初始化 FlowDocument 内容
             InitializeConsole();
+            ConsoleScrollViewer.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                sv = ConsoleScrollViewer.Template.FindName("PART_ContentHost",ConsoleScrollViewer) as ScrollViewer;
+            }));
         }
 
         private void InitializeConsole()
@@ -80,9 +83,9 @@ namespace SimplyMinecraftServerManager.Views.Pages
                 }
 
                 // 自动滚动 - 将滚动条移动到底部
-                if (ViewModel.AutoScroll && ConsoleScrollViewer != null && sv != null)
+                if (ViewModel.AutoScroll && ConsoleScrollViewer != null)
                 {
-                    sv?.ScrollToBottom();
+                    sv.ScrollToBottom();
                 }
             });
         }

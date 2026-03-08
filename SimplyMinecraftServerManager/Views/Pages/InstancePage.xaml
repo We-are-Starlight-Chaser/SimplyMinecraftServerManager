@@ -139,11 +139,11 @@
                         Background="{DynamicResource ControlFillColorDefaultBrush}"
                         CornerRadius="8"
                         BorderBrush="{DynamicResource ControlElevationBorderBrush}"
-                        BorderThickness="1">
+                        BorderThickness="1" Name="FlowDocumentScrollViewerBorder">
                         <FlowDocumentScrollViewer
                             x:Name="ConsoleScrollViewer"
                             HorizontalScrollBarVisibility="Visible"
-                            VerticalScrollBarVisibility="Visible">
+                            VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Visible">
                             <FlowDocument
                                 x:Name="ConsoleDocument"
                                 FontFamily="Consolas"

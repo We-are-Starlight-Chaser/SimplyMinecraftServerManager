@@ -38,8 +38,6 @@
   <ItemGroup>
     <None Remove="Assets\Pictures\SMSM-icon-1024.jpg" />
     <None Remove="Assets\Pictures\SMSM-icon-256.jpg" />
-    <None Remove="Assets\wpfui-icon-256.png" />
-    <None Remove="Assets\wpfui-icon-1024.png" />
   </ItemGroup>
 
   <ItemGroup>

@@ -17,6 +17,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private readonly Lock _consoleLock = new();
 
+
         [ObservableProperty]
         private string _instanceId = "";
 
