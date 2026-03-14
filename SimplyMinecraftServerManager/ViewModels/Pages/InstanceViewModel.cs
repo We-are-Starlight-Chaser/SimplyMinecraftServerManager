@@ -1,11 +1,14 @@
+using Microsoft.Win32;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
+using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
@@ -174,7 +177,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             // 触发事件通知 UI
             ConsoleLineAdded?.Invoke(this, line);
         }
-
+        [RelayCommand]
+        private void OpenServerFolder()
+        {
+            string folderPath = PathHelper.GetInstanceDir(InstanceId);
+            if (!Directory.Exists(folderPath)) {
+                System.Windows.MessageBox.Show("服务器路径不存在！", "SMSM-错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            Process.Start("explorer.exe",folderPath);
+        }
         [RelayCommand]
         private void ClearConsole()
         {
@@ -672,7 +684,51 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 StatusMessage = $"删除失败: {ex.Message}";
             }
         }
-
+        [RelayCommand]
+        private async Task AddPlugin()
+        {
+            OpenFileDialog dialog = new()
+            {
+                Title = "选择插件",
+                Filter = "JAR文件（*.jar）|*.jar",
+                FileName= "plugin.jar",
+                DefaultExt=".jar"
+            };
+            bool? res = dialog.ShowDialog();
+            if (res == true)
+            {
+                string sourcePath = dialog.FileName;
+                string destPath = PathHelper.GetPluginsDir(InstanceId);
+                if (string.IsNullOrEmpty(destPath) || !Directory.Exists(destPath)) {
+                    System.Windows.MessageBox.Show("插件文件夹不存在！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        File.Copy(sourcePath, Path.Combine(destPath,Path.GetFileName(sourcePath)), true);
+                    }
+                    catch (FileNotFoundException)
+                    {
+                        System.Windows.MessageBox.Show("文件未找到！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                    catch (IOException)
+                    {
+                        System.Windows.MessageBox.Show("IO出错！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        System.Windows.MessageBox.Show("没有权限读取或写入文件！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                    catch
+                    {
+                        System.Windows.MessageBox.Show("未知错误！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                });
+                LoadPlugins();
+            }
+        }
         [RelayCommand]
         private void RefreshPlugins()
         {

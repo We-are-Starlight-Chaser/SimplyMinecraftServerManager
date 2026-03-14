@@ -21,7 +21,7 @@ namespace SimplyMinecraftServerManager
             "smsm", "logs", $"app_{DateTime.Now:yyyyMMdd}.log");
 
         private static readonly IHost _host = Host
-            .CreateDefaultBuilder()
+            .CreateDefaultBuilder() 
             .ConfigureAppConfiguration(c =>
             {
                 var basePath = Path.GetDirectoryName(AppContext.BaseDirectory);

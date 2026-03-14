@@ -264,12 +264,9 @@
                         </ui:Card>
 
                         <!-- 存储空间 -->
-                        <ui:Card Grid.Column="2" Padding="16" Margin="8,0,0,0">
+                        <ui:Card Grid.Column="2" Padding="16" Margin="8,0,0,0" VerticalAlignment="Stretch">
                             <StackPanel>
-                                <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="HardDrive24" FontSize="24" Foreground="#4CAF50"/>
-                                    <TextBlock Text="总存储" Margin="8,0,0,0" VerticalAlignment="Center"/>
-                                </StackPanel>
+                                <TextBlock Text="总存储" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                 <TextBlock
                                     Text="{Binding ViewModel.TotalStorage, ElementName=PageRoot}"
                                     FontSize="32"
@@ -294,8 +291,7 @@
                                 Margin="0,0,0,12"/>
 
                             <ListView Grid.Row="1"
-                                ItemsSource="{Binding ViewModel.WorldStorageInfo, ElementName=PageRoot}"
-                                BorderThickness="0">
+                                ItemsSource="{Binding ViewModel.WorldStorageInfo, ElementName=PageRoot}">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="0,4">
@@ -346,6 +342,9 @@
                             Margin="16,0,0,0"
                             Appearance="Secondary">
                             <ui:SymbolIcon Symbol="ArrowSync24"/>
+                        </ui:Button>
+                        <ui:Button Margin="16,0,0,0" Command="{Binding ViewModel.AddPluginCommand}">
+                            <ui:SymbolIcon Symbol="AddCircle24"/>
                         </ui:Button>
                     </StackPanel>
 
@@ -430,6 +429,7 @@
                                 HorizontalAlignment="Left">
                                 保存设置
                             </ui:Button>
+                            <ui:Button Command="{Binding ViewModel.OpenServerFolderCommand}" Margin="0,5,0,0">打开版本文件夹</ui:Button>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
