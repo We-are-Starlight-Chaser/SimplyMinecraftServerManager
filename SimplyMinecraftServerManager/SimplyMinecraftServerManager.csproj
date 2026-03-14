@@ -15,7 +15,7 @@
     <TieredCompilation>true</TieredCompilation>
     
     <WpfDisableXamlLineInfo>true</WpfDisableXamlLineInfo>
-    <Optimize>true</Optimize>
+    <Optimize>False</Optimize>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     
     <InvariantGlobalization>false</InvariantGlobalization>

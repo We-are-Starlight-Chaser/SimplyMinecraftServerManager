@@ -10,7 +10,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
 {
     public partial class InstancePage : INavigableView<InstanceViewModel>
     {
-        ScrollViewer sv;
+        private ScrollViewer? _consoleScrollViewer;
         public InstanceViewModel ViewModel { get; }
 
         public InstancePage(InstanceViewModel viewModel)
@@ -30,12 +30,36 @@ namespace SimplyMinecraftServerManager.Views.Pages
 
         private void OnPageLoaded(object sender, RoutedEventArgs e)
         {
-            // 初始化 FlowDocument 内容
+            // 初始化 FlowDocument 内容并获取 ScrollViewer
             InitializeConsole();
-            ConsoleScrollViewer.Dispatcher.BeginInvoke(new Action(() =>
+            FindConsoleScrollViewer();
+        }
+
+        private void FindConsoleScrollViewer()
+        {
+            if (ConsoleScrollViewer == null) return;
+
+            // 查找内部的 ScrollViewer
+            _consoleScrollViewer = GetChildScrollViewer(ConsoleScrollViewer);
+            
+            // 检查是否需要显示空提示
+            UpdateEmptyHintVisibility(ViewModel.GetConsoleText().Length > 0);
+        }
+
+        private ScrollViewer? GetChildScrollViewer(DependencyObject parent)
+        {
+            if (parent is ScrollViewer sv)
+                return sv;
+
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
             {
-                sv = ConsoleScrollViewer.Template.FindName("PART_ContentHost",ConsoleScrollViewer) as ScrollViewer;
-            }));
+                var child = VisualTreeHelper.GetChild(parent, i);
+                var result = GetChildScrollViewer(child);
+                if (result != null)
+                    return result;
+            }
+
+            return null;
         }
 
         private void InitializeConsole()
@@ -46,7 +70,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
             if (!string.IsNullOrEmpty(text))
             {
                 ConsoleParagraph.Inlines.Clear();
-                var lines = text.Split('\n');
+                var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
                 foreach (var line in lines)
                 {
                     if (!string.IsNullOrEmpty(line))
@@ -55,37 +79,73 @@ namespace SimplyMinecraftServerManager.Views.Pages
                         ConsoleParagraph.Inlines.Add(new LineBreak());
                     }
                 }
+
+                // 检查是否需要显示空提示
+                UpdateEmptyHintVisibility(lines.Length > 0);
+            }
+            else
+            {
+                // 没有内容时显示空提示
+                UpdateEmptyHintVisibility(false);
+            }
+
+            // 如果启用了自动滚动，滚动到底部
+            if (ViewModel.AutoScroll)
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_consoleScrollViewer != null)
+                    {
+                        _consoleScrollViewer.ScrollToEnd();
+                    }
+                }));
+            }
+        }
+
+        private void UpdateEmptyHintVisibility(bool hasContent)
+        {
+            if (ConsoleEmptyHint != null)
+            {
+                ConsoleEmptyHint.Visibility = hasContent || ViewModel.IsRunning ? Visibility.Collapsed : Visibility.Visible;
             }
         }
 
         private void OnConsoleLineAdded(object? sender, string line)
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
             {
                 if (ConsoleParagraph == null) return;
+
+                // 检查是否需要显示空提示
+                UpdateEmptyHintVisibility(true);
 
                 // 添加新行
                 ConsoleParagraph.Inlines.Add(new Run(line));
                 ConsoleParagraph.Inlines.Add(new LineBreak());
 
                 // 限制行数
-                while (ConsoleParagraph.Inlines.Count > InstanceViewModel.MaxConsoleLines * 2)
+                var inlines = new List<Inline>();
+                var current = ConsoleParagraph.Inlines.FirstInline;
+                while (current != null)
                 {
-                    // 移除前两个元素（Run + LineBreak）
-                    if (ConsoleParagraph.Inlines.FirstInline != null)
+                    inlines.Add(current);
+                    current = current.NextInline;
+                }
+
+                if (inlines.Count > InstanceViewModel.MaxConsoleLines * 2)
+                {
+                    // 移除前面的元素以限制行数
+                    int removeCount = inlines.Count - InstanceViewModel.MaxConsoleLines;
+                    for (int i = 0; i < removeCount && i < inlines.Count; i++)
                     {
-                        ConsoleParagraph.Inlines.Remove(ConsoleParagraph.Inlines.FirstInline);
-                    }
-                    if (ConsoleParagraph.Inlines.FirstInline != null)
-                    {
-                        ConsoleParagraph.Inlines.Remove(ConsoleParagraph.Inlines.FirstInline);
+                        ConsoleParagraph.Inlines.Remove(inlines[i]);
                     }
                 }
 
                 // 自动滚动 - 将滚动条移动到底部
-                if (ViewModel.AutoScroll && ConsoleScrollViewer != null)
+                if (ViewModel.AutoScroll && _consoleScrollViewer != null)
                 {
-                    sv.ScrollToBottom();
+                    _consoleScrollViewer.ScrollToEnd();
                 }
             });
         }
@@ -95,6 +155,8 @@ namespace SimplyMinecraftServerManager.Views.Pages
             Dispatcher.Invoke(() =>
             {
                 ConsoleParagraph?.Inlines.Clear();
+                // 检查是否需要显示空提示
+                UpdateEmptyHintVisibility(false);
             });
         }
 
@@ -117,37 +179,15 @@ namespace SimplyMinecraftServerManager.Views.Pages
         }
 
         /// <summary>
-        /// 在可视树中查找指定类型的子元素
-        /// </summary>
-        private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
-        {
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-            {
-                var child = VisualTreeHelper.GetChild(parent, i);
-                if (child is T typedChild)
-                {
-                    return typedChild;
-                }
-
-                var result = FindVisualChild<T>(child);
-                if (result != null)
-                {
-                    return result;
-                }
-            }
-            return null;
-        }
-
-        /// <summary>
         /// TabControl 选中项改变时触发
         /// </summary>
         private void OnTabSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            // 检查是否是性能选项卡被选中
-            if (e.AddedItems.Count > 0 && e.AddedItems[0] is TabItem tabItem && tabItem == PerformanceTabItem)
+            // 检查是否是仪表盘选项卡被选中
+            if (e.AddedItems.Count > 0 && e.AddedItems[0] is TabItem tabItem && tabItem == DashboardTabItem)
             {
-                // 每次进入性能选项卡时刷新存储空间统计
-                ViewModel.RefreshStorageInfoCommand.Execute(null);
+                // 每次进入仪表盘选项卡时刷新数据
+                ViewModel.RefreshDashboardCommand.Execute(null);
             }
         }
     }

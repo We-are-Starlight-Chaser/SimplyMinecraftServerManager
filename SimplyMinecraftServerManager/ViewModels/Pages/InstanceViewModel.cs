@@ -1,14 +1,11 @@
-using Microsoft.Win32;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
-using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
@@ -73,7 +70,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private string _editJdkPath = "";
 
-        // 性能监控属性
+        // 性能监控属性 - 保留原有的性能监控属性
         [ObservableProperty]
         private double _cpuUsage = 0;
 
@@ -89,7 +86,46 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private ObservableCollection<WorldStorageInfo> _worldStorageInfo = [];
 
+        // 仪表盘新增属性
+        [ObservableProperty]
+        private string _gameMode = "未知";
+
+        [ObservableProperty]
+        private bool _isOnlineMode = false;
+
+        [ObservableProperty]
+        private int _simulationDistance = 0;
+
+        [ObservableProperty]
+        private int _viewDistance = 0;
+
+        [ObservableProperty]
+        private string _serverAddress = "localhost:25565";
+
+        [ObservableProperty]
+        private int _onlinePlayersCount = 0;
+
+        [ObservableProperty]
+        private int _maxPlayersCount = 0;
+
+        [ObservableProperty]
+        private ObservableCollection<PlayerDisplayItem> _onlinePlayers = [];
+
+        [ObservableProperty]
+        private string _uptime = "00:00:00";
+
+        [ObservableProperty]
+        private long _networkSentBytes = 0;
+
+        [ObservableProperty]
+        private long _networkReceivedBytes = 0;
+
         public int MaxMemoryMb => InstanceInfo?.MaxMemoryMb ?? 2048;
+
+        private Timer? _serverStatusTimer;
+        private Timer? _uptimeTimer;
+        private DateTime _serverStartTime = DateTime.MinValue;
+        private PerformanceMonitor? _dashboardPerformanceMonitor;
 
         public InstanceViewModel(INavigationService navigationService, NavigationParameterService navigationParameterService)
         {
@@ -111,6 +147,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     StatusMessage = "服务器已停止";
                     StopPerformanceMonitoring();
+                    StopDashboardMonitoring();
                 }
                 else
                 {
@@ -119,6 +156,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     SubscribeToProcessOutput();
                     // 启动性能监控
                     StartPerformanceMonitoring();
+                    StartDashboardPerformanceMonitoring(); // 启动仪表盘性能监控
+                    LoadDashboardData(); // 加载仪表盘数据
+                    StartServerStatusPolling(); // 启动服务器状态轮询
+                    StartUptimeCounter(); // 启动运行时间计数
                 }
             });
         }
@@ -177,16 +218,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             // 触发事件通知 UI
             ConsoleLineAdded?.Invoke(this, line);
         }
-        [RelayCommand]
-        private void OpenServerFolder()
-        {
-            string folderPath = PathHelper.GetInstanceDir(InstanceId);
-            if (!Directory.Exists(folderPath)) {
-                System.Windows.MessageBox.Show("服务器路径不存在！", "SMSM-错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-            Process.Start("explorer.exe",folderPath);
-        }
+
         [RelayCommand]
         private void ClearConsole()
         {
@@ -262,15 +294,26 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 SubscribeToProcessOutput();
                 StartPerformanceMonitoring();
+                StartDashboardPerformanceMonitoring(); // 启动仪表盘性能监控
+                LoadDashboardData(); // 加载仪表盘数据
+                StartServerStatusPolling(); // 启动服务器状态轮询
+                StartUptimeCounter(); // 启动运行时间计数
             }
             else
             {
                 // 未运行时加载静态存储信息
                 LoadStaticStorageInfo();
+                // 服务器未运行时，清空在线玩家信息
+                OnlinePlayersCount = 0;
+                MaxPlayersCount = 0;
+                OnlinePlayers.Clear();
             }
 
             LoadPlugins();
             LoadServerProperties();
+            
+            // 加载仪表盘数据
+            LoadDashboardData();
         }
 
         private void LoadStaticStorageInfo()
@@ -487,6 +530,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     StatusMessage = "服务器已在运行";
                     SubscribeToProcessOutput();
                     StartPerformanceMonitoring();
+                    StartDashboardPerformanceMonitoring(); // 启动仪表盘性能监控
+                    LoadDashboardData(); // 加载仪表盘数据
+                    StartServerStatusPolling(); // 启动服务器状态轮询
+                    StartUptimeCounter(); // 启动运行时间计数
                     return;
                 }
 
@@ -542,6 +589,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 // 启动性能监控
                 StartPerformanceMonitoring();
+                StartDashboardPerformanceMonitoring(); // 启动仪表盘性能监控
+                LoadDashboardData(); // 加载仪表盘数据
+                StartServerStatusPolling(); // 启动服务器状态轮询
+                StartUptimeCounter(); // 启动运行时间计数
             }
             catch (Exception ex)
             {
@@ -561,6 +612,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 IsRunning = false;
                 StopPerformanceMonitoring();
+                StopDashboardMonitoring(); // 停止仪表盘监控
                 StatusMessage = "服务器未在运行";
                 return;
             }
@@ -578,6 +630,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     {
                         IsRunning = false;
                         StopPerformanceMonitoring();
+                        StopDashboardMonitoring(); // 停止仪表盘监控
                         StatusMessage = "服务器已停止";
                         return;
                     }
@@ -601,6 +654,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 IsRunning = false;
                 StopPerformanceMonitoring();
+                StopDashboardMonitoring(); // 停止仪表盘监控
                 StatusMessage = "服务器未在运行";
                 return;
             }
@@ -610,6 +664,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 ServerProcessManager.KillAndRemove(InstanceId);
                 IsRunning = false;
                 StopPerformanceMonitoring();
+                StopDashboardMonitoring(); // 停止仪表盘监控
                 StatusMessage = "服务器已被强制终止";
             }
             catch (Exception ex)
@@ -642,7 +697,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-        public void Dispose() => GC.SuppressFinalize(this);
+        public void Dispose()
+        {
+            StopDashboardMonitoring(); // 确保停止仪表盘监控
+            GC.SuppressFinalize(this);
+        }
 
         [RelayCommand]
         private void SaveSettings()
@@ -669,80 +728,548 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         [RelayCommand]
-        private void DeletePlugin(PluginDisplayItem? plugin)
+        private async Task DeletePlugin(PluginDisplayItem? plugin)
         {
             if (plugin == null || string.IsNullOrEmpty(InstanceId)) return;
 
             try
             {
+                // 显示确认对话框
+                var dialog = new Wpf.Ui.Controls.ContentDialog
+                {
+                    Title = "确认删除",
+                    Content = $"确定要删除插件 \"{plugin.Name}\" 吗？\n\n此操作将删除插件文件及其数据目录！",
+                    PrimaryButtonText = "删除",
+                    CloseButtonText = "取消",
+                    DefaultButton = Wpf.Ui.Controls.ContentDialogButton.Close
+                };
+
+                var result = await dialog.ShowAsync();
+
+                if (result != Wpf.Ui.Controls.ContentDialogResult.Primary) return;
+
+                // 先删除插件文件
                 PluginManager.DeletePlugin(InstanceId, plugin.FileName);
-                Plugins.Remove(plugin);
-                StatusMessage = "插件已删除";
+
+                // 删除插件数据目录（如果存在）
+                string pluginDataDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "plugins", plugin.Name);
+                if (Directory.Exists(pluginDataDir))
+                {
+                    Directory.Delete(pluginDataDir, true); // 递归删除目录
+                }
+
+                // 在UI线程上更新插件列表
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    Plugins.Remove(plugin);
+                    StatusMessage = "插件已删除";
+                });
             }
             catch (Exception ex)
             {
-                StatusMessage = $"删除失败: {ex.Message}";
-            }
-        }
-        [RelayCommand]
-        private async Task AddPlugin()
-        {
-            OpenFileDialog dialog = new()
-            {
-                Title = "选择插件",
-                Filter = "JAR文件（*.jar）|*.jar",
-                FileName= "plugin.jar",
-                DefaultExt=".jar"
-            };
-            bool? res = dialog.ShowDialog();
-            if (res == true)
-            {
-                string sourcePath = dialog.FileName;
-                string destPath = PathHelper.GetPluginsDir(InstanceId);
-                if (string.IsNullOrEmpty(destPath) || !Directory.Exists(destPath)) {
-                    System.Windows.MessageBox.Show("插件文件夹不存在！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-                await Task.Run(() =>
+                Application.Current.Dispatcher.Invoke(() =>
                 {
-                    try
-                    {
-                        File.Copy(sourcePath, Path.Combine(destPath,Path.GetFileName(sourcePath)), true);
-                    }
-                    catch (FileNotFoundException)
-                    {
-                        System.Windows.MessageBox.Show("文件未找到！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                    catch (IOException)
-                    {
-                        System.Windows.MessageBox.Show("IO出错！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                    catch (UnauthorizedAccessException)
-                    {
-                        System.Windows.MessageBox.Show("没有权限读取或写入文件！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                    catch
-                    {
-                        System.Windows.MessageBox.Show("未知错误！", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
+                    StatusMessage = $"删除失败: {ex.Message}";
                 });
-                LoadPlugins();
             }
         }
+
         [RelayCommand]
         private void RefreshPlugins()
         {
             LoadPlugins();
         }
+
+        [RelayCommand]
+        private void OpenPluginDataFolder(PluginDisplayItem? plugin)
+        {
+            if (plugin == null || string.IsNullOrEmpty(plugin.FolderPath)) return;
+
+            try
+            {
+                if (Directory.Exists(plugin.FolderPath))
+                {
+                    System.Diagnostics.Process.Start("explorer", plugin.FolderPath);
+                }
+                else
+                {
+                    StatusMessage = "插件数据目录不存在";
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"打开目录失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private void OpenPluginsFolder()
+        {
+            if (string.IsNullOrEmpty(InstanceId)) return;
+
+            try
+            {
+                string pluginsDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "plugins");
+                if (Directory.Exists(pluginsDir))
+                {
+                    System.Diagnostics.Process.Start("explorer", pluginsDir);
+                }
+                else
+                {
+                    StatusMessage = "插件目录不存在";
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"打开插件目录失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private void TogglePluginEnabled(PluginDisplayItem? plugin)
+        {
+            if (plugin == null || string.IsNullOrEmpty(InstanceId)) return;
+
+            try
+            {
+                string pluginsDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "plugins");
+                
+                // 根据插件当前状态决定操作
+                if (plugin.IsEnabled)
+                {
+                    // 当前是启用状态，需要禁用
+                    string pluginFilePath = Path.Combine(pluginsDir, plugin.FileName);
+                    string disabledFilePath = Path.ChangeExtension(pluginFilePath, ".jar.dis");
+
+                    if (File.Exists(pluginFilePath))
+                    {
+                        if (!File.Exists(disabledFilePath))
+                        {
+                            File.Move(pluginFilePath, disabledFilePath);
+                            plugin.IsEnabled = false;
+                            StatusMessage = "插件已禁用";
+                        }
+                        else
+                        {
+                            StatusMessage = "禁用文件已存在";
+                        }
+                    }
+                    else
+                    {
+                        StatusMessage = "插件文件不存在";
+                    }
+                }
+                else
+                {
+                    // 当前是禁用状态，需要启用
+                    string pluginFileNameWithoutDis = plugin.FileName.EndsWith(".dis") 
+                        ? plugin.FileName.Substring(0, plugin.FileName.Length - 4) // 移除 .dis
+                        : plugin.FileName;
+                    
+                    string disabledFilePath = Path.Combine(pluginsDir, plugin.FileName);
+                    string enabledFilePath = Path.Combine(pluginsDir, pluginFileNameWithoutDis);
+
+                    if (File.Exists(disabledFilePath))
+                    {
+                        // 需要重命名为启用状态的文件名
+                        string targetFileName = Path.GetFileNameWithoutExtension(pluginFileNameWithoutDis) + ".jar";
+                        string targetPath = Path.Combine(pluginsDir, targetFileName);
+                        
+                        if (!File.Exists(targetPath))
+                        {
+                            File.Move(disabledFilePath, targetPath);
+                            plugin.IsEnabled = true;
+                            StatusMessage = "插件已启用";
+                        }
+                        else
+                        {
+                            StatusMessage = "启用文件已存在";
+                        }
+                    }
+                    else
+                    {
+                        StatusMessage = "禁用的插件文件不存在";
+                    }
+                }
+
+                // 重新加载插件列表以反映更改
+                LoadPlugins();
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"切换插件状态失败: {ex.Message}";
+            }
+        }
+
+        // 仪表盘相关方法
+        public void LoadDashboardData()
+        {
+            if (string.IsNullOrEmpty(InstanceId)) return;
+
+            // 读取 server.properties
+            LoadServerPropertiesForDashboard();
+            
+            // 设置服务器地址
+            UpdateServerAddress();
+            
+            // 如果服务器正在运行，启动状态轮询
+            if (IsRunning)
+            {
+                StartServerStatusPolling();
+                StartUptimeCounter();
+            }
+            else
+            {
+                // 服务器未运行时，清空在线玩家信息
+                OnlinePlayersCount = 0;
+                MaxPlayersCount = 0;
+                OnlinePlayers.Clear();
+            }
+        }
+
+        private void LoadServerPropertiesForDashboard()
+        {
+            try
+            {
+                var props = ServerPropertiesManager.Read(InstanceId);
+                
+                // 读取游戏模式
+                var gameModeValue = props.GetValueOrDefault("gamemode", "survival");
+                GameMode = gameModeValue switch
+                {
+                    "survival" => "生存模式",
+                    "creative" => "创造模式",
+                    "adventure" => "冒险模式",
+                    "spectator" => "旁观模式",
+                    _ => gameModeValue
+                };
+
+                // 读取在线模式
+                IsOnlineMode = props.GetValueOrDefault("online-mode", "true").ToLower() == "true";
+
+                // 读取模拟距离
+                SimulationDistance = int.TryParse(props.GetValueOrDefault("simulation-distance", "0"), out var simDist) ? simDist : 0;
+
+                // 读取视距
+                ViewDistance = int.TryParse(props.GetValueOrDefault("view-distance", "0"), out var viewDist) ? viewDist : 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"加载服务器属性失败: {ex.Message}");
+            }
+        }
+
+        private void UpdateServerAddress()
+        {
+            try
+            {
+                var props = ServerPropertiesManager.Read(InstanceId);
+                var ip = props.GetValueOrDefault("server-ip", "");
+                var port = props.GetValueOrDefault("server-port", "25565");
+                
+                if (string.IsNullOrWhiteSpace(ip))
+                {
+                    ServerAddress = $"localhost:{port}";
+                }
+                else
+                {
+                    ServerAddress = $"{ip}:{port}";
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"更新服务器地址失败: {ex.Message}");
+                ServerAddress = "localhost:25565";
+            }
+        }
+
+        private void LoadServerStatus()
+        {
+            try
+            {
+                var addressParts = ServerAddress.Split(':');
+                if (addressParts.Length >= 2)
+                {
+                    var host = addressParts[0];
+                    if (int.TryParse(addressParts[1], out var port))
+                    {
+                        var status = MinecraftServerPing.Ping(host, port, 3000);
+                        if (status != null)
+                        {
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                OnlinePlayersCount = status.OnlinePlayers;
+                                MaxPlayersCount = status.MaxPlayers;
+
+                                OnlinePlayers.Clear();
+                                foreach (var player in status.Players)
+                                {
+                                    // 检查玩家是否是OP
+                                    bool isOp = IsPlayerOp(player.Name);
+                                    OnlinePlayers.Add(new PlayerDisplayItem(player.Name, player.Id) { IsOp = isOp });
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"获取服务器状态失败: {ex.Message}");
+            }
+        }
+
+        private bool IsPlayerOp(string playerName)
+        {
+            try
+            {
+                string opsFilePath = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "ops.json");
+                if (File.Exists(opsFilePath))
+                {
+                    var opsJson = System.Text.Json.JsonSerializer.Deserialize<OpEntry[]>(File.ReadAllText(opsFilePath));
+                    if (opsJson != null)
+                    {
+                        foreach (var op in opsJson)
+                        {
+                            if (string.Equals(op.Name, playerName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"检查OP状态失败: {ex.Message}");
+            }
+            return false;
+        }
+
+        private void StartServerStatusPolling()
+        {
+            _serverStatusTimer?.Dispose();
+            _serverStatusTimer = new Timer(async (state) =>
+            {
+                await Task.Run(() => LoadServerStatus());
+            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(5)); // 每5秒更新一次
+        }
+
+        private void StartUptimeCounter()
+        {
+            _serverStartTime = DateTime.Now;
+            _uptimeTimer?.Dispose();
+            _uptimeTimer = new Timer((state) =>
+            {
+                var uptime = DateTime.Now - _serverStartTime;
+                Uptime = $"{(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
+            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1)); // 每秒更新一次
+        }
+
+        public void StartDashboardPerformanceMonitoring()
+        {
+            try
+            {
+                _dashboardPerformanceMonitor?.Dispose();
+                _dashboardPerformanceMonitor = new PerformanceMonitor(InstanceId);
+                _dashboardPerformanceMonitor.DataUpdated += OnDashboardPerformanceDataUpdated;
+                _dashboardPerformanceMonitor.Start();
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"仪表盘性能监控启动失败: {ex.Message}";
+            }
+        }
+
+        private void OnDashboardPerformanceDataUpdated(object? sender, PerformanceData data)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                CpuUsage = data.CpuUsage;
+                MemoryUsage = data.MemoryUsageMb;
+                TotalStorageMb = data.TotalStorageMb;
+                TotalStorage = FormatBytes(data.TotalStorageMb * 1024 * 1024);
+            });
+        }
+
+        public void StopDashboardMonitoring()
+        {
+            _serverStatusTimer?.Dispose();
+            _uptimeTimer?.Dispose();
+            _dashboardPerformanceMonitor?.Dispose();
+        }
+
+        [RelayCommand]
+        private void CopyServerAddress()
+        {
+            System.Windows.Clipboard.SetText(ServerAddress);
+            StatusMessage = "服务器地址已复制到剪贴板";
+        }
+
+        [RelayCommand]
+        private void SetPlayerAsOp(PlayerDisplayItem? player)
+        {
+            if (player == null || string.IsNullOrEmpty(InstanceId)) return;
+
+            try
+            {
+                // 检查ops.json文件是否存在
+                string opsFilePath = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "ops.json");
+                var ops = new List<OpEntry>();
+                
+                if (File.Exists(opsFilePath))
+                {
+                    var opsJson = System.Text.Json.JsonSerializer.Deserialize<OpEntry[]>(File.ReadAllText(opsFilePath));
+                    if (opsJson != null)
+                    {
+                        ops = new List<OpEntry>(opsJson);
+                    }
+                }
+
+                // 检查玩家是否已经是OP
+                var existingOp = ops.Find(op => string.Equals(op.Name, player.Name, StringComparison.OrdinalIgnoreCase));
+                if (existingOp == null)
+                {
+                    // 添加为OP
+                    ops.Add(new OpEntry
+                    {
+                        Name = player.Name,
+                        Uuid = player.Id,
+                        Level = 4,
+                        BypassesPlayerLimit = false
+                    });
+
+                    // 写入文件
+                    var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+                    File.WriteAllText(opsFilePath, System.Text.Json.JsonSerializer.Serialize(ops.ToArray(), options));
+                    
+                    // 更新UI状态
+                    player.IsOp = true;
+                    StatusMessage = $"已将 {player.Name} 设置为OP";
+                }
+                else
+                {
+                    StatusMessage = $"{player.Name} 已经是OP";
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"设置OP失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private void RemovePlayerOp(PlayerDisplayItem? player)
+        {
+            if (player == null || string.IsNullOrEmpty(InstanceId)) return;
+
+            try
+            {
+                // 检查ops.json文件是否存在
+                string opsFilePath = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "ops.json");
+                
+                if (File.Exists(opsFilePath))
+                {
+                    var ops = System.Text.Json.JsonSerializer.Deserialize<OpEntry[]>(File.ReadAllText(opsFilePath));
+                    if (ops != null)
+                    {
+                        var opsList = new List<OpEntry>(ops);
+                        var opToRemove = opsList.Find(op => string.Equals(op.Name, player.Name, StringComparison.OrdinalIgnoreCase));
+                        
+                        if (opToRemove != null)
+                        {
+                            opsList.Remove(opToRemove);
+                            
+                            // 写入文件
+                            var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+                            File.WriteAllText(opsFilePath, System.Text.Json.JsonSerializer.Serialize(opsList.ToArray(), options));
+                            
+                            // 更新UI状态
+                            player.IsOp = false;
+                            StatusMessage = $"已移除 {player.Name} 的OP权限";
+                        }
+                        else
+                        {
+                            StatusMessage = $"{player.Name} 不是OP";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"移除OP失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private void KickPlayer(PlayerDisplayItem? player)
+        {
+            if (player == null || string.IsNullOrEmpty(InstanceId)) return;
+
+            var process = ServerProcessManager.GetProcess(InstanceId);
+            if (process != null && process.IsRunning)
+            {
+                process.SendCommand($"kick {player.Name}");
+                StatusMessage = $"已踢出玩家 {player.Name}";
+            }
+            else
+            {
+                StatusMessage = "服务器未运行，无法踢出玩家";
+            }
+        }
+
+        [RelayCommand]
+        private void RefreshDashboard()
+        {
+            LoadDashboardData();
+            StatusMessage = "仪表盘数据已刷新";
+        }
     }
 
-    public class PluginDisplayItem(PluginInfo info)
+    /// <summary>
+    /// 在线玩家显示项
+    /// </summary>
+    public partial class PlayerDisplayItem(string name, string id) : ObservableObject
+    {
+        public string Name { get; set; } = name;
+        public string Id { get; set; } = id;
+
+        private bool _isOp;
+        public bool IsOp
+        {
+            get => _isOp;
+            set
+            {
+                if (_isOp != value)
+                {
+                    _isOp = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+    }
+
+    public class OpEntry
+    {
+        public string Name { get; set; } = "";
+        public string Uuid { get; set; } = "";
+        public int Level { get; set; } = 4;
+        public bool BypassesPlayerLimit { get; set; } = false;
+    }
+
+    /// <summary>
+    /// 插件显示项
+    /// </summary>
+    public partial class PluginDisplayItem(PluginInfo info) : ObservableObject
     {
         public string Name { get; } = info.Name;
         public string Version { get; } = info.Version;
         public string Description { get; } = info.Description;
         public string FileName { get; } = info.FileName;
         public string Authors { get; } = string.Join(", ", info.Authors);
+        public string FolderPath { get; } = string.IsNullOrEmpty(info.FilePath) ? "" : 
+            Path.Combine(Path.GetDirectoryName(info.FilePath) ?? "", info.Name); // 指向插件数据目录
+        public bool IsEnabled { get; set; } = !info.IsDisabled; // 根据插件信息设置启用状态
     }
 
     /// <summary>

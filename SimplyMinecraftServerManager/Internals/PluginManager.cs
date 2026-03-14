@@ -18,7 +18,7 @@ namespace SimplyMinecraftServerManager.Internals
             .Build();
 
         /// <summary>
-        /// 获取指定实例的所有插件信息。
+        /// 获取指定实例的所有插件信息（包括已禁用的插件）。
         /// </summary>
         public static List<PluginInfo> GetPlugins(string instanceId)
         {
@@ -28,6 +28,7 @@ namespace SimplyMinecraftServerManager.Internals
 
             var result = new List<PluginInfo>();
 
+            // 扫描 .jar 文件（启用的插件）
             foreach (string jarPath in Directory.EnumerateFiles(pluginsDir, "*.jar"))
             {
                 try
@@ -43,13 +44,29 @@ namespace SimplyMinecraftServerManager.Internals
                 }
             }
 
+            // 扫描 .jar.dis 文件（禁用的插件）
+            foreach (string disPath in Directory.EnumerateFiles(pluginsDir, "*.jar.dis"))
+            {
+                try
+                {
+                    PluginInfo? info = ParsePluginJar(disPath, true); // 传递禁用状态
+                    if (info != null)
+                        result.Add(info);
+                }
+                catch (Exception)
+                {
+                    // JAR 损坏或无法读取，创建一个仅包含文件信息的占位条目
+                    result.Add(CreateFallbackInfo(disPath, true)); // 传递禁用状态
+                }
+            }
+
             return result.OrderBy(p => p.Name).ToList();
         }
 
         /// <summary>
-        /// 解析单个 JAR 文件，提取 plugin.yml 元数据。
+        /// 解析单个 JAR 文件，提取 plugin.yml 元数据，并标记是否为禁用插件。
         /// </summary>
-        public static PluginInfo? ParsePluginJar(string jarPath)
+        public static PluginInfo? ParsePluginJar(string jarPath, bool isDisabled = false)
         {
             if (!File.Exists(jarPath)) return null;
 
@@ -60,13 +77,21 @@ namespace SimplyMinecraftServerManager.Internals
                                     ?? zip.GetEntry("paper-plugin.yml");
 
             if (entry == null)
-                return CreateFallbackInfo(jarPath);
+                return CreateFallbackInfo(jarPath, isDisabled);
 
             using var stream = entry.Open();
             using var reader = new StreamReader(stream);
             string yamlContent = reader.ReadToEnd();
 
-            return ParsePluginYaml(yamlContent, jarPath);
+            return ParsePluginYaml(yamlContent, jarPath, isDisabled);
+        }
+
+        /// <summary>
+        /// 解析单个 JAR 文件，提取 plugin.yml 元数据。
+        /// </summary>
+        public static PluginInfo? ParsePluginJar(string jarPath)
+        {
+            return ParsePluginJar(jarPath, false);
         }
 
         /// <summary>
@@ -127,13 +152,14 @@ namespace SimplyMinecraftServerManager.Internals
 
         // ────────────── 内部解析 ──────────────
 
-        private static PluginInfo ParsePluginYaml(string yaml, string jarPath)
+        private static PluginInfo ParsePluginYaml(string yaml, string jarPath, bool isDisabled = false)
         {
             var info = new PluginInfo
             {
                 FileName = Path.GetFileName(jarPath),
                 FilePath = Path.GetFullPath(jarPath),
-                FileSizeBytes = new FileInfo(jarPath).Length
+                FileSizeBytes = new FileInfo(jarPath).Length,
+                IsDisabled = isDisabled
             };
 
             try
@@ -171,14 +197,15 @@ namespace SimplyMinecraftServerManager.Internals
             return info;
         }
 
-        private static PluginInfo CreateFallbackInfo(string jarPath)
+        private static PluginInfo CreateFallbackInfo(string jarPath, bool isDisabled = false)
         {
             return new PluginInfo
             {
                 Name = Path.GetFileNameWithoutExtension(jarPath),
                 FileName = Path.GetFileName(jarPath),
                 FilePath = Path.GetFullPath(jarPath),
-                FileSizeBytes = File.Exists(jarPath) ? new FileInfo(jarPath).Length : 0
+                FileSizeBytes = File.Exists(jarPath) ? new FileInfo(jarPath).Length : 0,
+                IsDisabled = isDisabled
             };
         }
 

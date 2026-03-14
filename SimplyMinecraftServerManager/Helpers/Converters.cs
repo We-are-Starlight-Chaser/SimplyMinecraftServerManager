@@ -1,7 +1,9 @@
 using System.Globalization;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using Wpf.Ui.Appearance;
+using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.Helpers
 {
@@ -334,6 +336,48 @@ namespace SimplyMinecraftServerManager.Helpers
                 return isRunning ? Wpf.Ui.Controls.SymbolRegular.PlayCircle24 : Wpf.Ui.Controls.SymbolRegular.CircleSmall24;
             }
             return Wpf.Ui.Controls.SymbolRegular.CircleSmall24;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// 布尔值到启用/禁用文本转换器
+    /// </summary>
+    internal class BooleanToEnableTextConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool isEnabled)
+            {
+                return isEnabled ? "禁用" : "启用";
+            }
+            return "启用";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// 布尔值到外观转换器
+    /// </summary>
+    internal class BooleanToAppearanceConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool isEnabled)
+            {
+                // 如果插件是启用的（isEnabled为true），则按钮显示为Caution（橙色），表示可以禁用
+                // 如果插件是禁用的（isEnabled为false），则按钮显示为Success（绿色），表示可以启用
+                return isEnabled ? Wpf.Ui.Controls.ControlAppearance.Caution : Wpf.Ui.Controls.ControlAppearance.Success;
+            }
+            return Wpf.Ui.Controls.ControlAppearance.Caution;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

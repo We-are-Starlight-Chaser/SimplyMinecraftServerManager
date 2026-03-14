@@ -38,6 +38,9 @@
         /// <summary>JAR 文件大小 (字节)</summary>
         public long FileSizeBytes { get; set; }
 
+        /// <summary>是否已禁用</summary>
+        public bool IsDisabled { get; set; } = false;
+
         public override string ToString() => $"{Name} v{Version}";
     }
 }
