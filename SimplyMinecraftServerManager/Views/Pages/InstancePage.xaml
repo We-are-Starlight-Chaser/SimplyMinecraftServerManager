@@ -438,45 +438,38 @@
             <!-- 控制台 -->
             <TabItem Header="控制台">
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- 控制台输出区域 - 使用 FlowDocumentScrollViewer 支持选择和复制 -->
-                    <Border Grid.Row="0"
-                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource ControlElevationBorderBrush}"
-                        BorderThickness="1" Name="FlowDocumentScrollViewerBorder">
-                        <Grid>
-                            <FlowDocumentScrollViewer
+                    <Grid Name="FlowDocumentScrollViewerGrid">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <FlowDocumentScrollViewer
                                 x:Name="ConsoleScrollViewer"
                                 HorizontalScrollBarVisibility="Visible"
-                                VerticalScrollBarVisibility="Auto">
-                                <FlowDocument
+                                VerticalScrollBarVisibility="Auto"
+                                MaxHeight="{Binding Path=ActualHeight,ElementName=FlowDocumentScrollViewerGrid,Mode=OneWay}">
+                            <FlowDocument
                                     x:Name="ConsoleDocument"
                                     FontFamily="Consolas"
                                     FontSize="12"
                                     PageWidth="9999"
                                     LineHeight="18">
-                                    <Paragraph
+                                <Paragraph
                                         x:Name="ConsoleParagraph"
                                         Margin="8,4"
                                         FontFamily="Consolas"
                                         FontSize="12"/>
-                                </FlowDocument>
-                            </FlowDocumentScrollViewer>
-                            
-                            <!-- 控制台为空时的提示 -->
-                            <TextBlock x:Name="ConsoleEmptyHint"
+                            </FlowDocument>
+                        </FlowDocumentScrollViewer>
+
+                        <!-- 控制台为空时的提示 -->
+                        <TextBlock x:Name="ConsoleEmptyHint"
                                 Text="启动服务器以查看" 
                                 HorizontalAlignment="Center" 
                                 VerticalAlignment="Center"
-                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                 FontSize="16"
                                 FontWeight="Medium"
                                 Visibility="Collapsed"/>
-                        </Grid>
-                    </Border>
+                    </Grid>
 
                     <!-- 浮动的控制台工具栏 (右上角固定位置) -->
                     <Border Grid.Row="0"
@@ -705,6 +698,9 @@
                                 HorizontalAlignment="Left">
                                 保存设置
                             </ui:Button>
+                            <Button>
+                                打开实例目录
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>

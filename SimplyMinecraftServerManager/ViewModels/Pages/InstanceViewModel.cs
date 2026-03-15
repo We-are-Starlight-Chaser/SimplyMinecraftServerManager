@@ -11,6 +11,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
     public partial class InstanceViewModel : ObservableObject, INavigationAware, IDisposable
     {
+        private readonly System.Text.Json.JsonSerializerOptions options = new() { WriteIndented = true };
         private readonly INavigationService _navigationService;
         private readonly NavigationParameterService _navigationParameterService;
         private PerformanceMonitor? _performanceMonitor;
@@ -863,7 +864,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     // 当前是禁用状态，需要启用
                     string pluginFileNameWithoutDis = plugin.FileName.EndsWith(".dis") 
-                        ? plugin.FileName.Substring(0, plugin.FileName.Length - 4) // 移除 .dis
+                        ? plugin.FileName[..^4] // 移除 .dis
                         : plugin.FileName;
                     
                     string disabledFilePath = Path.Combine(pluginsDir, plugin.FileName);
@@ -945,7 +946,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 };
 
                 // 读取在线模式
-                IsOnlineMode = props.GetValueOrDefault("online-mode", "true").ToLower() == "true";
+                IsOnlineMode = props.GetValueOrDefault("online-mode", "true").Equals("true", StringComparison.CurrentCultureIgnoreCase);
 
                 // 读取模拟距离
                 SimulationDistance = int.TryParse(props.GetValueOrDefault("simulation-distance", "0"), out var simDist) ? simDist : 0;
@@ -1102,7 +1103,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private void CopyServerAddress()
         {
-            System.Windows.Clipboard.SetText(ServerAddress);
+            Clipboard.SetText(ServerAddress);
             StatusMessage = "服务器地址已复制到剪贴板";
         }
 
@@ -1122,7 +1123,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     var opsJson = System.Text.Json.JsonSerializer.Deserialize<OpEntry[]>(File.ReadAllText(opsFilePath));
                     if (opsJson != null)
                     {
-                        ops = new List<OpEntry>(opsJson);
+                        ops = [.. opsJson];
                     }
                 }
 
@@ -1140,7 +1141,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     });
 
                     // 写入文件
-                    var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
                     File.WriteAllText(opsFilePath, System.Text.Json.JsonSerializer.Serialize(ops.ToArray(), options));
                     
                     // 更新UI状态
@@ -1181,7 +1181,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                             opsList.Remove(opToRemove);
                             
                             // 写入文件
-                            var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
                             File.WriteAllText(opsFilePath, System.Text.Json.JsonSerializer.Serialize(opsList.ToArray(), options));
                             
                             // 更新UI状态

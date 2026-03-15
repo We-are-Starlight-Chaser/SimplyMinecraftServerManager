@@ -19,7 +19,7 @@ namespace SimplyMinecraftServerManager.Internals
         public long TotalStorageMb { get; set; }
 
         /// <summary>世界文件夹大小（MB）</summary>
-        public Dictionary<string, long> WorldStorageMb { get; set; } = new();
+        public Dictionary<string, long> WorldStorageMb { get; set; } = [];
 
         /// <summary>数据更新时间</summary>
         public DateTime Timestamp { get; set; }
@@ -28,9 +28,9 @@ namespace SimplyMinecraftServerManager.Internals
     /// <summary>
     /// 服务器性能监控器，用于监控运行中的服务器进程。
     /// </summary>
-    public class PerformanceMonitor : IDisposable
+    public class PerformanceMonitor(string instanceId) : IDisposable
     {
-        private readonly string _instanceId;
+        private readonly string _instanceId = instanceId;
         private Timer? _monitorTimer;
         private PerformanceCounter? _cpuCounter;
         private Process? _targetProcess;
@@ -43,11 +43,6 @@ namespace SimplyMinecraftServerManager.Internals
         /// 当性能数据更新时触发。
         /// </summary>
         public event EventHandler<PerformanceData>? DataUpdated;
-
-        public PerformanceMonitor(string instanceId)
-        {
-            _instanceId = instanceId;
-        }
 
         /// <summary>
         /// 开始监控。
@@ -69,7 +64,7 @@ namespace SimplyMinecraftServerManager.Internals
                 try
                 {
                     _cpuCounter = new PerformanceCounter(
-                        "Process",
+                        "Processor",
                         "% Processor Time",
                         _targetProcess.ProcessName,
                         true);
@@ -102,7 +97,7 @@ namespace SimplyMinecraftServerManager.Internals
             _monitorTimer = null;
             _cpuCounter?.Dispose();
             _cpuCounter = null;
-            _targetProcess = null;
+            _targetProcess = new();
         }
 
         private void CollectData()
@@ -149,14 +144,14 @@ namespace SimplyMinecraftServerManager.Internals
                 cpuUsage = Math.Clamp(cpuUsage, 0, 100 * Environment.ProcessorCount);
 
                 // 获取存储空间使用
-                var storageData = GetStorageUsage();
+                var (TotalMb, WorldSizes) = GetStorageUsage();
 
                 var data = new PerformanceData
                 {
                     MemoryUsageMb = memoryMb,
                     CpuUsage = cpuUsage,
-                    TotalStorageMb = storageData.TotalMb,
-                    WorldStorageMb = storageData.WorldSizes,
+                    TotalStorageMb = TotalMb,
+                    WorldStorageMb = WorldSizes,
                     Timestamp = DateTime.Now
                 };
 
@@ -183,7 +178,7 @@ namespace SimplyMinecraftServerManager.Internals
                     totalBytes = GetDirectorySize(instanceDir);
 
                     // 获取各个世界的大小
-                    string[] worldFolders = new[] { "world", "world_nether", "world_the_end" };
+                    string[] worldFolders = ["world", "world_nether", "world_the_end"];
 
                     foreach (var worldName in worldFolders)
                     {
@@ -201,7 +196,7 @@ namespace SimplyMinecraftServerManager.Internals
             return (totalBytes / (1024 * 1024), worldSizes);
         }
 
-        private long GetDirectorySize(string path)
+        private static long GetDirectorySize(string path)
         {
             long size = 0;
 
@@ -227,6 +222,7 @@ namespace SimplyMinecraftServerManager.Internals
         public void Dispose()
         {
             Stop();
+            GC.SuppressFinalize(this);
         }
     }
 
@@ -235,7 +231,7 @@ namespace SimplyMinecraftServerManager.Internals
     /// </summary>
     public static class PerformanceMonitorManager
     {
-        private static readonly Dictionary<string, PerformanceMonitor> _monitors = new();
+        private static readonly Dictionary<string, PerformanceMonitor> _monitors = [];
 
         /// <summary>
         /// 获取或创建指定实例的性能监控器。

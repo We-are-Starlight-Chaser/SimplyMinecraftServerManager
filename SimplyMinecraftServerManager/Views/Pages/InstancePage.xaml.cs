@@ -26,43 +26,28 @@ namespace SimplyMinecraftServerManager.Views.Pages
 
             // 页面加载完成后初始化控制台
             Loaded += OnPageLoaded;
+            FindConsoleScrollViewer();
         }
 
         private void OnPageLoaded(object sender, RoutedEventArgs e)
         {
             // 初始化 FlowDocument 内容并获取 ScrollViewer
             InitializeConsole();
-            FindConsoleScrollViewer();
         }
 
         private void FindConsoleScrollViewer()
         {
             if (ConsoleScrollViewer == null) return;
 
-            // 查找内部的 ScrollViewer
-            _consoleScrollViewer = GetChildScrollViewer(ConsoleScrollViewer);
-            
+            ConsoleScrollViewer.Dispatcher.BeginInvoke(new Action(() => { 
+                _consoleScrollViewer = ConsoleScrollViewer.FindName("PART_ContentHost") as ScrollViewer;
+            }));
+
             // 检查是否需要显示空提示
             UpdateEmptyHintVisibility(ViewModel.GetConsoleText().Length > 0);
         }
 
-        private ScrollViewer? GetChildScrollViewer(DependencyObject parent)
-        {
-            if (parent is ScrollViewer sv)
-                return sv;
-
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-            {
-                var child = VisualTreeHelper.GetChild(parent, i);
-                var result = GetChildScrollViewer(child);
-                if (result != null)
-                    return result;
-            }
-
-            return null;
-        }
-
-        private void InitializeConsole()
+        private async void InitializeConsole()
         {
             if (ConsoleParagraph == null) return;
 
@@ -90,24 +75,15 @@ namespace SimplyMinecraftServerManager.Views.Pages
             }
 
             // 如果启用了自动滚动，滚动到底部
-            if (ViewModel.AutoScroll)
+            if (ViewModel.AutoScroll && _consoleScrollViewer != null)
             {
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    if (_consoleScrollViewer != null)
-                    {
-                        _consoleScrollViewer.ScrollToEnd();
-                    }
-                }));
+                _consoleScrollViewer.ScrollToEnd();
             }
         }
 
         private void UpdateEmptyHintVisibility(bool hasContent)
         {
-            if (ConsoleEmptyHint != null)
-            {
-                ConsoleEmptyHint.Visibility = hasContent || ViewModel.IsRunning ? Visibility.Collapsed : Visibility.Visible;
-            }
+            ConsoleEmptyHint?.Visibility = hasContent || ViewModel.IsRunning ? Visibility.Collapsed : Visibility.Visible;
         }
 
         private void OnConsoleLineAdded(object? sender, string line)
@@ -143,7 +119,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
                 }
 
                 // 自动滚动 - 将滚动条移动到底部
-                if (ViewModel.AutoScroll && _consoleScrollViewer != null)
+                if (ViewModel.AutoScroll && _consoleScrollViewer!= null)
                 {
                     _consoleScrollViewer.ScrollToEnd();
                 }

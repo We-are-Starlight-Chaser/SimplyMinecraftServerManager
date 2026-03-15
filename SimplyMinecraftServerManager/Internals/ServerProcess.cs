@@ -131,7 +131,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        public void Start()
+        public async void Start()
         {
             if (IsRunning)
                 throw new InvalidOperationException("Server is already running.");
@@ -212,7 +212,7 @@ namespace SimplyMinecraftServerManager.Internals
                 Exited?.Invoke(this, code);
             };
 
-            _process.Start();
+            await Task.Run(() => _process.Start());
             _processId = _process.Id;
 
             IntPtr processHandle = _process.Handle;
