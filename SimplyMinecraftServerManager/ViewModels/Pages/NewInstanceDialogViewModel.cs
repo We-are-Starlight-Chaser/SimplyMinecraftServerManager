@@ -1,6 +1,9 @@
 using SimplyMinecraftServerManager.Internals;
 using System.Collections.ObjectModel;
 using Wpf.Ui.Abstractions.Controls;
+using Microsoft.Win32;
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
@@ -33,6 +36,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string? _selectedVersion;
 
         [ObservableProperty]
+        private string? _customJarPath = "";
+
+        [ObservableProperty]
+        private bool _useCustomJar = false;
+
+        [ObservableProperty]
         private JdkDisplayItem? _selectedJdk;
 
         [ObservableProperty]
@@ -51,6 +60,22 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public ObservableCollection<JdkDisplayItem> AvailableJdks => _availableJdks;
 
         public string[] ServerTypes => ["paper", "purpur", "leaves", "leaf"];
+
+        [RelayCommand]
+        private void BrowseCustomJar()
+        {
+            var openFileDialog = new OpenFileDialog
+            {
+                Filter = "JAR 文件 (*.jar)|*.jar|所有文件 (*.*)|*.*",
+                Title = "选择自定义服务端 JAR 文件",
+                Multiselect = false
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                CustomJarPath = openFileDialog.FileName;
+            }
+        }
 
         public async Task CreateAsync()
         {
