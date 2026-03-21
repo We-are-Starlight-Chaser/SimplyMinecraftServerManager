@@ -36,19 +36,21 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- 平台 Logo 和信息 -->
-                            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                <Border Width="48" Height="48" CornerRadius="8" Margin="0,0,12,0"
-                                    Background="{Binding ViewModel.CurrentPlatformName, Converter={StaticResource PlatformNameToColorConverter}}">
-                                    <TextBlock Text="{Binding ViewModel.CurrentPlatformName, Converter={StaticResource PlatformNameToInitialConverter}}" 
-                                        FontSize="20" FontWeight="Bold" 
-                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding ViewModel.CurrentPlatformName}" FontSize="18" FontWeight="Medium"/>
-                                    <TextBlock Text="{Binding ViewModel.CurrentPlatformDescription}" FontSize="12" 
-                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
+                            <!-- Logo -->
+                            <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" Margin="0,0,12,0"
+                                Background="{Binding ViewModel.CurrentPlatformName, Converter={StaticResource PlatformNameToColorConverter}}"
+                                VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ViewModel.CurrentPlatformName, Converter={StaticResource PlatformNameToInitialConverter}}" 
+                                    FontSize="20" FontWeight="Bold" 
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+
+                            <!-- 平台名称和描述 -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                                <TextBlock Text="{Binding ViewModel.CurrentPlatformName}" FontSize="18" FontWeight="Medium"/>
+                                <TextBlock Text="{Binding ViewModel.CurrentPlatformDescription}" FontSize="12" 
+                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                    TextWrapping="Wrap"/>
                             </StackPanel>
 
                             <!-- 平台选择和刷新 -->
@@ -79,14 +81,15 @@
                                                             <!-- 版本卡片区域 -->
 
                                                             <Grid Grid.Row="2">
-
-                                                                <!-- 卡片列表 -->
-
-                                                                <ScrollViewer VerticalScrollBarVisibility="Auto" 
-
-                                                                    Visibility="{Binding ViewModel.IsLoadingVersions, Converter={StaticResource InverseBooleanConverter}, FallbackValue=Visible}">
-
-                                                                    <ItemsControl ItemsSource="{Binding ViewModel.ServerVersionCards}" 
+                                                                                    <Grid.RowDefinitions>
+                                                                                        <RowDefinition Height="*"/>
+                                                                                        <RowDefinition Height="Auto"/>
+                                                                                    </Grid.RowDefinitions>
+                                                            
+                                                                                    <!-- 卡片列表 -->
+                                                                                    <ScrollViewer x:Name="ServerVersionsScrollViewer" Grid.Row="0" VerticalScrollBarVisibility="Auto" 
+                                                                                                                Visibility="{Binding ViewModel.IsLoadingVersions, Converter={StaticResource InverseBooleanConverter}, FallbackValue=Visible}"
+                                                                                                                ScrollChanged="OnServerVersionsScrollChanged">                                                                    <ItemsControl ItemsSource="{Binding ViewModel.ServerVersionCards}" 
 
                                                                         HorizontalAlignment="Stretch" 
 
@@ -173,13 +176,13 @@
                                                     </Grid.ColumnDefinitions>
 
                                                     <ui:Button Grid.Column="0"
-                                                        Command="{Binding ViewModel.DownloadServerVersionCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        Command="{Binding ViewModel.DownloadAndCreateCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
                                                         Appearance="Primary"
                                                         HorizontalAlignment="Stretch">
                                                         <StackPanel Orientation="Horizontal">
-                                                            <ui:SymbolIcon Symbol="ArrowDownload24"/>
-                                                            <TextBlock Text="快速下载" Margin="8,0,0,0"/>
+                                                            <ui:SymbolIcon Symbol="Add24"/>
+                                                            <TextBlock Text="下载并创建" Margin="8,0,0,0"/>
                                                         </StackPanel>
                                                     </ui:Button>
 
@@ -199,6 +202,21 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
+
+                        <!-- 加载更多按钮 -->
+                        <Grid Grid.Row="1" Margin="0,16,0,0" 
+                            Visibility="{Binding ViewModel.HasMoreVersions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ui:Button 
+                                Command="{Binding ViewModel.LoadMoreVersionsCommand}"
+                                IsEnabled="{Binding ViewModel.IsLoadingMore, Converter={StaticResource InverseBooleanConverter}}"
+                                HorizontalAlignment="Center"
+                                Appearance="Secondary">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Add24"/>
+                                    <TextBlock Text="加载更多版本" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </ui:Button>
+                        </Grid>
 
                         <!-- 加载动画覆盖层 -->
                         <Grid Background="{DynamicResource ApplicationBackgroundBrush}"

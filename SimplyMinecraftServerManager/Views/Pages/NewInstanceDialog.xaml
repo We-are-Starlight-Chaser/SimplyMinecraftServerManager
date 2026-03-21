@@ -7,15 +7,26 @@
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages"
   d:DataContext="{d:DesignInstance local:NewInstanceDialog, IsDesignTimeCreatable=False}"
-  d:DesignHeight="520"
-  d:DesignWidth="420"
+  d:DesignHeight="600"
+  d:DesignWidth="480"
   Title="新建实例"
-  MaxWidth="450"
-  MinWidth="380"
+  MaxWidth="500"
+  MinWidth="400"
+  HorizontalAlignment="Center"
+  VerticalAlignment="Center"
+  Background="{DynamicResource ApplicationBackgroundBrush}"
+  BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+  BorderThickness="1"
   mc:Ignorable="d"
 >
-    <Grid Margin="0,8,0,0" MinWidth="350">
+    <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+            CornerRadius="6"
+            Padding="24"
+            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+            BorderThickness="1">
+        <Grid MinWidth="350" Margin="0">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -50,8 +61,32 @@
                 Width="350"/>
         </StackPanel>
 
-        <!-- JDK 版本 -->
+        <!-- 自定义JAR文件 -->
         <StackPanel Grid.Row="3" Margin="0,0,0,12">
+            <TextBlock Text="服务端JAR文件" FontWeight="Medium" Margin="0,0,0,4"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <ui:TextBox Grid.Column="0" 
+                    Text="{Binding CustomJarPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    PlaceholderText="使用自定义JAR文件路径（可选）"
+                    IsEnabled="{Binding UseCustomJar, Mode=TwoWay}"/>
+                <ui:Button Grid.Column="1" 
+                    Command="{Binding BrowseCustomJarCommand}"
+                    Margin="8,0,0,0"
+                    Appearance="Secondary">
+                    <ui:SymbolIcon Symbol="Folder24"/>
+                </ui:Button>
+            </Grid>
+            <CheckBox Margin="0,8,0,0"
+                Content="使用自定义JAR文件（不自动下载）"
+                IsChecked="{Binding UseCustomJar, Mode=TwoWay}"/>
+        </StackPanel>
+
+        <!-- JDK 版本 -->
+        <StackPanel Grid.Row="4" Margin="0,0,0,12">
             <TextBlock Text="JDK 版本" FontWeight="Medium" Margin="0,0,0,4"/>
             <ComboBox ItemsSource="{Binding AvailableJdks}"
                 SelectedItem="{Binding SelectedJdk, Mode=TwoWay}"
@@ -61,7 +96,7 @@
         </StackPanel>
 
         <!-- 内存设置 -->
-        <Grid Grid.Row="4" Margin="0,0,0,12">
+        <Grid Grid.Row="5" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="12"/>
@@ -80,7 +115,7 @@
         </Grid>
 
         <!-- 状态消息 -->
-        <TextBlock Grid.Row="5" 
+        <TextBlock Grid.Row="6" 
             Text="{Binding StatusMessage}" 
             Foreground="{DynamicResource SystemFillColorCautionBrush}"
             Margin="0,0,0,8"
@@ -88,7 +123,7 @@
             Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
 
         <!-- 加载指示器 -->
-        <ui:ProgressRing Grid.Row="6" 
+        <ui:ProgressRing Grid.Row="7" 
             IsIndeterminate="True" 
             Visibility="{Binding IsCreating, Converter={StaticResource BooleanToVisibilityConverter}}"
             Width="24" Height="24"
@@ -96,7 +131,7 @@
             Margin="0,0,0,8"/>
 
         <!-- 按钮 -->
-        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
             <ui:Button 
                 Content="取消" 
                 Appearance="Secondary" 
@@ -108,4 +143,5 @@
                 Click="OnPrimaryButtonClick"/>
         </StackPanel>
     </Grid>
+    </Border>
 </ui:ContentDialog>
