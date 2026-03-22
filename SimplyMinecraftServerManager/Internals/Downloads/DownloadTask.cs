@@ -14,6 +14,26 @@
     }
 
     /// <summary>
+    /// 任务类型枚举。
+    /// </summary>
+    public enum TaskType
+    {
+        Download,          // 仅下载
+        DownloadAndInstall // 下载并安装
+    }
+
+    /// <summary>
+    /// 安装状态枚举。
+    /// </summary>
+    public enum InstallationStatus
+    {
+        NotStarted,        // 未开始
+        Installing,        // 安装中
+        Installed,         // 安装成功
+        InstallationFailed // 安装失败
+    }
+
+    /// <summary>
     /// 表示一个下载任务。
     /// </summary>
     public class DownloadTask
@@ -39,6 +59,15 @@
         /// <summary>当前状态</summary>
         public DownloadStatus Status { get; internal set; } = DownloadStatus.Pending;
 
+        /// <summary>任务类型</summary>
+        public TaskType Type { get; init; } = TaskType.Download;
+
+        /// <summary>安装状态</summary>
+        public InstallationStatus InstallationStatus { get; internal set; } = InstallationStatus.NotStarted;
+
+        /// <summary>目标实例ID（用于安装任务）</summary>
+        public string? TargetInstanceId { get; init; }
+
         /// <summary>已下载字节数</summary>
         public long BytesDownloaded { get; internal set; }
 
@@ -62,5 +91,11 @@
 
         /// <summary>完成时间</summary>
         public DateTime? EndTime { get; internal set; }
+
+        /// <summary>安装开始时间</summary>
+        public DateTime? InstallationStartTime { get; internal set; }
+
+        /// <summary>安装完成时间</summary>
+        public DateTime? InstallationEndTime { get; internal set; }
     }
 }

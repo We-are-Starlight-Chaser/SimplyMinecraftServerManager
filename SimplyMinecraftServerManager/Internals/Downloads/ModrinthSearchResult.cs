@@ -45,6 +45,9 @@
         /// <summary>最新版本 ID</summary>
         public string LatestVersionId { get; set; } = "";
 
+        /// <summary>最新版本号</summary>
+        public string LatestVersionNumber { get; set; } = "";
+
         /// <summary>Modrinth 页面 URL</summary>
         public string Url => $"https://modrinth.com/{ProjectType}/{Slug}";
     }

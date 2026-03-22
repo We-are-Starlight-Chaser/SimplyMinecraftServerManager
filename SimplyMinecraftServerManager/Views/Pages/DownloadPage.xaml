@@ -211,10 +211,18 @@
                                 IsEnabled="{Binding ViewModel.IsLoadingMore, Converter={StaticResource InverseBooleanConverter}}"
                                 HorizontalAlignment="Center"
                                 Appearance="Secondary">
-                                <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Add24"/>
-                                    <TextBlock Text="加载更多版本" Margin="8,0,0,0"/>
-                                </StackPanel>
+                                <Grid>
+                                    <!-- 正常状态：加号图标和文本 -->
+                                    <StackPanel x:Name="NormalContent" Orientation="Horizontal"
+                                        Visibility="{Binding ViewModel.IsLoadingMore, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                        <ui:SymbolIcon Symbol="Add24"/>
+                                        <TextBlock Text="加载更多版本" Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                    
+                                    <!-- 加载状态：转圈动画 -->
+                                    <ui:ProgressRing x:Name="LoadingContent" Width="16" Height="16" IsIndeterminate="True"
+                                        Visibility="{Binding ViewModel.IsLoadingMore, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                </Grid>
                             </ui:Button>
                         </Grid>
 
@@ -243,78 +251,164 @@
                     </Grid.RowDefinitions>
 
                     <!-- 搜索栏 -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
-                        <ui:TextBox 
-                            Text="{Binding ViewModel.PluginSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                            Width="300"
-                            PlaceholderText="搜索插件..."
-                            KeyDown="OnPluginSearchKeyDown"/>
-                        <ui:Button 
-                            Command="{Binding ViewModel.SearchPluginsCommand}"
-                            Margin="8,0,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <ui:SymbolIcon Symbol="Search24"/>
-                                <TextBlock Text="搜索" Margin="4,0,0,0"/>
-                            </StackPanel>
-                        </ui:Button>
-                    </StackPanel>
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <!-- 第一行：搜索框和按钮 -->
+                        <StackPanel Grid.Row="0" Orientation="Horizontal">
+                            <ui:TextBox 
+                                Text="{Binding ViewModel.PluginSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Width="300"
+                                PlaceholderText="搜索插件..."
+                                KeyDown="OnPluginSearchKeyDown"/>
+                            <ui:Button 
+                                Command="{Binding ViewModel.SearchPluginsCommand}"
+                                Margin="8,0,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Search24"/>
+                                    <TextBlock Text="搜索" Margin="4,0,0,0"/>
+                                </StackPanel>
+                            </ui:Button>
+                        </StackPanel>
+                        
+                        <!-- 第二行：筛选条件 -->
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="服务端版本:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <ComboBox 
+                                ItemsSource="{Binding ViewModel.ServerVersionOptions}"
+                                SelectedItem="{Binding ViewModel.SelectedServerVersion, Mode=TwoWay}"
+                                Width="100"
+                                Margin="0,0,12,0"/>
+                            
+                            <TextBlock Text="服务端类型:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <ComboBox 
+                                ItemsSource="{Binding ViewModel.ServerTypeOptions}"
+                                SelectedItem="{Binding ViewModel.SelectedServerType, Mode=TwoWay}"
+                                Width="100"/>
+                        </StackPanel>
+                    </Grid>
 
-                    <!-- 目标实例选择 -->
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="安装到:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <ComboBox 
-                            ItemsSource="{Binding ViewModel.AvailableInstances}"
-                            SelectedValuePath="Id"
-                            SelectedValue="{Binding ViewModel.PluginTargetInstanceId, Mode=TwoWay}"
-                            DisplayMemberPath="Name"
-                            Width="200"/>
-                        <TextBlock Text="{Binding ViewModel.PluginSearchStatus}" 
-                            Margin="16,0,0,0" VerticalAlignment="Center"/>
-                    </StackPanel>
+                    <!-- 搜索状态 -->
+                    <TextBlock Grid.Row="1" Text="{Binding ViewModel.PluginSearchStatus}" 
+                        Margin="0,0,0,8" VerticalAlignment="Center"/>
 
-                    <!-- 搜索结果 -->
-                    <ListView Grid.Row="2" ItemsSource="{Binding ViewModel.PluginSearchResults}"
-                        VirtualizingStackPanel.IsVirtualizing="True"
-                        VirtualizingStackPanel.VirtualizationMode="Recycling"
-                        ScrollViewer.IsDeferredScrollingEnabled="True">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                    <!-- 搜索结果 - 卡片式布局 -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding ViewModel.PluginSearchResults}"
+                                Margin="0,8,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <ui:Card Margin="0,0,0,16" Padding="16"
+                                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                            BorderThickness="1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
 
-                                    <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" 
-                                        Background="{DynamicResource ControlFillColorDefaultBrush}">
-                                        <TextBlock Text="📦" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
+                                                <!-- 图标和基本信息 -->
+                                                <Border Grid.Column="0" Grid.RowSpan="3" Width="64" Height="64" CornerRadius="8" 
+                                                    Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="0,0,12,0">
+                                                    <TextBlock Text="📦" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
 
-                                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
-                                        <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="14"/>
-                                        <TextBlock Text="{Binding Description}" FontSize="12" MaxHeight="40" TextTrimming="CharacterEllipsis" TextWrapping="Wrap"/>
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="下载: " FontSize="11"/>
-                                            <TextBlock Text="{Binding Downloads}" FontSize="11"/>
-                                            <TextBlock Text=" | 作者: " FontSize="11" Margin="8,0,0,0"/>
-                                            <TextBlock Text="{Binding Author}" FontSize="11"/>
+                                                <!-- 标题和描述 -->
+                                                <StackPanel Grid.Column="1" Grid.Row="0">
+                                                    <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="16"/>
+                                                    <TextBlock Text="{Binding Description}" FontSize="13" Margin="0,4,0,0" 
+                                                        TextTrimming="CharacterEllipsis" TextWrapping="Wrap" MaxHeight="60"/>
+                                                </StackPanel>
+
+                                                <!-- 元信息 -->
+                                                <StackPanel Grid.Column="1" Grid.Row="1" Margin="0,8,0,0">
+                                                    <WrapPanel>
+                                                        <Border Background="{DynamicResource SystemFillColorCautionBrush}" 
+                                                            CornerRadius="4" Padding="4,2" Margin="0,0,4,4">
+                                                            <TextBlock Text="{Binding Downloads, StringFormat='下载: {0}'}" 
+                                                                FontSize="11" Foreground="White"/>
+                                                        </Border>
+                                                        <Border Background="{DynamicResource SystemFillColorAttentionBrush}" 
+                                                            CornerRadius="4" Padding="4,2" Margin="0,0,4,4">
+                                                            <TextBlock Text="{Binding Follows, StringFormat='关注: {0}'}" 
+                                                                FontSize="11" Foreground="White"/>
+                                                        </Border>
+                                                        <Border Background="{DynamicResource SystemFillColorCriticalBrush}" 
+                                                            CornerRadius="4" Padding="4,2" Margin="0,0,4,4">
+                                                            <TextBlock Text="{Binding Author, StringFormat='作者: {0}'}" 
+                                                                FontSize="11" Foreground="White"/>
+                                                        </Border>
+                                                    </WrapPanel>
+                                                </StackPanel>
+
+                                                
+
+                                                <!-- 操作按钮 -->
+                                                <StackPanel Grid.Column="2" Grid.RowSpan="3" Margin="12,0,0,0" VerticalAlignment="Center">
+                                                    <ui:Button 
+                                                        Command="{Binding ViewModel.DownloadPluginCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        CommandParameter="{Binding}"
+                                                        Appearance="Primary"
+                                                        HorizontalAlignment="Stretch"
+                                                        Margin="0,0,0,8">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <ui:SymbolIcon Symbol="ArrowDownload24"/>
+                                                            <TextBlock Text="下载" Margin="8,0,0,0"/>
+                                                        </StackPanel>
+                                                    </ui:Button>
+                                                    
+                                                    <ui:Button 
+                                                        Command="{Binding ViewModel.SavePluginAsCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        CommandParameter="{Binding}"
+                                                        Appearance="Secondary"
+                                                        HorizontalAlignment="Stretch">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <ui:SymbolIcon Symbol="Save24"/>
+                                                            <TextBlock Text="另存为" Margin="8,0,0,0"/>
+                                                        </StackPanel>
+                                                    </ui:Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </ui:Card>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- 插件加载更多按钮 -->
+                            <Grid Margin="0,16,0,0" 
+                                Visibility="{Binding ViewModel.HasMorePlugins, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <ui:Button 
+                                    Command="{Binding ViewModel.LoadMorePluginsCommand}"
+                                    IsEnabled="{Binding ViewModel.IsLoadingMorePlugins, Converter={StaticResource InverseBooleanConverter}}"
+                                    HorizontalAlignment="Center"
+                                    Appearance="Secondary">
+                                    <Grid>
+                                        <!-- 正常状态：加号图标和文本 -->
+                                        <StackPanel x:Name="PluginNormalContent" Orientation="Horizontal"
+                                            Visibility="{Binding ViewModel.IsLoadingMorePlugins, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                            <ui:SymbolIcon Symbol="Add24"/>
+                                            <TextBlock Text="加载更多插件" Margin="8,0,0,0"/>
                                         </StackPanel>
-                                    </StackPanel>
-
-                                    <ui:Button Grid.Column="2" 
-                                        Command="{Binding ViewModel.DownloadPluginCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                        CommandParameter="{Binding}"
-                                        VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Symbol="ArrowDownload24"/>
-                                            <TextBlock Text="下载" Margin="4,0,0,0"/>
-                                        </StackPanel>
-                                    </ui:Button>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                                        
+                                        <!-- 加载状态：转圈动画 -->
+                                        <ui:ProgressRing x:Name="PluginLoadingContent" Width="16" Height="16" IsIndeterminate="True"
+                                            Visibility="{Binding ViewModel.IsLoadingMorePlugins, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </ui:Button>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
             </TabItem>
 

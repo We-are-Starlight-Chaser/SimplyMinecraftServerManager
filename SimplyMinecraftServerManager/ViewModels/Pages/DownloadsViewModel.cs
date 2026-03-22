@@ -20,13 +20,22 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         public event EventHandler<int>? TaskCountChanged;
 
+        /// <summary>
+        /// 安装完成时触发
+        /// </summary>
+        public event EventHandler<string>? InstallationCompleted;
+
         public DownloadsViewModel()
         {
             // 订阅下载管理器事件
             DownloadManager.Default.ProgressChanged -= OnDownloadProgress;
             DownloadManager.Default.ProgressChanged += OnDownloadProgress;
             DownloadManager.Default.TaskCompleted -= OnDownloadTaskCompleted;
+            DownloadManager.Default.TaskCompleted += OnDownloadTaskCompleted;
             DownloadManager.Default.TaskFailed -= OnDownloadTaskFailed;
+            DownloadManager.Default.TaskFailed += OnDownloadTaskFailed;
+            DownloadManager.Default.TaskInstalled -= OnDownloadTaskInstalled;
+            DownloadManager.Default.TaskInstalled += OnDownloadTaskInstalled;
         }
 
         public async Task OnNavigatedToAsync()
@@ -94,6 +103,21 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
+        private void OnDownloadTaskInstalled(object? sender, DownloadTask task)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
+                if (item != null)
+                {
+                    item.UpdateFromTask(task);
+                    // 显示安装成功通知
+                    ShowInstallationNotification(task.DisplayName);
+                }
+                UpdateCounts();
+            });
+        }
+
         private void OnTaskRequestRemove(object? sender, EventArgs e)
         {
             if (sender is DownloadTaskItem item)
@@ -113,6 +137,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             ActiveCount = DownloadTasks.Count(t => t.IsActive || t.IsPaused || (!t.IsCompleted && !t.IsFailed && !t.IsActive && !t.IsPaused));
             CompletedCount = DownloadTasks.Count(t => t.IsCompleted || t.IsFailed);
             TaskCountChanged?.Invoke(this, ActiveCount);
+        }
+
+        private void ShowInstallationNotification(string displayName)
+        {
+            InstallationCompleted?.Invoke(this, $"{displayName} 安装完成");
         }
 
         [RelayCommand]
@@ -196,15 +225,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 return;
             }
             
-            // 暂停时删除则为取消下载
-            if (item.IsPaused)
-            {
-                DownloadManager.Default.Cancel(item.TaskId);
-            }
+            // 从DownloadManager中移除任务
+            bool removed = DownloadManager.Default.RemoveTask(item.TaskId);
             
-            item.CancelAutoRemove();
-            DownloadTasks.Remove(item);
-            UpdateCounts();
+            // 如果DownloadManager中没有找到任务，或者移除成功，从UI列表中移除
+            if (removed || !DownloadManager.Default.AllTasks.Any(t => t.Id == item.TaskId))
+            {
+                item.CancelAutoRemove();
+                DownloadTasks.Remove(item);
+                UpdateCounts();
+            }
         }
 
         [RelayCommand]
@@ -253,6 +283,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private bool _isPaused;
 
+        [ObservableProperty]
+        private bool _isInstalled;
+
         private System.Timers.Timer? _autoRemoveTimer;
 
         public event EventHandler? RequestRemove;
@@ -290,10 +323,26 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             IsFailed = task.Status == DownloadStatus.Failed || task.Status == DownloadStatus.Cancelled;
             IsActive = task.Status == DownloadStatus.Downloading;
             IsPaused = task.Status == DownloadStatus.Paused;
-            Status = GetStatusText(task.Status);
+            IsInstalled = task.InstallationStatus == InstallationStatus.Installed;
+            
+            // 更新状态文本
+            if (IsInstalled)
+            {
+                Status = "安装成功";
+            }
+            else if (task.InstallationStatus == InstallationStatus.InstallationFailed)
+            {
+                Status = $"安装失败: {task.ErrorMessage}";
+                IsFailed = true;
+            }
+            else
+            {
+                Status = GetStatusText(task.Status);
+            }
+            
             Speed = "";
 
-            if (IsCompleted || IsFailed)
+            if (IsCompleted || IsFailed || IsInstalled)
             {
                 StartAutoRemoveTimer();
             }
@@ -316,12 +365,20 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             IsCompleted = info.IsCompleted;
             IsFailed = info.IsFailed;
             IsPaused = info.IsPaused;
-            IsActive = !info.IsCompleted && !info.IsFailed && !info.IsPaused;
+            IsActive = !info.IsCompleted && !info.IsFailed && !info.IsPaused && !info.IsInstalled;
+            IsInstalled = info.IsInstalled;
 
             if (info.IsPaused)
             {
                 Status = "已暂停";
                 Speed = "";
+            }
+            else if (info.IsInstalled)
+            {
+                Status = "安装成功";
+                Speed = "";
+                Progress = 100;
+                StartAutoRemoveTimer();
             }
             else if (info.IsCompleted)
             {

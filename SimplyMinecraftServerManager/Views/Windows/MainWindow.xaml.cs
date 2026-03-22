@@ -29,6 +29,9 @@ namespace SimplyMinecraftServerManager.Views.Windows
 
             // 设置对话框宿主
             contentDialogService.SetDialogHost(RootContentDialogPresenter);
+
+            // 订阅通知事件
+            ViewModel.NotificationRequested += OnNotificationRequested;
         }
 
         #region INavigationWindow methods
@@ -44,6 +47,37 @@ namespace SimplyMinecraftServerManager.Views.Windows
         public void CloseWindow() => Close();
 
         #endregion INavigationWindow methods
+
+        /// <summary>
+        /// 处理通知请求
+        /// </summary>
+        private void OnNotificationRequested(object? sender, string message)
+        {
+            // 在UI线程显示通知
+            Dispatcher.Invoke(() =>
+            {
+                ShowNotificationSnackbar(message);
+            });
+        }
+
+        /// <summary>
+        /// 显示右下角通知Snackbar
+        /// </summary>
+        private void ShowNotificationSnackbar(string message)
+        {
+            var snackbar = new Snackbar(SnackbarPresenter)
+            {
+                Title = "任务完成",
+                Content = message,
+                Appearance = ControlAppearance.Success,
+                Timeout = TimeSpan.FromSeconds(5), // 5秒后自动消失
+                VerticalAlignment = System.Windows.VerticalAlignment.Bottom,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                Margin = new System.Windows.Thickness(0, 0, 16, 16)
+            };
+
+            snackbar.Show();
+        }
 
         /// <summary>
         /// Raises the closed event.

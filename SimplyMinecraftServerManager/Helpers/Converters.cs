@@ -385,4 +385,73 @@ namespace SimplyMinecraftServerManager.Helpers
             throw new NotImplementedException();
         }
     }
+
+    /// <summary>
+    /// 字符串转大写转换器
+    /// </summary>
+    internal class StringToUpperConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is string str)
+            {
+                return str.ToUpperInvariant();
+            }
+            return string.Empty;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// 列表转字符串转换器（逗号分隔）
+    /// </summary>
+    internal class ListToStringConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is List<string> list && list.Count > 0)
+            {
+                return string.Join(", ", list.Take(5)); // 只显示前5个
+            }
+            return "无";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// 游戏版本列表转范围转换器（显示最小和最大版本）
+    /// </summary>
+    internal class GameVersionsToRangeConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is List<string> list && list.Count > 0)
+            {
+                // 尝试解析版本号，但保持字符串格式
+                // 简单按字符串排序（Minecraft版本号如"1.20.1"可以按字符串排序）
+                var sorted = list.OrderBy(v => v).ToList();
+                var min = sorted.First();
+                var max = sorted.Last();
+                
+                if (min == max)
+                    return min;
+                else
+                    return $"{min}-{max}";
+            }
+            return "无";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

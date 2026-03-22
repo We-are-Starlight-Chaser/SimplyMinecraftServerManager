@@ -1,9 +1,11 @@
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
+using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
+using Microsoft.Win32;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 
@@ -69,7 +71,22 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _editMaxMemory = "2048";
 
         [ObservableProperty]
+        private bool _useCustomJdk = false;
+
+        [ObservableProperty]
+        private bool _autoSelectJdk = true;
+
+        [ObservableProperty]
         private string _editJdkPath = "";
+
+        [ObservableProperty]
+        private string _editExtraJvmArgs = "";
+
+        [ObservableProperty]
+        private ObservableCollection<InstalledJdk> _installedJdks = [];
+
+        [ObservableProperty]
+        private InstalledJdk? _selectedInstalledJdk;
 
         // 性能监控属性 - 保留原有的性能监控属性
         [ObservableProperty]
@@ -285,6 +302,35 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             EditMinMemory = info.MinMemoryMb.ToString();
             EditMaxMemory = info.MaxMemoryMb.ToString();
             EditJdkPath = info.JdkPath;
+            EditExtraJvmArgs = info.ExtraJvmArgs;
+            UseCustomJdk = !string.IsNullOrEmpty(info.JdkPath);
+
+            // 加载已安装的JDK列表
+            LoadInstalledJdks();
+
+            // 初始化JDK选择逻辑
+            if (!UseCustomJdk)
+            {
+                // 如果当前有JdkPath，尝试找到对应的已安装JDK
+                if (!string.IsNullOrEmpty(info.JdkPath))
+                {
+                    var matchingJdk = InstalledJdks.FirstOrDefault(j => 
+                        j.JavaExecutable.Equals(info.JdkPath, StringComparison.OrdinalIgnoreCase));
+                    if (matchingJdk != null)
+                    {
+                        SelectedInstalledJdk = matchingJdk;
+                        AutoSelectJdk = false;
+                    }
+                    else
+                    {
+                        AutoSelectJdk = true;
+                    }
+                }
+                else
+                {
+                    AutoSelectJdk = true;
+                }
+            }
 
             // 从 ServerProcessManager 恢复运行状态
             IsRunning = ServerProcessManager.IsRunning(instanceId);
@@ -315,6 +361,24 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             
             // 加载仪表盘数据
             LoadDashboardData();
+        }
+
+        private void LoadInstalledJdks()
+        {
+            try
+            {
+                var installedJdks = JdkManager.GetInstalledJdks();
+                InstalledJdks.Clear();
+                foreach (var jdk in installedJdks)
+                {
+                    InstalledJdks.Add(jdk);
+                }
+            }
+            catch (Exception ex)
+            {
+                // 静默失败，不影响主功能
+                System.Diagnostics.Debug.WriteLine($"加载已安装JDK失败: {ex.Message}");
+            }
         }
 
         private void LoadStaticStorageInfo()
@@ -705,6 +769,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         [RelayCommand]
+        private void SelectJdkPath()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Java 可执行文件 (java.exe)|java.exe|所有文件 (*.*)|*.*",
+                Title = "选择 Java 可执行文件",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                EditJdkPath = dialog.FileName;
+            }
+        }
+
+        [RelayCommand]
         private void SaveSettings()
         {
             if (InstanceInfo == null) return;
@@ -717,7 +798,24 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 if (int.TryParse(EditMaxMemory, out int maxMem))
                     InstanceInfo.MaxMemoryMb = maxMem;
 
-                InstanceInfo.JdkPath = EditJdkPath;
+                // JDK路径处理逻辑
+                if (UseCustomJdk)
+                {
+                    // 使用自定义JDK路径
+                    InstanceInfo.JdkPath = EditJdkPath;
+                }
+                else if (!AutoSelectJdk && SelectedInstalledJdk != null)
+                {
+                    // 手动选择管理器内的JDK
+                    InstanceInfo.JdkPath = SelectedInstalledJdk.JavaExecutable;
+                }
+                else
+                {
+                    // 自动选择：根据Minecraft版本推荐JDK
+                    InstanceInfo.JdkPath = "";
+                }
+
+                InstanceInfo.ExtraJvmArgs = EditExtraJvmArgs;
 
                 InstanceManager.UpdateInstance(InstanceInfo);
                 StatusMessage = "设置已保存";

@@ -35,5 +35,17 @@
 
         /// <summary>错误信息</summary>
         public string? ErrorMessage { get; init; }
+
+        /// <summary>任务类型</summary>
+        public TaskType TaskType { get; init; } = TaskType.Download;
+
+        /// <summary>安装状态</summary>
+        public InstallationStatus InstallationStatus { get; init; } = InstallationStatus.NotStarted;
+
+        /// <summary>是否安装完成</summary>
+        public bool IsInstalled => InstallationStatus == InstallationStatus.Installed;
+
+        /// <summary>是否安装失败</summary>
+        public bool IsInstallationFailed => InstallationStatus == InstallationStatus.InstallationFailed;
     }
 }
