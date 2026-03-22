@@ -209,13 +209,12 @@
                                 </StackPanel>
 
                                 <ListView Grid.Row="2" 
-                                    ItemsSource="{Binding ViewModel.OnlinePlayers, ElementName=PageRoot}"
+                                    ItemsSource="{Binding ViewModel.OnlinePlayers, ElementName=PageRoot,IsAsync=True}"
                                     BorderThickness="0"
                                     MaxHeight="200">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
-                                            <Border BorderThickness="0" Padding="8" CornerRadius="4" 
-                                                Background="{DynamicResource ControlFillColorDefaultBrush}">
+                                            <Border BorderThickness="0" Padding="8" CornerRadius="4" >
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -224,7 +223,7 @@
                                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                                         <TextBlock Text="{Binding Name}" FontWeight="Medium" VerticalAlignment="Center"/>
                                                         <TextBlock Text=" (ID: " FontSize="11" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="{Binding Id}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding Id}" FontSize="11" VerticalAlignment="Center"/>
                                                         <TextBlock Text=")" FontSize="11" VerticalAlignment="Center"/>
                                                         <TextBlock Text=" [OP]" FontSize="11" Foreground="#FFC107" FontWeight="Bold" 
                                                             Visibility="{Binding IsOp, Converter={StaticResource BooleanToVisibilityConverter}}" 
@@ -698,7 +697,7 @@
                                 HorizontalAlignment="Left">
                                 保存设置
                             </ui:Button>
-                            <Button>
+                            <Button Margin="0,5,0,0">
                                 打开实例目录
                             </Button>
                         </StackPanel>
@@ -717,12 +716,15 @@
                     <TextBlock Grid.Row="0" Text="server.properties" FontSize="16" FontWeight="Medium" Margin="16,16,16,12"/>
 
                     <DataGrid Grid.Row="1"
-                        ItemsSource="{Binding ViewModel.ServerProperties, ElementName=PageRoot}"
+                        ItemsSource="{Binding ViewModel.ServerProperties, ElementName=PageRoot,IsAsync=True}"
+                        EnableColumnVirtualization="True"
+                        EnableRowVirtualization="True"
                         AutoGenerateColumns="False"
                         IsReadOnly="False"
                         CanUserAddRows="True"
                         CanUserDeleteRows="True"
                         GridLinesVisibility="Horizontal"
+                        ScrollViewer.CanContentScroll="True"
                         Margin="16,0,16,16">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="属性名" Binding="{Binding Key, Mode=OneWay}" Width="*"/>
