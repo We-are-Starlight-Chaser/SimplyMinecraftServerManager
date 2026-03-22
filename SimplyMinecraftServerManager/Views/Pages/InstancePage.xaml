@@ -447,7 +447,7 @@
                         <FlowDocumentScrollViewer
                                 x:Name="ConsoleScrollViewer"
                                 HorizontalScrollBarVisibility="Visible"
-                                VerticalScrollBarVisibility="Auto"
+                                VerticalScrollBarVisibility="Visible"
                                 MaxHeight="{Binding Path=ActualHeight,ElementName=FlowDocumentScrollViewerGrid,Mode=OneWay}">
                             <FlowDocument
                                     x:Name="ConsoleDocument"

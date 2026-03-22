@@ -1,16 +1,14 @@
 using SimplyMinecraftServerManager.ViewModels.Pages;
-using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.Views.Pages
 {
     public partial class InstancePage : INavigableView<InstanceViewModel>
     {
-        private ScrollViewer? _consoleScrollViewer;
+        ScrollViewer _sv;
         public InstanceViewModel ViewModel { get; }
 
         public InstancePage(InstanceViewModel viewModel)
@@ -25,26 +23,14 @@ namespace SimplyMinecraftServerManager.Views.Pages
             ViewModel.ConsoleCleared += OnConsoleCleared;
 
             // 页面加载完成后初始化控制台
+            _sv = (ScrollViewer)ConsoleScrollViewer.Template.FindName("PART_ContentHost", ConsoleScrollViewer);
             Loaded += OnPageLoaded;
-            FindConsoleScrollViewer();
         }
 
         private void OnPageLoaded(object sender, RoutedEventArgs e)
         {
             // 初始化 FlowDocument 内容并获取 ScrollViewer
             InitializeConsole();
-        }
-
-        private void FindConsoleScrollViewer()
-        {
-            if (ConsoleScrollViewer == null) return;
-
-            ConsoleScrollViewer.Dispatcher.BeginInvoke(new Action(() => { 
-                _consoleScrollViewer = ConsoleScrollViewer.FindName("PART_ContentHost") as ScrollViewer;
-            }));
-
-            // 检查是否需要显示空提示
-            UpdateEmptyHintVisibility(ViewModel.GetConsoleText().Length > 0);
         }
 
         private async void InitializeConsole()
@@ -75,9 +61,9 @@ namespace SimplyMinecraftServerManager.Views.Pages
             }
 
             // 如果启用了自动滚动，滚动到底部
-            if (ViewModel.AutoScroll && _consoleScrollViewer != null)
+            if (ViewModel.AutoScroll && _sv != null)
             {
-                _consoleScrollViewer.ScrollToEnd();
+                _sv.ScrollToBottom();
             }
         }
 
@@ -119,9 +105,9 @@ namespace SimplyMinecraftServerManager.Views.Pages
                 }
 
                 // 自动滚动 - 将滚动条移动到底部
-                if (ViewModel.AutoScroll && _consoleScrollViewer!= null)
+                if (ViewModel.AutoScroll && _sv != null)
                 {
-                    _consoleScrollViewer.ScrollToEnd();
+                    _sv.ScrollToBottom();
                 }
             });
         }
