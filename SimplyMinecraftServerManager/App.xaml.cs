@@ -41,7 +41,11 @@ namespace SimplyMinecraftServerManager
                 services.AddSingleton<NavigationParameterService>();
 
                 services.AddSingleton<INavigationWindow, MainWindow>();
-                services.AddSingleton<MainWindowViewModel>();
+                services.AddSingleton<MainWindowViewModel>(provider =>
+                {
+                    var downloadsViewModel = provider.GetRequiredService<DownloadsViewModel>();
+                    return new MainWindowViewModel(downloadsViewModel);
+                });
 
                 services.AddSingleton<DashboardPage>();
                 services.AddSingleton<DashboardViewModel>();

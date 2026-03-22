@@ -8,6 +8,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
@@ -62,13 +63,35 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private bool _isSearchingPlugins = false;
 
         [ObservableProperty]
+        private bool _isLoadingMorePlugins = false;
+
+        [ObservableProperty]
+        private bool _hasMorePlugins = false;
+
+        [ObservableProperty]
         private string _pluginSearchStatus = "";
 
         [ObservableProperty]
-        private string _pluginTargetInstanceId = "";
+        private ObservableCollection<InstanceInfo> _availableInstances = [];
 
         [ObservableProperty]
-        private ObservableCollection<InstanceInfo> _availableInstances = [];
+        private ObservableCollection<string> _serverVersionOptions = [];
+
+        [ObservableProperty]
+        private string _selectedServerVersion = "全部";
+
+        [ObservableProperty]
+        private ObservableCollection<string> _serverTypeOptions = [];
+
+        [ObservableProperty]
+        private string _selectedServerType = "全部";
+
+        // 插件分页相关字段
+        private List<ModrinthProject> _allPluginResults = [];
+        private int _loadedPluginCount = 0;
+        private const int _pluginPageSize = 10;
+        private int _pluginSearchOffset = 0;
+        private int _pluginTotalHits = 0;
 
         #endregion
 
@@ -130,6 +153,31 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 AvailableInstances.Add(inst);
             }
+
+            // 初始化服务端版本选项
+            ServerVersionOptions.Clear();
+            ServerVersionOptions.Add("全部");
+            // 这里可以添加常用的Minecraft版本，或者从API获取
+            ServerVersionOptions.Add("1.21.4");
+            ServerVersionOptions.Add("1.21.3");
+            ServerVersionOptions.Add("1.21.2");
+            ServerVersionOptions.Add("1.21.1");
+            ServerVersionOptions.Add("1.21");
+            ServerVersionOptions.Add("1.20.6");
+            ServerVersionOptions.Add("1.20.5");
+            ServerVersionOptions.Add("1.20.4");
+            ServerVersionOptions.Add("1.20.3");
+            ServerVersionOptions.Add("1.20.2");
+            ServerVersionOptions.Add("1.20.1");
+
+            // 初始化服务端类型选项
+            ServerTypeOptions.Clear();
+            ServerTypeOptions.Add("全部");
+            ServerTypeOptions.Add("bukkit");
+            ServerTypeOptions.Add("spigot");
+            ServerTypeOptions.Add("paper");
+            ServerTypeOptions.Add("purpur");
+            ServerTypeOptions.Add("folia");
 
             // 加载服务端版本
             await LoadServerVersionsAsync();
@@ -583,24 +631,54 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             IsSearchingPlugins = true;
             PluginSearchResults.Clear();
+            _allPluginResults.Clear();
+            _loadedPluginCount = 0;
+            _pluginSearchOffset = 0;
+            _pluginTotalHits = 0;
+            HasMorePlugins = false;
             PluginSearchStatus = "搜索中...";
 
             try
             {
                 var modrinth = new ModrinthProvider();
+                
+                // 构建加载器筛选条件
+                IEnumerable<string>? loaders = null;
+                if (SelectedServerType != "全部")
+                {
+                    loaders = new[] { SelectedServerType };
+                }
+                else
+                {
+                    // 默认筛选条件：支持常见的服务端类型
+                    loaders = new[] { "bukkit", "spigot", "paper", "purpur" };
+                }
+                
+                // 构建游戏版本筛选条件
+                IEnumerable<string>? gameVersions = null;
+                if (SelectedServerVersion != "全部")
+                {
+                    gameVersions = new[] { SelectedServerVersion };
+                }
+                
                 var result = await modrinth.SearchAsync(
                     PluginSearchQuery,
-                    loaders: new[] { "bukkit", "spigot", "paper", "purpur" },
+                    loaders: loaders,
+                    gameVersions: gameVersions,
                     projectType: "plugin",
-                    limit: 20
+                    limit: _pluginPageSize,
+                    offset: _pluginSearchOffset
                 );
 
-                foreach (var hit in result.Hits)
-                {
-                    PluginSearchResults.Add(hit);
-                }
+                _allPluginResults = result.Hits.ToList();
+                _pluginTotalHits = result.TotalHits;
+                _pluginSearchOffset += _pluginPageSize;
+                HasMorePlugins = _pluginTotalHits > _pluginPageSize;
 
-                PluginSearchStatus = $"找到 {result.TotalHits} 个结果";
+                // 加载第一页
+                await LoadPluginsPageAsync(0, _pluginPageSize);
+                
+                PluginSearchStatus = $"找到 {_pluginTotalHits} 个结果，已加载 {PluginSearchResults.Count} 个";
             }
             catch (Exception ex)
             {
@@ -613,23 +691,149 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         [RelayCommand]
+        private async Task LoadMorePluginsAsync()
+        {
+            if (IsLoadingMorePlugins || !HasMorePlugins) return;
+
+            IsLoadingMorePlugins = true;
+            PluginSearchStatus = "正在加载更多插件...";
+
+            try
+            {
+                // 如果还有更多结果需要从API获取
+                if (_loadedPluginCount >= _allPluginResults.Count && _loadedPluginCount < _pluginTotalHits)
+                {
+                    var modrinth = new ModrinthProvider();
+                    
+                    // 构建加载器筛选条件（与SearchPluginsAsync保持一致）
+                    IEnumerable<string>? loaders = null;
+                    if (SelectedServerType != "全部")
+                    {
+                        loaders = new[] { SelectedServerType };
+                    }
+                    else
+                    {
+                        // 默认筛选条件：支持常见的服务端类型
+                        loaders = new[] { "bukkit", "spigot", "paper", "purpur" };
+                    }
+                    
+                    // 构建游戏版本筛选条件
+                    IEnumerable<string>? gameVersions = null;
+                    if (SelectedServerVersion != "全部")
+                    {
+                        gameVersions = new[] { SelectedServerVersion };
+                    }
+                    
+                    var result = await modrinth.SearchAsync(
+                        PluginSearchQuery,
+                        loaders: loaders,
+                        gameVersions: gameVersions,
+                        projectType: "plugin",
+                        limit: _pluginPageSize,
+                        offset: _pluginSearchOffset
+                    );
+
+                    _allPluginResults.AddRange(result.Hits);
+                    _pluginSearchOffset += _pluginPageSize;
+                }
+
+                // 加载下一页
+                await LoadPluginsPageAsync(_loadedPluginCount, _pluginPageSize);
+                
+                HasMorePlugins = _loadedPluginCount < _pluginTotalHits;
+                PluginSearchStatus = $"已加载 {PluginSearchResults.Count} 个插件，共 {_pluginTotalHits} 个";
+            }
+            catch (Exception ex)
+            {
+                PluginSearchStatus = $"加载失败: {ex.Message}";
+            }
+            finally
+            {
+                IsLoadingMorePlugins = false;
+            }
+        }
+
+        private async Task LoadPluginsPageAsync(int startIndex, int count)
+        {
+            var endIndex = Math.Min(startIndex + count, _allPluginResults.Count);
+            
+            for (int i = startIndex; i < endIndex; i++)
+            {
+                PluginSearchResults.Add(_allPluginResults[i]);
+                _loadedPluginCount++;
+                
+                // 添加微小延迟以避免UI冻结
+                if (i % 5 == 0)
+                    await Task.Delay(1);
+            }
+        }
+
+        [RelayCommand]
         private async Task DownloadPluginAsync(ModrinthProject? project)
         {
             if (project == null) return;
 
             try
             {
-                string? targetInstanceId = PluginTargetInstanceId;
-                if (string.IsNullOrEmpty(targetInstanceId) && AvailableInstances.Count > 0)
-                {
-                    targetInstanceId = AvailableInstances[0].Id;
-                }
-
-                if (string.IsNullOrEmpty(targetInstanceId))
+                // 如果没有可用实例，提示用户
+                if (AvailableInstances.Count == 0)
                 {
                     PluginSearchStatus = "请先创建一个服务器实例";
                     return;
                 }
+
+                // 如果只有一个实例，直接使用它
+                string? targetInstanceId = null;
+                if (AvailableInstances.Count == 1)
+                {
+                    targetInstanceId = AvailableInstances[0].Id;
+                }
+                else
+                {
+                    // 弹出对话框让用户选择实例
+                    var dialog = new ContentDialog
+                    {
+                        Title = "选择目标实例",
+                        Content = "请选择要将插件安装到的服务器实例:",
+                        PrimaryButtonText = "确定",
+                        CloseButtonText = "取消",
+                        DefaultButton = ContentDialogButton.Primary
+                    };
+
+                    var comboBox = new ComboBox
+                    {
+                        ItemsSource = AvailableInstances,
+                        DisplayMemberPath = "Name",
+                        SelectedValuePath = "Id",
+                        Width = 300,
+                        Margin = new Thickness(0, 12, 0, 0)
+                    };
+
+                    if (AvailableInstances.Count > 0)
+                    {
+                        comboBox.SelectedIndex = 0;
+                    }
+
+                    var stackPanel = new StackPanel();
+                    stackPanel.Children.Add(new System.Windows.Controls.TextBlock { Text = "选择实例:" });
+                    stackPanel.Children.Add(comboBox);
+                    dialog.Content = stackPanel;
+
+                    var result = await _contentDialogService.ShowAsync(dialog, CancellationToken.None);
+                    if (result != ContentDialogResult.Primary)
+                    {
+                        return; // 用户取消
+                    }
+
+                    targetInstanceId = comboBox.SelectedValue?.ToString();
+                    if (string.IsNullOrEmpty(targetInstanceId))
+                    {
+                        PluginSearchStatus = "未选择实例";
+                        return;
+                    }
+                }
+
+                PluginSearchStatus = $"正在获取 {project.Title} 的版本列表...";
 
                 var modrinth = new ModrinthProvider();
                 var versions = await modrinth.GetVersionsAsync(
@@ -643,17 +847,144 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     return;
                 }
 
-                var latestVersion = versions[0];
-                string destPath = System.IO.Path.Combine(
-                    PathHelper.GetPluginsDir(targetInstanceId),
-                    latestVersion.PrimaryFile!.FileName);
+                // 显示版本选择弹窗
+                var versionDialog = new ContentDialog
+                {
+                    Title = $"选择 {project.Title} 版本",
+                    Content = "请选择要下载的插件版本:",
+                    PrimaryButtonText = "下载",
+                    CloseButtonText = "取消",
+                    DefaultButton = ContentDialogButton.Primary
+                };
 
-                await modrinth.DownloadVersionAsync(latestVersion, destPath);
-                PluginSearchStatus = $"已添加下载任务: {project.Title}";
+                var versionListView = new System.Windows.Controls.ListView
+                {
+                    ItemsSource = versions,
+                    DisplayMemberPath = "Name",
+                    SelectedValuePath = "Id",
+                    Height = 300,
+                    Width = 400,
+                    Margin = new Thickness(0, 12, 0, 0)
+                };
+
+                if (versions.Count > 0)
+                {
+                    versionListView.SelectedIndex = 0;
+                }
+
+                var versionStackPanel = new StackPanel();
+                versionStackPanel.Children.Add(new System.Windows.Controls.TextBlock { Text = "可用版本:" });
+                versionStackPanel.Children.Add(versionListView);
+                versionDialog.Content = versionStackPanel;
+
+                var versionResult = await _contentDialogService.ShowAsync(versionDialog, CancellationToken.None);
+                if (versionResult != ContentDialogResult.Primary)
+                {
+                    PluginSearchStatus = "下载已取消";
+                    return; // 用户取消
+                }
+
+                var selectedVersion = versionListView.SelectedItem as ModrinthVersion;
+                if (selectedVersion == null)
+                {
+                    PluginSearchStatus = "未选择版本";
+                    return;
+                }
+
+                PluginSearchStatus = $"正在下载 {project.Title} {selectedVersion.Name}...";
+                string destPath = System.IO.Path.Combine(
+                    PathHelper.GetPluginsDir(targetInstanceId!),
+                    selectedVersion.PrimaryFile!.FileName);
+
+                await modrinth.DownloadFileAsync(selectedVersion.PrimaryFile!, destPath, $"{project.Title} {selectedVersion.Name}");
+                PluginSearchStatus = $"已添加下载任务: {project.Title} {selectedVersion.Name}";
             }
             catch (Exception ex)
             {
                 PluginSearchStatus = $"下载失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private async Task SavePluginAsAsync(ModrinthProject? project)
+        {
+            if (project == null) return;
+
+            try
+            {
+                var modrinth = new ModrinthProvider();
+                var versions = await modrinth.GetVersionsAsync(
+                    project.ProjectId,
+                    loaders: new[] { "bukkit", "spigot", "paper", "purpur" }
+                );
+
+                if (versions.Count == 0)
+                {
+                    PluginSearchStatus = "未找到可用版本";
+                    return;
+                }
+
+                // 显示版本选择弹窗
+                var versionDialog = new ContentDialog
+                {
+                    Title = $"选择 {project.Title} 版本",
+                    Content = "请选择要保存的插件版本:",
+                    PrimaryButtonText = "保存",
+                    CloseButtonText = "取消",
+                    DefaultButton = ContentDialogButton.Primary
+                };
+
+                var saveListView = new System.Windows.Controls.ListView
+                {
+                    ItemsSource = versions,
+                    DisplayMemberPath = "Name",
+                    SelectedValuePath = "Id",
+                    Height = 300,
+                    Width = 400,
+                    Margin = new Thickness(0, 12, 0, 0)
+                };
+
+                if (versions.Count > 0)
+                {
+                    saveListView.SelectedIndex = 0;
+                }
+
+                var saveStackPanel = new StackPanel();
+                saveStackPanel.Children.Add(new System.Windows.Controls.TextBlock { Text = "可用版本:" });
+                saveStackPanel.Children.Add(saveListView);
+                versionDialog.Content = saveStackPanel;
+
+                var saveResult = await _contentDialogService.ShowAsync(versionDialog, CancellationToken.None);
+                if (saveResult != ContentDialogResult.Primary)
+                {
+                    PluginSearchStatus = "保存已取消";
+                    return; // 用户取消
+                }
+
+                var selectedVersion = saveListView.SelectedItem as ModrinthVersion;
+                if (selectedVersion == null)
+                {
+                    PluginSearchStatus = "未选择版本";
+                    return;
+                }
+
+                var saveDialog = new SaveFileDialog
+                {
+                    FileName = selectedVersion.PrimaryFile!.FileName,
+                    Filter = "JAR 文件 (*.jar)|*.jar|所有文件 (*.*)|*.*",
+                    Title = "保存插件文件"
+                };
+
+                if (saveDialog.ShowDialog() == true)
+                {
+                    PluginSearchStatus = $"正在下载: {project.Title} {selectedVersion.Name}";
+                    await modrinth.DownloadFileAsync(selectedVersion.PrimaryFile!, saveDialog.FileName, $"{project.Title} {selectedVersion.Name}");
+                    PluginSearchStatus = $"下载完成: {saveDialog.FileName}";
+                }
+            }
+            catch (Exception ex)
+            {
+                PluginSearchStatus = $"保存失败: {ex.Message}";
             }
         }
 

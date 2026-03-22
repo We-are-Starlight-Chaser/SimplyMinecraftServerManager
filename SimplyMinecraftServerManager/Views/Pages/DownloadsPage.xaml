@@ -6,7 +6,7 @@
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-  Title="下载任务"
+  Title="任务"
   d:DataContext="{d:DesignInstance local:DownloadsPage, IsDesignTimeCreatable=False}"
   d:DesignHeight="600"
   d:DesignWidth="900"
@@ -29,8 +29,7 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0">
-                <TextBlock Text="下载任务" FontSize="24" FontWeight="Bold"/>
-                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <TextBlock Text="任务" FontSize="24" FontWeight="Bold"/>                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                     <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}">
                         <Run Text="{Binding ViewModel.ActiveCount, Mode=OneWay}"/>
                         <Run Text="个进行中"/>

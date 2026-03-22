@@ -27,6 +27,12 @@
       <helpers:JdkStatusToBackgroundConverter x:Key="JdkStatusToBackgroundConverter"/>
       <helpers:JdkStatusToForegroundConverter x:Key="JdkStatusToForegroundConverter"/>
       <helpers:RunningToIconConverter x:Key="RunningToIconConverter"/>
+      <helpers:BooleanToEnableTextConverter x:Key="BooleanToEnableTextConverter"/>
+      <helpers:BooleanToAppearanceConverter x:Key="BooleanToAppearanceConverter"/>
+      <helpers:FileSizeConverter x:Key="FileSizeConverter"/>
+      <helpers:StringToUpperConverter x:Key="StringToUpperConverter"/>
+      <helpers:ListToStringConverter x:Key="ListToStringConverter"/>
+      <helpers:GameVersionsToRangeConverter x:Key="GameVersionsToRangeConverter"/>
     </ResourceDictionary>
   </Application.Resources>
 </Application>

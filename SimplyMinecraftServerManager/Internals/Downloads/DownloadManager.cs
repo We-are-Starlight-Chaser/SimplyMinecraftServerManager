@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using SimplyMinecraftServerManager.Internals;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
 {
@@ -49,6 +50,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         public event EventHandler<DownloadProgressInfo>? ProgressChanged;
         public event EventHandler<DownloadTask>? TaskCompleted;
         public event EventHandler<DownloadTask>? TaskFailed;
+        public event EventHandler<DownloadTask>? TaskInstalled;
 
         public int MaxConcurrentDownloads => _maxConcurrent;
 
@@ -194,6 +196,29 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return EnqueueAsync(task);
         }
 
+        public Task<DownloadTask> EnqueueDownloadAndInstallAsync(
+            string url,
+            string destinationPath,
+            string targetInstanceId,
+            string displayName = "",
+            string? expectedHash = null,
+            string hashAlgorithm = "SHA256")
+        {
+            var task = new DownloadTask
+            {
+                Url = url,
+                DestinationPath = destinationPath,
+                DisplayName = string.IsNullOrEmpty(displayName)
+                    ? Path.GetFileName(destinationPath)
+                    : displayName,
+                ExpectedHash = expectedHash,
+                HashAlgorithm = hashAlgorithm,
+                Type = TaskType.DownloadAndInstall,
+                TargetInstanceId = targetInstanceId
+            };
+            return EnqueueAsync(task);
+        }
+
         public async Task<DownloadTask[]> EnqueueBatchAsync(IEnumerable<DownloadTask> tasks)
         {
             var running = tasks.Select(t => EnqueueAsync(t)).ToArray();
@@ -230,7 +255,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 task.PausedPosition = task.BytesDownloaded;
                 _pausedTasks[taskId] = true;  // 标记为暂停
                 task.Status = DownloadStatus.Paused;
-                RaiseProgress(task, 0, isPaused: true);
+                RaiseProgress(task, 0, isPaused: true, installationStatus: task.InstallationStatus);
             }
         }
 
@@ -243,7 +268,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                     task.PausedPosition = task.BytesDownloaded;
                     _pausedTasks[task.Id] = true;  // 标记为暂停
                     task.Status = DownloadStatus.Paused;
-                    RaiseProgress(task, 0, isPaused: true);
+                    RaiseProgress(task, 0, isPaused: true, installationStatus: task.InstallationStatus);
                 }
             }
         }
@@ -290,6 +315,33 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
             foreach (var id in toRemove)
                 _tasks.TryRemove(id, out _);
+        }
+
+        /// <summary>
+        /// 移除指定任务
+        /// </summary>
+        /// <param name="taskId">任务ID</param>
+        /// <returns>是否成功移除</returns>
+        public bool RemoveTask(string taskId)
+        {
+            if (_tasks.TryGetValue(taskId, out var task))
+            {
+                // 如果任务正在下载，先取消
+                if (task.Status == DownloadStatus.Downloading)
+                {
+                    task.Cts.Cancel();
+                    task.Status = DownloadStatus.Cancelled;
+                }
+                // 如果任务已暂停，也取消
+                else if (task.Status == DownloadStatus.Paused)
+                {
+                    task.Cts.Cancel();
+                    task.Status = DownloadStatus.Cancelled;
+                }
+                
+                return _tasks.TryRemove(taskId, out _);
+            }
+            return false;
         }
 
         //  核心下载逻辑
@@ -360,7 +412,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                             // 暂停下载
                             task.Status = DownloadStatus.Paused;
                             _pausedTasks.TryRemove(task.Id, out _);
-                            RaiseProgress(task, 0, isPaused: true);
+                            RaiseProgress(task, 0, isPaused: true, installationStatus: task.InstallationStatus);
                             return task;
                         }
 
@@ -378,7 +430,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                             lastReportedBytes = task.BytesDownloaded;
                             lastReportTime = elapsed;
 
-                            RaiseProgress(task, speed);
+                            RaiseProgress(task, speed, installationStatus: task.InstallationStatus);
                         }
                     }
 
@@ -402,10 +454,43 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                     File.Delete(task.DestinationPath);
                 File.Move(tempPath, task.DestinationPath);
 
+                // 如果任务是下载并安装类型，执行安装
+                if (task.Type == TaskType.DownloadAndInstall && !string.IsNullOrEmpty(task.TargetInstanceId))
+                {
+                    try
+                    {
+                        task.InstallationStatus = InstallationStatus.Installing;
+                        task.InstallationStartTime = DateTime.Now;
+                        
+                        // 更新进度显示安装中状态
+                        RaiseProgress(task, 0, isCompleted: false, installationStatus: task.InstallationStatus);
+                        
+                        // 执行安装
+                        var pluginInfo = PluginManager.InstallPlugin(task.TargetInstanceId, task.DestinationPath);
+                        
+                        task.InstallationStatus = InstallationStatus.Installed;
+                        task.InstallationEndTime = DateTime.Now;
+                        
+                        // 触发安装完成事件
+                        TaskInstalled?.Invoke(this, task);
+                    }
+                    catch (Exception ex)
+                    {
+                        task.InstallationStatus = InstallationStatus.InstallationFailed;
+                        task.InstallationEndTime = DateTime.Now;
+                        task.ErrorMessage = $"安装失败: {ex.Message}";
+                        
+                        // 触发任务失败事件
+                        TaskFailed?.Invoke(this, task);
+                        RaiseProgress(task, 0, isFailed: true, errorMessage: task.ErrorMessage, installationStatus: task.InstallationStatus);
+                        return task;
+                    }
+                }
+
                 task.Status = DownloadStatus.Completed;
                 task.EndTime = DateTime.Now;
 
-                RaiseProgress(task, 0, isCompleted: true);
+                RaiseProgress(task, 0, isCompleted: true, installationStatus: task.InstallationStatus);
                 TaskCompleted?.Invoke(this, task);
 
                 return task;
@@ -425,7 +510,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 task.ErrorMessage = ex.Message;
                 task.EndTime = DateTime.Now;
                 CleanupTemp(task);
-                RaiseProgress(task, 0, isFailed: true, errorMessage: ex.Message);
+                RaiseProgress(task, 0, isFailed: true, errorMessage: ex.Message, installationStatus: task.InstallationStatus);
                 TaskFailed?.Invoke(this, task);
                 return task;
             }
@@ -436,7 +521,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         }
 
         private void RaiseProgress(DownloadTask task, long speed,
-            bool isCompleted = false, bool isFailed = false, bool isPaused = false, string? errorMessage = null)
+            bool isCompleted = false, bool isFailed = false, bool isPaused = false, string? errorMessage = null,
+            InstallationStatus installationStatus = InstallationStatus.NotStarted)
         {
             ProgressChanged?.Invoke(this, new DownloadProgressInfo
             {
@@ -448,7 +534,9 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 IsCompleted = isCompleted,
                 IsFailed = isFailed,
                 IsPaused = isPaused,
-                ErrorMessage = errorMessage ?? task.ErrorMessage
+                ErrorMessage = errorMessage ?? task.ErrorMessage,
+                TaskType = task.Type,
+                InstallationStatus = installationStatus
             });
         }
 

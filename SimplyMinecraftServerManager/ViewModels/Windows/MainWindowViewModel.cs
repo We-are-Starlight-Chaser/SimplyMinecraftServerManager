@@ -1,4 +1,5 @@
 using SimplyMinecraftServerManager.Internals;
+using SimplyMinecraftServerManager.ViewModels.Pages;
 using System.Collections.ObjectModel;
 using Wpf.Ui.Controls;
 
@@ -26,8 +27,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         /// </summary>
         private Wpf.Ui.Controls.NavigationViewItem? _downloadTasksNavItem;
 
-        public MainWindowViewModel()
+        private readonly DownloadsViewModel _downloadsViewModel;
+
+        public MainWindowViewModel(DownloadsViewModel downloadsViewModel)
         {
+            _downloadsViewModel = downloadsViewModel;
+            
+            // 订阅下载任务事件
+            _downloadsViewModel.TaskCountChanged += OnTaskCountChanged;
+            _downloadsViewModel.InstallationCompleted += OnInstallationCompleted;
+            
             _menuItems =
             [
                 new NavigationViewItem()
@@ -60,7 +69,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
             [
                 new NavigationViewItem()
                 {
-                    Content = "下载任务",
+                    Content = "任务",
                     Icon = new SymbolIcon { Symbol = SymbolRegular.ArrowDownload24 },
                     TargetPageType = typeof(Views.Pages.DownloadsPage)
                 },
@@ -90,11 +99,50 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
             DownloadTaskCount = count;
             if (_downloadTasksNavItem != null)
             {
-                _downloadTasksNavItem.Content = count > 0 
-                    ? $"下载任务 ({count})" 
-                    : "下载任务";
+                // 在文本中显示任务数量
+                if (count > 0)
+                {
+                    _downloadTasksNavItem.Content = $"任务 ({count})";
+                }
+                else
+                {
+                    _downloadTasksNavItem.Content = "任务";
+                }
             }
         }
+
+        /// <summary>
+        /// 任务数量变化事件处理
+        /// </summary>
+        private void OnTaskCountChanged(object? sender, int count)
+        {
+            UpdateDownloadTaskBadge(count);
+        }
+
+        /// <summary>
+        /// 安装完成事件处理
+        /// </summary>
+        private void OnInstallationCompleted(object? sender, string message)
+        {
+            // 显示右下角弹窗通知
+            ShowNotification(message);
+        }
+
+        /// <summary>
+        /// 显示右下角弹窗通知
+        /// </summary>
+        private void ShowNotification(string message)
+        {
+            // 这里将触发UI更新，需要在UI线程执行
+            // 实际UI更新将在MainWindow.xaml.cs中处理
+            // 通过事件或命令通知主窗口显示弹窗
+            NotificationRequested?.Invoke(this, message);
+        }
+
+        /// <summary>
+        /// 通知请求事件
+        /// </summary>
+        public event EventHandler<string>? NotificationRequested;
 
         /// <summary>
         /// 刷新实例菜单（在 JDK 管理下面添加实例入口）

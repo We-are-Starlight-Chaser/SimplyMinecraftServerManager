@@ -19,6 +19,8 @@
     <Page.Resources>
         <helpers:BooleanToEnableTextConverter x:Key="BooleanToEnableTextConverter"/>
         <helpers:BooleanToAppearanceConverter x:Key="BooleanToAppearanceConverter"/>
+        <helpers:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <helpers:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter"/>
         <DataTemplate x:Key="PluginTabHeaderTemplate">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -39,7 +41,7 @@
             </Grid>
         </DataTemplate>
     </Page.Resources>
-    
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -128,7 +130,7 @@
                         <ui:Card Margin="0,0,0,16" Padding="16">
                             <StackPanel>
                                 <TextBlock Text="服务器信息" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                                
+
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -666,18 +668,18 @@
 
                             <ui:Card Padding="16" Margin="0,0,0,12">
                                 <StackPanel>
-                                    <TextBlock Text="内存设置" FontWeight="Medium" Margin="0,0,0,12"/>
+                                    <TextBlock Text="内存管理" FontWeight="Medium" Margin="0,0,0,12"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
-                                            <TextBlock Text="最小内存 (MB)" Margin="0,0,0,4"/>
+                                            <TextBlock Text="最小运行内存 (MB)" Margin="0,0,0,4"/>
                                             <ui:TextBox Text="{Binding ViewModel.EditMinMemory, ElementName=PageRoot, Mode=TwoWay}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Margin="12,0,0,0">
-                                            <TextBlock Text="最大内存 (MB)" Margin="0,0,0,4"/>
+                                            <TextBlock Text="最大运行内存 (MB)" Margin="0,0,0,4"/>
                                             <ui:TextBox Text="{Binding ViewModel.EditMaxMemory, ElementName=PageRoot, Mode=TwoWay}"/>
                                         </StackPanel>
                                     </Grid>
@@ -686,9 +688,78 @@
 
                             <ui:Card Padding="16" Margin="0,0,0,12">
                                 <StackPanel>
-                                    <TextBlock Text="JDK 路径" FontWeight="Medium" Margin="0,0,0,8"/>
-                                    <ui:TextBox Text="{Binding ViewModel.EditJdkPath, ElementName=PageRoot, Mode=TwoWay}" 
-                                        PlaceholderText="留空使用全局默认 JDK"/>
+                                    <TextBlock Text="运行时配置" FontWeight="Medium" Margin="0,0,0,8"/>
+
+                                    <CheckBox IsChecked="{Binding ViewModel.UseCustomJdk, ElementName=PageRoot, Mode=TwoWay}"
+                                        Content="使用自定义 JDK"
+                                        Margin="0,0,0,8"/>
+
+                                    <!-- 自定义JDK路径输入区域 -->
+                                    <Grid Visibility="{Binding ViewModel.UseCustomJdk, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <ui:TextBox Grid.Column="0" 
+                                            Text="{Binding ViewModel.EditJdkPath, ElementName=PageRoot, Mode=TwoWay}" 
+                                            PlaceholderText="输入java.exe路径或点击浏览选择"
+                                            Margin="0,0,8,0"/>
+
+                                        <ui:Button Grid.Column="1"
+                                            Command="{Binding ViewModel.SelectJdkPathCommand, ElementName=PageRoot}"
+                                            Appearance="Secondary">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:SymbolIcon Symbol="Folder24"/>
+                                                <TextBlock Text="浏览" Margin="4,0,0,0"/>
+                                            </StackPanel>
+                                        </ui:Button>
+                                    </Grid>
+
+                                    <!-- 管理器内JDK选择区域 -->
+                                    <Grid Visibility="{Binding ViewModel.UseCustomJdk, ElementName=PageRoot, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <CheckBox IsChecked="{Binding ViewModel.AutoSelectJdk, ElementName=PageRoot, Mode=TwoWay}"
+                                                Content="自动选择 JDK（根据服务端版本自动选择）"
+                                                Margin="0,0,0,8"/>
+
+                                            <!-- 手动选择管理器内JDK -->
+                                            <Grid Visibility="{Binding ViewModel.AutoSelectJdk, ElementName=PageRoot, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="67*"/>
+                                                    <ColumnDefinition Width="350*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+
+                                                <TextBlock Grid.Row="0" Text="选择已安装的JDK:" Margin="0,0,0,4" Grid.ColumnSpan="2"/>
+                                                <ComboBox Grid.Row="1"
+                                                    ItemsSource="{Binding ViewModel.InstalledJdks, ElementName=PageRoot}"
+                                                    SelectedItem="{Binding ViewModel.SelectedInstalledJdk, ElementName=PageRoot, Mode=TwoWay}"
+                                                    ToolTipService.ToolTip="{Binding SelectedItem, RelativeSource={RelativeSource Self}}" Grid.ColumnSpan="2" HorizontalAlignment="Left" Width="400">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding FullVersion}" FontWeight="Medium"/>
+                                                                <TextBlock Text="{Binding Distribution}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </ui:Card>
+
+                            <ui:Card Padding="16" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="额外JVM参数" FontWeight="Medium" Margin="0,0,0,8"/>
+                                    <ui:TextBox Text="{Binding ViewModel.EditExtraJvmArgs, ElementName=PageRoot, Mode=TwoWay}" 
+                                        PlaceholderText="额外的JVM启动参数，如：-XX:+UseG1GC -XX:+ParallelRefProcEnabled"/>
+                                    <TextBlock Text="多个参数用空格分隔" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,0"/>
                                 </StackPanel>
                             </ui:Card>
 
