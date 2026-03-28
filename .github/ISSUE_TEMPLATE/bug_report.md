@@ -20,15 +20,10 @@ Steps to reproduce the behavior:
 If applicable, add screenshots to help explain your problem.
 
 **Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
-
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
+ - OS: [e.g. Windows]
  - Version [e.g. 22]
 
 **Additional context**
-Add any other context about the problem here.
+- [ ] I have confirmed that there is no duplicate issue with it.
+- [ ] I have confirmed that I am using the latest version of SMSM.
+- [ ] I have confirmed that this issue is reproducible.
