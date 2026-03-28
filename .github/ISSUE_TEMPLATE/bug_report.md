@@ -31,4 +31,6 @@ If applicable, add screenshots to help explain your problem.
  - Version [e.g. 22]
 
 **Additional context**
-Add any other context about the problem here.
+- [ ] I have confirmed that there is no duplicate issue with it.
+- [ ] I have confirmed that I am using the latest version of SMSM.
+- [ ] I have confirmed that this issue is reproducible.
