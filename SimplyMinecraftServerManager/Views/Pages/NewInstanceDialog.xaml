@@ -36,23 +36,17 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-
-        <!-- 实例名称 -->
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
             <TextBlock Text="实例名称" FontWeight="Medium" Margin="0,0,0,4"/>
             <ui:TextBox Text="{Binding InstanceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                 PlaceholderText="输入名称"/>
         </StackPanel>
-
-        <!-- 服务端类型 -->
         <StackPanel Grid.Row="1" Margin="0,0,0,12">
             <TextBlock Text="服务端类型" FontWeight="Medium" Margin="0,0,0,4"/>
             <ComboBox ItemsSource="{Binding ServerTypes}"
                 SelectedItem="{Binding ServerType, Mode=TwoWay}"
                 Width="350"/>
         </StackPanel>
-
-        <!-- Minecraft 版本 -->
         <StackPanel Grid.Row="2" Margin="0,0,0,12">
             <TextBlock Text="Minecraft 版本" FontWeight="Medium" Margin="0,0,0,4"/>
             <ComboBox ItemsSource="{Binding AvailableVersions}"
@@ -60,8 +54,6 @@
                 IsEditable="False"
                 Width="350"/>
         </StackPanel>
-
-        <!-- 自定义JAR文件 -->
         <StackPanel Grid.Row="3" Margin="0,0,0,12">
             <TextBlock Text="服务端JAR文件" FontWeight="Medium" Margin="0,0,0,4"/>
             <Grid>

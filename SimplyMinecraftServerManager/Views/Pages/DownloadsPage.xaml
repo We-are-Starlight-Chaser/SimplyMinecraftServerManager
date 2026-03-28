@@ -19,8 +19,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-
-        <!-- 标题栏 -->
         <Grid Grid.Row="0" Margin="0,0,0,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -103,12 +101,8 @@
                                             <TextBlock Text="{Binding Status}" FontSize="12"/>
                                         </Border>
                                     </Grid>
-
-                                    <!-- 进度条 -->
                                     <ProgressBar Value="{Binding Progress}" Maximum="100" 
                                         Height="6" Margin="0,8,0,4"/>
-
-                                    <!-- 大小和速度 -->
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -122,8 +116,6 @@
                                             FontWeight="Medium"/>
                                     </Grid>
                                 </StackPanel>
-
-                                <!-- 操作按钮 -->
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="16,0,0,0">
                                     <!-- 暂停/继续按钮（仅下载中或暂停时显示） -->
                                     <ui:Button 
@@ -166,8 +158,6 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
-
-        <!-- 空状态提示 -->
         <StackPanel Grid.Row="1" 
             VerticalAlignment="Center" 
             HorizontalAlignment="Center"

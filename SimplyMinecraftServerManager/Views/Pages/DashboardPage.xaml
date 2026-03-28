@@ -19,16 +19,12 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-
-        <!-- 欢迎区域 -->
         <ui:Card Grid.Row="0" Margin="0,0,0,16" Padding="24">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-
-                <!-- Logo -->
                 <Border Grid.Column="0" Width="80" Height="80" CornerRadius="12" 
                     Background="{DynamicResource AccentFillColorDefaultBrush}" Margin="0,0,24,0">
                     <Image Source="pack://application:,,,/Assets/Pictures/SMSM-icon-256.jpg" 
@@ -51,15 +47,11 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="300"/>
             </Grid.ColumnDefinitions>
-
-            <!-- 快捷操作和最近实例 -->
             <Grid Grid.Column="0" Margin="0,0,12,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-
-                <!-- 快捷操作 -->
                 <StackPanel Grid.Row="0" Margin="0,0,0,16">
                     <TextBlock Text="快捷操作" FontSize="18" FontWeight="Medium" Margin="0,0,0,12"/>
                     <StackPanel Orientation="Horizontal">
@@ -84,7 +76,6 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- 最近实例 -->
                 <Grid Grid.Row="1">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -127,8 +118,6 @@
                     </ListView>
                 </Grid>
             </Grid>
-
-            <!-- 公告栏 -->
             <ui:Card Grid.Column="1" Padding="16" VerticalAlignment="Top">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">

@@ -15,9 +15,7 @@
   mc:Ignorable="d"
 >
     <Grid>
-        <!-- 主内容区域 - 使用 TabControl -->
         <TabControl>
-            <!-- 服务端下载 -->
             <TabItem Header="服务端">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
@@ -25,8 +23,6 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-
-                    <!-- 平台选择 -->
                     <Border Grid.Row="0" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" 
                         CornerRadius="8" Padding="16" Margin="0,0,0,16">
                         <Grid>
@@ -35,8 +31,6 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-
-                            <!-- Logo -->
                             <Border Grid.Column="0" Width="48" Height="48" CornerRadius="8" Margin="0,0,12,0"
                                 Background="{Binding ViewModel.CurrentPlatformName, Converter={StaticResource PlatformNameToColorConverter}}"
                                 VerticalAlignment="Center">
@@ -44,16 +38,12 @@
                                     FontSize="20" FontWeight="Bold" 
                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
-
-                            <!-- 平台名称和描述 -->
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
                                 <TextBlock Text="{Binding ViewModel.CurrentPlatformName}" FontSize="18" FontWeight="Medium"/>
                                 <TextBlock Text="{Binding ViewModel.CurrentPlatformDescription}" FontSize="12" 
                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                     TextWrapping="Wrap"/>
                             </StackPanel>
-
-                            <!-- 平台选择和刷新 -->
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                 <ComboBox 
                                     SelectedIndex="{Binding ViewModel.SelectedServerPlatformIndex, Mode=TwoWay}"
@@ -73,135 +63,126 @@
                             </StackPanel>
                         </Grid>
                     </Border>
-
-                    <!-- 状态提示 -->
                     <TextBlock Grid.Row="1" Text="{Binding ViewModel.ServerDownloadStatus}" 
                         Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,12"/>
-
-                                                            <!-- 版本卡片区域 -->
-
-                                                            <Grid Grid.Row="2">
-                                                                                    <Grid.RowDefinitions>
-                                                                                        <RowDefinition Height="*"/>
-                                                                                        <RowDefinition Height="Auto"/>
-                                                                                    </Grid.RowDefinitions>
-                                                            
-                                                                                    <!-- 卡片列表 -->
-                                                                                    <ScrollViewer x:Name="ServerVersionsScrollViewer" Grid.Row="0" VerticalScrollBarVisibility="Auto" 
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <ScrollViewer x:Name="ServerVersionsScrollViewer" Grid.Row="0" VerticalScrollBarVisibility="Auto" 
                                                                                                                 Visibility="{Binding ViewModel.IsLoadingVersions, Converter={StaticResource InverseBooleanConverter}, FallbackValue=Visible}"
-                                                                                                                ScrollChanged="OnServerVersionsScrollChanged">                                                                    <ItemsControl ItemsSource="{Binding ViewModel.ServerVersionCards}" 
+                                                                                                                ScrollChanged="OnServerVersionsScrollChanged">
+                            <ItemsControl ItemsSource="{Binding ViewModel.ServerVersionCards}" 
 
                                                                         HorizontalAlignment="Stretch" 
 
                                                                         Margin="6">
 
-                                                                        <ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemsPanel>
 
-                                                                            <ItemsPanelTemplate>
+                                    <ItemsPanelTemplate>
 
-                                                                                <UniformGrid Columns="3" HorizontalAlignment="Stretch"/>
+                                        <UniformGrid Columns="3" HorizontalAlignment="Stretch"/>
 
-                                                                            </ItemsPanelTemplate>
+                                    </ItemsPanelTemplate>
 
-                                                                        </ItemsControl.ItemsPanel>
+                                </ItemsControl.ItemsPanel>
 
-                                                                        <ItemsControl.ItemTemplate>
+                                <ItemsControl.ItemTemplate>
 
-                                                                            <DataTemplate>
+                                    <DataTemplate>
 
-                                                                                <ui:Card Margin="6" Padding="0">                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                            </Grid.RowDefinitions>
-
-                                            <!-- 版本号大标题 -->
-                                            <Border Grid.Row="0" Padding="16,12">
-                                                <Border.Background>
-                                                    <MultiBinding Converter="{StaticResource ThemeAwareColorConverter}">
-                                                        <Binding Path="PlatformColorLight"/>
-                                                        <Binding Path="PlatformColorDark"/>
-                                                    </MultiBinding>
-                                                </Border.Background>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="{Binding MinecraftVersion}" 
+                                        <ui:Card Margin="6" Padding="0">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Border Grid.Row="0" Padding="16,12">
+                                                    <Border.Background>
+                                                        <MultiBinding Converter="{StaticResource ThemeAwareColorConverter}">
+                                                            <Binding Path="PlatformColorLight"/>
+                                                            <Binding Path="PlatformColorDark"/>
+                                                        </MultiBinding>
+                                                    </Border.Background>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding MinecraftVersion}" 
                                                         FontSize="28" FontWeight="Bold" Foreground="White"/>
-                                                    <Border Grid.Column="1" 
+                                                        <Border Grid.Column="1" 
                                                         Background="#33FFFFFF" 
                                                         CornerRadius="4" 
                                                         Padding="8,4"
                                                         VerticalAlignment="Center"
                                                         Visibility="{Binding IsExperimental, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <TextBlock Text="实验性" FontSize="11" Foreground="White"/>
-                                                    </Border>
-                                                </Grid>
-                                            </Border>
-
-                                            <!-- 构建信息 -->
-                                            <Border Grid.Row="1" Padding="16,12">
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="构建 #" FontSize="12" 
-                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                                        <TextBlock Text="{Binding LatestBuild.BuildNumber}" FontSize="12" FontWeight="Medium"/>
-                                                        <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" 
-                                                            CornerRadius="4" Margin="8,0,0,0" Padding="6,2">
-                                                            <TextBlock Text="{Binding ChannelTag}" FontSize="10"/>
+                                                            <TextBlock Text="实验性" FontSize="11" Foreground="White"/>
                                                         </Border>
-                                                    </StackPanel>
-                                                    <TextBlock Text="{Binding LatestBuild.FileName}" 
+                                                    </Grid>
+                                                </Border>
+                                                <Border Grid.Row="1" Padding="16,12">
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="构建 #" FontSize="12" 
+                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                            <TextBlock Text="{Binding LatestBuild.BuildNumber}" FontSize="12" FontWeight="Medium"/>
+                                                            <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" 
+                                                            CornerRadius="4" Margin="8,0,0,0" Padding="6,2">
+                                                                <TextBlock Text="{Binding ChannelTag}" FontSize="10"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding LatestBuild.FileName}" 
                                                         FontSize="11" 
                                                         Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                         Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
-                                                </StackPanel>
-                                            </Border>
+                                                    </StackPanel>
+                                                </Border>
 
-                                            <!-- 分隔线 -->
-                                            <Border Grid.Row="2" Height="1" 
+                                                <!-- 分隔线 -->
+                                                <Border Grid.Row="2" Height="1" 
                                                 Background="{DynamicResource ControlStrokeColorDefaultBrush}"
                                                 Margin="16,0"/>
 
-                                            <!-- 操作按钮 -->
-                                            <Border Grid.Row="3" Padding="16,12">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
+                                                <!-- 操作按钮 -->
+                                                <Border Grid.Row="3" Padding="16,12">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
 
-                                                    <ui:Button Grid.Column="0"
+                                                        <ui:Button Grid.Column="0"
                                                         Command="{Binding ViewModel.DownloadAndCreateCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
                                                         Appearance="Primary"
                                                         HorizontalAlignment="Stretch">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <ui:SymbolIcon Symbol="Add24"/>
-                                                            <TextBlock Text="下载并创建" Margin="8,0,0,0"/>
-                                                        </StackPanel>
-                                                    </ui:Button>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <ui:SymbolIcon Symbol="Add24"/>
+                                                                <TextBlock Text="下载并创建" Margin="8,0,0,0"/>
+                                                            </StackPanel>
+                                                        </ui:Button>
 
-                                                    <ui:Button Grid.Column="1"
+                                                        <ui:Button Grid.Column="1"
                                                         Command="{Binding ViewModel.SaveServerVersionAsCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
                                                         Appearance="Secondary"
                                                         Margin="8,0,0,0"
                                                         ToolTip="另存为...">
-                                                        <ui:SymbolIcon Symbol="Save24"/>
-                                                    </ui:Button>
-                                                </Grid>
-                                            </Border>
-                                        </Grid>
-                                    </ui:Card>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                                                            <ui:SymbolIcon Symbol="Save24"/>
+                                                        </ui:Button>
+                                                    </Grid>
+                                                </Border>
+                                            </Grid>
+                                        </ui:Card>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
 
                         <!-- 加载更多按钮 -->
                         <Grid Grid.Row="1" Margin="0,16,0,0" 
@@ -212,21 +193,17 @@
                                 HorizontalAlignment="Center"
                                 Appearance="Secondary">
                                 <Grid>
-                                    <!-- 正常状态：加号图标和文本 -->
                                     <StackPanel x:Name="NormalContent" Orientation="Horizontal"
                                         Visibility="{Binding ViewModel.IsLoadingMore, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                         <ui:SymbolIcon Symbol="Add24"/>
                                         <TextBlock Text="加载更多版本" Margin="8,0,0,0"/>
                                     </StackPanel>
-                                    
-                                    <!-- 加载状态：转圈动画 -->
+
                                     <ui:ProgressRing x:Name="LoadingContent" Width="16" Height="16" IsIndeterminate="True"
                                         Visibility="{Binding ViewModel.IsLoadingMore, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                 </Grid>
                             </ui:Button>
                         </Grid>
-
-                        <!-- 加载动画覆盖层 -->
                         <Grid Background="{DynamicResource ApplicationBackgroundBrush}"
                             Visibility="{Binding ViewModel.IsLoadingVersions, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
@@ -240,8 +217,6 @@
                     </Grid>
                 </Grid>
             </TabItem>
-
-            <!-- 插件搜索下载 -->
             <TabItem Header="插件">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
@@ -249,15 +224,11 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-
-                    <!-- 搜索栏 -->
                     <Grid Grid.Row="0" Margin="0,0,0,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        
-                        <!-- 第一行：搜索框和按钮 -->
                         <StackPanel Grid.Row="0" Orientation="Horizontal">
                             <ui:TextBox 
                                 Text="{Binding ViewModel.PluginSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -273,8 +244,6 @@
                                 </StackPanel>
                             </ui:Button>
                         </StackPanel>
-                        
-                        <!-- 第二行：筛选条件 -->
                         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="服务端版本:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <ComboBox 
@@ -282,7 +251,7 @@
                                 SelectedItem="{Binding ViewModel.SelectedServerVersion, Mode=TwoWay}"
                                 Width="100"
                                 Margin="0,0,12,0"/>
-                            
+
                             <TextBlock Text="服务端类型:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <ComboBox 
                                 ItemsSource="{Binding ViewModel.ServerTypeOptions}"
@@ -290,12 +259,8 @@
                                 Width="100"/>
                         </StackPanel>
                     </Grid>
-
-                    <!-- 搜索状态 -->
                     <TextBlock Grid.Row="1" Text="{Binding ViewModel.PluginSearchStatus}" 
                         Margin="0,0,0,8" VerticalAlignment="Center"/>
-
-                    <!-- 搜索结果 - 卡片式布局 -->
                     <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <ItemsControl ItemsSource="{Binding ViewModel.PluginSearchResults}"
@@ -317,21 +282,15 @@
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
-
-                                                <!-- 图标和基本信息 -->
                                                 <Border Grid.Column="0" Grid.RowSpan="3" Width="64" Height="64" CornerRadius="8" 
                                                     Background="{DynamicResource ControlFillColorDefaultBrush}" Margin="0,0,12,0">
                                                     <TextBlock Text="📦" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Border>
-
-                                                <!-- 标题和描述 -->
                                                 <StackPanel Grid.Column="1" Grid.Row="0">
                                                     <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="16"/>
                                                     <TextBlock Text="{Binding Description}" FontSize="13" Margin="0,4,0,0" 
                                                         TextTrimming="CharacterEllipsis" TextWrapping="Wrap" MaxHeight="60"/>
                                                 </StackPanel>
-
-                                                <!-- 元信息 -->
                                                 <StackPanel Grid.Column="1" Grid.Row="1" Margin="0,8,0,0">
                                                     <WrapPanel>
                                                         <Border Background="{DynamicResource SystemFillColorCautionBrush}" 
@@ -351,10 +310,6 @@
                                                         </Border>
                                                     </WrapPanel>
                                                 </StackPanel>
-
-                                                
-
-                                                <!-- 操作按钮 -->
                                                 <StackPanel Grid.Column="2" Grid.RowSpan="3" Margin="12,0,0,0" VerticalAlignment="Center">
                                                     <ui:Button 
                                                         Command="{Binding ViewModel.DownloadPluginCommand, RelativeSource={RelativeSource AncestorType=Page}}"
@@ -367,7 +322,7 @@
                                                             <TextBlock Text="下载" Margin="8,0,0,0"/>
                                                         </StackPanel>
                                                     </ui:Button>
-                                                    
+
                                                     <ui:Button 
                                                         Command="{Binding ViewModel.SavePluginAsCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CommandParameter="{Binding}"
@@ -394,14 +349,11 @@
                                     HorizontalAlignment="Center"
                                     Appearance="Secondary">
                                     <Grid>
-                                        <!-- 正常状态：加号图标和文本 -->
                                         <StackPanel x:Name="PluginNormalContent" Orientation="Horizontal"
                                             Visibility="{Binding ViewModel.IsLoadingMorePlugins, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                             <ui:SymbolIcon Symbol="Add24"/>
                                             <TextBlock Text="加载更多插件" Margin="8,0,0,0"/>
                                         </StackPanel>
-                                        
-                                        <!-- 加载状态：转圈动画 -->
                                         <ui:ProgressRing x:Name="PluginLoadingContent" Width="16" Height="16" IsIndeterminate="True"
                                             Visibility="{Binding ViewModel.IsLoadingMorePlugins, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     </Grid>
@@ -409,85 +361,6 @@
                             </Grid>
                         </StackPanel>
                     </ScrollViewer>
-                </Grid>
-            </TabItem>
-
-            <!-- JDK 下载 -->
-            <TabItem Header="JDK">
-                <Grid Margin="16">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- 发行版和版本选择 -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
-                        <TextBlock Text="发行版:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <ComboBox 
-                            SelectedIndex="{Binding ViewModel.SelectedJdkDistributionIndex, Mode=TwoWay}"
-                            Width="120">
-                            <ComboBoxItem Content="Adoptium"/>
-                            <ComboBoxItem Content="Zulu"/>
-                        </ComboBox>
-
-                        <TextBlock Text="版本:" VerticalAlignment="Center" Margin="16,0,8,0"/>
-                        <ComboBox 
-                            ItemsSource="{Binding ViewModel.AvailableJdkVersions}"
-                            SelectedItem="{Binding ViewModel.SelectedJdkMajorVersion, Mode=TwoWay}"
-                            Width="80"/>
-
-                        <ui:Button 
-                            Command="{Binding ViewModel.LoadJdkVersionsCommand}"
-                            Margin="8,0,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <ui:SymbolIcon Symbol="ArrowSync24"/>
-                                <TextBlock Text="刷新" Margin="4,0,0,0"/>
-                            </StackPanel>
-                        </ui:Button>
-                    </StackPanel>
-
-                    <!-- 状态提示 -->
-                    <TextBlock Grid.Row="1" Text="{Binding ViewModel.JdkDownloadStatus}" Margin="0,0,0,8"/>
-
-                    <!-- JDK 构建列表 -->
-                    <ListView Grid.Row="2" ItemsSource="{Binding ViewModel.JdkBuilds}"
-                        VirtualizingStackPanel.IsVirtualizing="True"
-                        VirtualizingStackPanel.VirtualizationMode="Recycling"
-                        ScrollViewer.IsDeferredScrollingEnabled="True">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock FontWeight="Medium">
-                                            <Run Text="JDK "/>
-                                            <Run Text="{Binding FullVersion}"/>
-                                        </TextBlock>
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="{Binding Distribution}" FontSize="12"/>
-                                            <TextBlock Text=" | " FontSize="12"/>
-                                            <TextBlock Text="{Binding Architecture}" FontSize="12"/>
-                                            <TextBlock Text=" | " FontSize="12"/>
-                                            <TextBlock Text="{Binding FileName}" FontSize="12"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                    <ui:Button Grid.Column="1" 
-                                        Command="{Binding ViewModel.DownloadJdkCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                        CommandParameter="{Binding}"
-                                        VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Symbol="ArrowDownload24"/>
-                                            <TextBlock Text="下载并安装" Margin="4,0,0,0"/>
-                                        </StackPanel>
-                                    </ui:Button>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
                 </Grid>
             </TabItem>
         </TabControl>

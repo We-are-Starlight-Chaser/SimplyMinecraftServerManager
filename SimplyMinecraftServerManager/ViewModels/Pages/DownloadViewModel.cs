@@ -95,31 +95,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         #endregion
 
-        #region JDK 下载
-
-        [ObservableProperty]
-        private int _selectedJdkDistributionIndex = 0;
-
-        [ObservableProperty]
-        private ObservableCollection<int> _availableJdkVersions = [];
-
-        [ObservableProperty]
-        private int _selectedJdkMajorVersion = 21;
-
-        [ObservableProperty]
-        private ObservableCollection<JdkInfo> _jdkBuilds = [];
-
-        [ObservableProperty]
-        private bool _isLoadingJdkVersions = false;
-
-        [ObservableProperty]
-        private bool _isLoadingJdkBuilds = false;
-
-        [ObservableProperty]
-        private string _jdkDownloadStatus = "";
-
-        #endregion
-
         private readonly Dictionary<ServerPlatform, IServerProvider> _serverProviders = [];
         private readonly IContentDialogService _contentDialogService;
         private readonly INavigationService _navigationService;
@@ -211,13 +186,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 var platform = GetSelectedServerPlatform();
                 if (platform == null) return;
 
-                var platformInfo = GetSelectedPlatformInfo();
-                CurrentPlatformName = platformInfo.Name;
-                CurrentPlatformDescription = platformInfo.Description;
+                var (Name, Description, ColorLight, ColorDark) = GetSelectedPlatformInfo();
+                CurrentPlatformName = Name;
+                CurrentPlatformDescription = Description;
 
                 // 获取所有版本
                 var allVersions = await platform.GetVersionsAsync();
-                _allVersions = allVersions.ToList();
+                _allVersions = [.. allVersions];
                 _loadedVersionCount = 0;
                 HasMoreVersions = _allVersions.Count > 0;
 
@@ -287,7 +262,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             var platform = GetSelectedServerPlatform();
             if (platform == null) return;
 
-            var platformInfo = GetSelectedPlatformInfo();
+            var (Name, Description, ColorLight, ColorDark) = GetSelectedPlatformInfo();
             
             // 计算要加载的版本范围
             var endIndex = Math.Min(startIndex + count, _allVersions.Count);
@@ -313,9 +288,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         {
                             MinecraftVersion = v,
                             LatestBuild = latestBuild,
-                            PlatformName = platformInfo.Name,
-                            PlatformColorLight = platformInfo.ColorLight,
-                            PlatformColorDark = platformInfo.ColorDark
+                            PlatformName = Name,
+                            PlatformColorLight = ColorLight,
+                            PlatformColorDark = ColorDark
                         };
                     }
                 }
@@ -364,7 +339,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             var dashIndex = version.IndexOf('-');
             if (dashIndex > 0)
             {
-                version = version.Substring(0, dashIndex);
+                version = version[..dashIndex];
             }
 
             // 尝试解析为标准版本号
@@ -441,7 +416,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 NewInstanceDialogViewModel? dialogViewModel = null;
                 NewInstanceDialog? dialog = null;
-                
+
                 dialogViewModel = new NewInstanceDialogViewModel(
                     availableVersions,
                     availableJdks,
@@ -451,11 +426,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                             await CreateInstanceFromDownloadAsync(dialogViewModel, dialog, tempPath, platformName, card);
                     },
                     () => { }
-                );
-
-                // 设置默认值
-                dialogViewModel.ServerType = platformName;
-                dialogViewModel.SelectedVersion = card.MinecraftVersion;
+                )
+                {
+                    // 设置默认值
+                    ServerType = platformName,
+                    SelectedVersion = card.MinecraftVersion
+                };
 
                 dialog = new NewInstanceDialog
                 {
@@ -646,19 +622,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 IEnumerable<string>? loaders = null;
                 if (SelectedServerType != "全部")
                 {
-                    loaders = new[] { SelectedServerType };
+                    loaders = [SelectedServerType];
                 }
                 else
                 {
                     // 默认筛选条件：支持常见的服务端类型
-                    loaders = new[] { "bukkit", "spigot", "paper", "purpur" };
+                    loaders = ["bukkit", "spigot", "paper", "purpur"];
                 }
                 
                 // 构建游戏版本筛选条件
                 IEnumerable<string>? gameVersions = null;
                 if (SelectedServerVersion != "全部")
                 {
-                    gameVersions = new[] { SelectedServerVersion };
+                    gameVersions = [SelectedServerVersion];
                 }
                 
                 var result = await modrinth.SearchAsync(
@@ -670,7 +646,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     offset: _pluginSearchOffset
                 );
 
-                _allPluginResults = result.Hits.ToList();
+                _allPluginResults = [.. result.Hits];
                 _pluginTotalHits = result.TotalHits;
                 _pluginSearchOffset += _pluginPageSize;
                 HasMorePlugins = _pluginTotalHits > _pluginPageSize;
@@ -709,19 +685,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     IEnumerable<string>? loaders = null;
                     if (SelectedServerType != "全部")
                     {
-                        loaders = new[] { SelectedServerType };
+                        loaders = [SelectedServerType];
                     }
                     else
                     {
                         // 默认筛选条件：支持常见的服务端类型
-                        loaders = new[] { "bukkit", "spigot", "paper", "purpur" };
+                        loaders = ["bukkit", "spigot", "paper", "purpur"];
                     }
                     
                     // 构建游戏版本筛选条件
                     IEnumerable<string>? gameVersions = null;
                     if (SelectedServerVersion != "全部")
                     {
-                        gameVersions = new[] { SelectedServerVersion };
+                        gameVersions = [SelectedServerVersion];
                     }
                     
                     var result = await modrinth.SearchAsync(
@@ -838,7 +814,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 var modrinth = new ModrinthProvider();
                 var versions = await modrinth.GetVersionsAsync(
                     project.ProjectId,
-                    loaders: new[] { "bukkit", "spigot", "paper", "purpur" }
+                    loaders: ["bukkit", "spigot", "paper", "purpur"]
                 );
 
                 if (versions.Count == 0)
@@ -884,8 +860,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     return; // 用户取消
                 }
 
-                var selectedVersion = versionListView.SelectedItem as ModrinthVersion;
-                if (selectedVersion == null)
+                if (versionListView.SelectedItem is not ModrinthVersion selectedVersion)
                 {
                     PluginSearchStatus = "未选择版本";
                     return;
@@ -915,7 +890,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 var modrinth = new ModrinthProvider();
                 var versions = await modrinth.GetVersionsAsync(
                     project.ProjectId,
-                    loaders: new[] { "bukkit", "spigot", "paper", "purpur" }
+                    loaders: ["bukkit", "spigot", "paper", "purpur"]
                 );
 
                 if (versions.Count == 0)
@@ -961,8 +936,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     return; // 用户取消
                 }
 
-                var selectedVersion = saveListView.SelectedItem as ModrinthVersion;
-                if (selectedVersion == null)
+                if (saveListView.SelectedItem is not ModrinthVersion selectedVersion)
                 {
                     PluginSearchStatus = "未选择版本";
                     return;
@@ -990,114 +964,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         #endregion
 
-        #region JDK 下载方法
-
-        [RelayCommand]
-        private async Task LoadJdkVersionsAsync()
-        {
-            if (IsLoadingJdkVersions) return;
-
-            IsLoadingJdkVersions = true;
-            AvailableJdkVersions.Clear();
-
-            try
-            {
-                var distribution = SelectedJdkDistributionIndex == 0
-                    ? JdkDistribution.Adoptium
-                    : JdkDistribution.Zulu;
-
-                var provider = JdkProviderFactory.Get(distribution);
-                var versions = await provider.GetAvailableMajorVersionsAsync();
-
-                foreach (var v in versions)
-                {
-                    AvailableJdkVersions.Add(v);
-                }
-
-                if (AvailableJdkVersions.Count > 0)
-                {
-                    SelectedJdkMajorVersion = AvailableJdkVersions[0];
-                    await LoadJdkBuildsAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                JdkDownloadStatus = $"加载版本失败: {ex.Message}";
-            }
-            finally
-            {
-                IsLoadingJdkVersions = false;
-            }
-        }
-
-        [RelayCommand]
-        private async Task LoadJdkBuildsAsync()
-        {
-            if (IsLoadingJdkBuilds) return;
-
-            IsLoadingJdkBuilds = true;
-            JdkBuilds.Clear();
-
-            try
-            {
-                var distribution = SelectedJdkDistributionIndex == 0
-                    ? JdkDistribution.Adoptium
-                    : JdkDistribution.Zulu;
-
-                var provider = JdkProviderFactory.Get(distribution);
-                var builds = await provider.GetBuildsAsync(SelectedJdkMajorVersion);
-
-                foreach (var b in builds)
-                {
-                    JdkBuilds.Add(b);
-                }
-            }
-            catch (Exception ex)
-            {
-                JdkDownloadStatus = $"加载构建失败: {ex.Message}";
-            }
-            finally
-            {
-                IsLoadingJdkBuilds = false;
-            }
-        }
-
-        [RelayCommand]
-        private async Task DownloadJdkAsync(JdkInfo? jdk)
-        {
-            if (jdk == null) return;
-
-            try
-            {
-                JdkDownloadStatus = $"正在下载 JDK {jdk.FullVersion}...";
-
-                var installed = await JdkManager.DownloadAndInstallAsync(
-                    jdk,
-                    progress: new Progress<int>(p =>
-                    {
-                        JdkDownloadStatus = $"解压进度: {p}%";
-                    })
-                );
-
-                JdkDownloadStatus = $"安装完成: {installed.JavaExecutable}";
-            }
-            catch (Exception ex)
-            {
-                JdkDownloadStatus = $"安装失败: {ex.Message}";
-            }
-        }
-
-        partial void OnSelectedJdkDistributionIndexChanged(int value)
-        {
-            _ = LoadJdkVersionsAsync();
-        }
-
-        partial void OnSelectedJdkMajorVersionChanged(int value)
-        {
-            _ = LoadJdkBuildsAsync();
-        }
-
-        #endregion
     }
 
     #region 辅助类

@@ -80,7 +80,7 @@
                     <DataTemplate>
                         <Border Style="{StaticResource InstanceCardStyle}"
                             Height="220"
-                            Margin="6"
+                            Margin="6,6,6,0"
                             CornerRadius="12"
                             Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
@@ -153,7 +153,7 @@
                                                 <TextBlock Text="{Binding StatusText}" 
                                                     FontSize="10" 
                                                     FontWeight="SemiBold"
-                                                    Foreground="White"/>
+                                                    Foreground="White" Margin="5,0,0,0"/>
                                             </StackPanel>
                                         </Border>
                                     </Grid>
