@@ -437,7 +437,7 @@
             </TabItem>
 
             <!-- 控制台 -->
-            <TabItem Header="控制台">
+            <TabItem Header="控制台" Height="36" VerticalAlignment="Bottom">
                 <Grid>
                     <Grid Name="FlowDocumentScrollViewerGrid">
                         <Grid.RowDefinitions>

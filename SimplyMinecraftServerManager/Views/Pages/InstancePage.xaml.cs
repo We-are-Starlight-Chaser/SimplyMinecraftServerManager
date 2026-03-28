@@ -1,4 +1,5 @@
 using SimplyMinecraftServerManager.ViewModels.Pages;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -8,7 +9,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
 {
     public partial class InstancePage : INavigableView<InstanceViewModel>
     {
-        ScrollViewer? _sv;
+        private ScrollViewer? _consoleScrollViewer;
         public InstanceViewModel ViewModel { get; }
 
         public InstancePage(InstanceViewModel viewModel)
@@ -24,16 +25,25 @@ namespace SimplyMinecraftServerManager.Views.Pages
 
             // 页面加载完成后初始化控制台
             Loaded += OnPageLoaded;
+            FindConsoleScrollViewer();
         }
 
         private void OnPageLoaded(object sender, RoutedEventArgs e)
         {
             // 初始化 FlowDocument 内容并获取 ScrollViewer
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                _sv = ConsoleScrollViewer.Template.FindName("PART_ContentHost", ConsoleScrollViewer) as ScrollViewer;
-            }));
             InitializeConsole();
+        }
+
+        private void FindConsoleScrollViewer()
+        {
+            if (ConsoleScrollViewer == null) return;
+
+            ConsoleScrollViewer.Dispatcher.BeginInvoke(new Action(() => {
+                _consoleScrollViewer = ConsoleScrollViewer.FindName("PART_ContentHost") as ScrollViewer;
+            }));
+
+            // 检查是否需要显示空提示
+            UpdateEmptyHintVisibility(ViewModel.GetConsoleText().Length > 0);
         }
 
         private async void InitializeConsole()
@@ -64,9 +74,9 @@ namespace SimplyMinecraftServerManager.Views.Pages
             }
 
             // 如果启用了自动滚动，滚动到底部
-            if (ViewModel.AutoScroll && _sv != null)
+            if (ViewModel.AutoScroll)
             {
-                _sv.ScrollToBottom();
+                _consoleScrollViewer?.ScrollToBottom();
             }
         }
 
@@ -108,11 +118,10 @@ namespace SimplyMinecraftServerManager.Views.Pages
                 }
 
                 // 自动滚动 - 将滚动条移动到底部
-                if (ViewModel.AutoScroll && _sv != null)
+                if (ViewModel.AutoScroll)
                 {
-                    _sv.ScrollToBottom();
+                    _consoleScrollViewer?.ScrollToBottom();
                 }
-                
             });
         }
 
