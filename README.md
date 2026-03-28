@@ -38,7 +38,7 @@ dotnet 10.0.1 & Visual Studio 2022+
 4. 推送到分支：`git push origin feature/xxx`
 5. 新建 Pull Request
 
-## License
+## 许可证
 
 本项目基于 MIT 协议进行开源。
 
