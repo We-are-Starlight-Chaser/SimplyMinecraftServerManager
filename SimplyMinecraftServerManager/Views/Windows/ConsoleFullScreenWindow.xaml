@@ -1,0 +1,20 @@
+<Window
+  x:Class="SimplyMinecraftServerManager.Views.Windows.ConsoleFullScreenWindow"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:controls="clr-namespace:SimplyMinecraftServerManager.Controls"
+  WindowStyle="None"
+  ResizeMode="NoResize"
+  WindowState="Maximized"
+  WindowStartupLocation="CenterOwner"
+  Topmost="True"
+  ShowInTaskbar="False"
+  Background="{DynamicResource ApplicationBackgroundBrush}"
+  Title="控制台全屏">
+    <Grid>
+        <controls:ConsoleViewer
+            Margin="12"
+            ViewModel="{Binding}"
+            IsFullScreen="True"/>
+    </Grid>
+</Window>

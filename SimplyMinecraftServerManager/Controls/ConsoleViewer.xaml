@@ -1,0 +1,234 @@
+<UserControl
+  x:Class="SimplyMinecraftServerManager.Controls.ConsoleViewer"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:sys="clr-namespace:System;assembly=mscorlib"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+  mc:Ignorable="d"
+  x:Name="Root">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+            Margin="0,0,0,12"
+            Padding="12,10"
+            Background="{DynamicResource LayerFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal">
+                        <ui:Button
+                            Padding="10,4"
+                            Appearance="Secondary"
+                            Visibility="{Binding IsFullScreen, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Click="OnToggleSearchClick">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Search24" FontSize="14"/>
+                                <TextBlock Text="搜索" Margin="6,0,0,0" FontSize="12"/>
+                            </StackPanel>
+                        </ui:Button>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <ui:Button
+                            Command="{Binding ViewModel.ClearConsoleCommand, ElementName=Root}"
+                            Appearance="Secondary"
+                            Padding="10,4">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Dismiss24" FontSize="14"/>
+                                <TextBlock Text="清空" Margin="6,0,0,0" FontSize="12"/>
+                            </StackPanel>
+                        </ui:Button>
+                        <ui:Button
+                            Command="{Binding ViewModel.CopyConsoleCommand, ElementName=Root}"
+                            Appearance="Secondary"
+                            Padding="10,4"
+                            Margin="8,0,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
+                                <TextBlock Text="复制全部" Margin="6,0,0,0" FontSize="12"/>
+                            </StackPanel>
+                        </ui:Button>
+                        <CheckBox
+                            IsChecked="{Binding ViewModel.AutoScroll, ElementName=Root, Mode=TwoWay}"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            Content="自动滚动"/>
+                        <ui:Button
+                            Margin="12,0,0,0"
+                            Padding="10,4"
+                            Appearance="Secondary"
+                            Visibility="{Binding IsFullScreen, ElementName=Root, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                            Click="OnOpenFullScreenClick">
+                            全屏
+                        </ui:Button>
+                        <ui:Button
+                            Margin="12,0,0,0"
+                            Padding="10,4"
+                            Appearance="Secondary"
+                            Visibility="{Binding IsFullScreen, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Click="OnCloseFullScreenClick">
+                            退出全屏
+                        </ui:Button>
+                    </StackPanel>
+                </Grid>
+
+                <Border x:Name="SearchPanel"
+                    Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12,10"
+                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                    BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <ui:TextBox
+                            x:Name="SearchTextBox"
+                            Grid.Column="0"
+                            TextChanged="OnSearchTextChanged"
+                            KeyDown="OnSearchTextBoxKeyDown"
+                            PlaceholderText="搜索日志内容..."
+                            MinWidth="260"/>
+
+                        <TextBlock
+                            x:Name="SearchResultText"
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+
+                        <ui:Button
+                            Grid.Column="2"
+                            Margin="12,0,0,0"
+                            Padding="10,0"
+                            Appearance="Secondary"
+                            Click="OnPreviousSearchResultClick">
+                            上一个
+                        </ui:Button>
+
+                        <ui:Button
+                            Grid.Column="3"
+                            Margin="8,0,0,0"
+                            Padding="10,0"
+                            Appearance="Secondary"
+                            Click="OnNextSearchResultClick">
+                            下一个
+                        </ui:Button>
+
+                        <ui:Button
+                            Grid.Column="4"
+                            Margin="8,0,0,0"
+                            Padding="10,0"
+                            Appearance="Secondary"
+                            Click="OnCloseSearchClick">
+                            关闭
+                        </ui:Button>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Border
+                x:Name="ConsoleViewport"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Height" Value="420"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsFullScreen, ElementName=Root}" Value="True">
+                                <Setter Property="Height" Value="{x:Static sys:Double.NaN}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <RichTextBox
+                    x:Name="ConsoleTextBox"
+                    IsReadOnly="True"
+                    IsDocumentEnabled="True"
+                    BorderThickness="0"
+                    Background="Transparent"
+                    Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                    FontFamily="{Binding ViewModel.ConsoleFontFamily, ElementName=Root}"
+                    FontSize="{Binding ViewModel.ConsoleFontSize, ElementName=Root}"
+                    HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Auto"
+                    TextChanged="OnConsoleTextChanged"
+                    SelectionBrush="{DynamicResource AccentFillColorDefaultBrush}"
+                    SelectionOpacity="0.35"/>
+            </Border>
+
+            <TextBlock
+                x:Name="ConsoleEmptyHint"
+                Text="启动服务器以查看日志"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                FontSize="16"
+                FontWeight="Medium"
+                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                Visibility="Collapsed"/>
+        </Grid>
+
+        <Border Grid.Row="2"
+            Margin="0,12,0,0"
+            Padding="12,10"
+            Background="{DynamicResource LayerFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <ui:TextBox
+                    Grid.Column="0"
+                    Text="{Binding ViewModel.CommandInput, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    PlaceholderText="输入命令..."
+                    KeyDown="OnCommandKeyDown"
+                    IsEnabled="{Binding ViewModel.IsRunning, ElementName=Root}"
+                    Height="38"/>
+
+                <ui:Button
+                    Grid.Column="1"
+                    Command="{Binding ViewModel.SendCommandCommand, ElementName=Root}"
+                    Margin="8,0,0,0"
+                    IsEnabled="{Binding ViewModel.IsRunning, ElementName=Root}"
+                    Height="38"
+                    Padding="18,0">
+                    发送
+                </ui:Button>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

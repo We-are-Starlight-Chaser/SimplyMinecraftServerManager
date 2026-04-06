@@ -51,6 +51,35 @@
         </StackPanel>
       </ui:Card>
 
+      <ui:Card Padding="16" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock FontSize="18" FontWeight="Medium" Text="控制台" Margin="0,0,0,12"/>
+
+          <CheckBox Content="控制台自动换行"
+            IsChecked="{Binding ViewModel.ConsoleWrapLines, Mode=TwoWay}"/>
+
+          <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="160"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="控制台字体" Margin="0,0,0,4"/>
+              <ComboBox
+                IsEditable="True"
+                ItemsSource="{Binding ViewModel.ConsoleFontFamilies}"
+                Text="{Binding ViewModel.ConsoleFontFamily, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+              <TextBlock Text="字体大小" Margin="0,0,0,4"/>
+              <ui:TextBox Text="{Binding ViewModel.ConsoleFontSize, Mode=TwoWay}" Width="120" HorizontalAlignment="Left"/>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </ui:Card>
+
       <!-- 服务器设置 -->
       <ui:Card Padding="16" Margin="0,0,0,12">
         <StackPanel>

@@ -1,5 +1,7 @@
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads;
+using System.Collections.ObjectModel;
+using System.Windows.Media;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Appearance;
 
@@ -38,6 +40,18 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private int _preferredJdkDistributionIndex = 0;
 
         [ObservableProperty]
+        private bool _consoleWrapLines = false;
+
+        [ObservableProperty]
+        private string _consoleFontFamily = "Consolas";
+
+        [ObservableProperty]
+        private int _consoleFontSize = 12;
+
+        [ObservableProperty]
+        private ObservableCollection<string> _consoleFontFamilies = [];
+
+        [ObservableProperty]
         private string _statusMessage = "";
 
         public Task OnNavigatedToAsync()
@@ -54,6 +68,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             CurrentTheme = ApplicationThemeManager.GetAppTheme();
             AppVersion = $"SMSM - {GetAssemblyVersion()}";
+            LoadConsoleFontFamilies();
 
             // 加载 AppConfig
             LoadConfig();
@@ -71,6 +86,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             DefaultMaxMemoryMb = config.DefaultMaxMemoryMb;
             DownloadThreads = config.DownloadThreads;
             PreferredJdkDistributionIndex = config.PreferredJdkDistribution == "Zulu" ? 1 : 0;
+            ConsoleWrapLines = config.ConsoleWrapLines;
+            ConsoleFontFamily = string.IsNullOrWhiteSpace(config.ConsoleFontFamily) ? "Consolas" : config.ConsoleFontFamily;
+            ConsoleFontSize = Math.Clamp(config.ConsoleFontSize, 10, 32);
         }
 
         [RelayCommand]
@@ -79,6 +97,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             var minMemory = Math.Max(512, DefaultMinMemoryMb);
             var maxMemory = Math.Max(minMemory, DefaultMaxMemoryMb);
             var downloadThreads = Math.Clamp(DownloadThreads, 1, 32);
+            var consoleFontSize = Math.Clamp(ConsoleFontSize, 10, 32);
+            var consoleFontFamily = string.IsNullOrWhiteSpace(ConsoleFontFamily) ? "Consolas" : ConsoleFontFamily.Trim();
 
             var config = ConfigManager.Current;
             config.DefaultJdkPath = DefaultJdkPath;
@@ -88,10 +108,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             config.DefaultMaxMemoryMb = maxMemory;
             config.DownloadThreads = downloadThreads;
             config.PreferredJdkDistribution = PreferredJdkDistributionIndex == 0 ? "Adoptium" : "Zulu";
+            config.ConsoleWrapLines = ConsoleWrapLines;
+            config.ConsoleFontFamily = consoleFontFamily;
+            config.ConsoleFontSize = consoleFontSize;
 
             DefaultMinMemoryMb = minMemory;
             DefaultMaxMemoryMb = maxMemory;
             DownloadThreads = downloadThreads;
+            ConsoleFontFamily = consoleFontFamily;
+            ConsoleFontSize = consoleFontSize;
 
             ConfigManager.Save();
             StatusMessage = "设置已保存";
@@ -111,7 +136,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             DefaultMaxMemoryMb = config.DefaultMaxMemoryMb;
             DownloadThreads = config.DownloadThreads;
             PreferredJdkDistributionIndex = 0;
+            ConsoleWrapLines = config.ConsoleWrapLines;
+            ConsoleFontFamily = config.ConsoleFontFamily;
+            ConsoleFontSize = config.ConsoleFontSize;
             StatusMessage = "已重置为默认值（需点击保存）";
+        }
+
+        private void LoadConsoleFontFamilies()
+        {
+            ConsoleFontFamilies.Clear();
+
+            foreach (var fontFamily in Fonts.SystemFontFamilies
+                .Select(static family => family.Source)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static family => family))
+            {
+                ConsoleFontFamilies.Add(fontFamily);
+            }
         }
 
         private string GetAssemblyVersion()

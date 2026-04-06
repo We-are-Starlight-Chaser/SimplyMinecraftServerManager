@@ -4,7 +4,6 @@ using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text;
 using Microsoft.Win32;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
@@ -46,8 +45,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private bool _autoScroll = true;
 
-        private readonly StringBuilder _consoleBuilder = new();
-        private int _lineCount = 0;
+        [ObservableProperty]
+        private bool _consoleWrapLines = false;
+
+        [ObservableProperty]
+        private string _consoleFontFamily = "Consolas";
+
+        [ObservableProperty]
+        private int _consoleFontSize = 12;
+
+        [ObservableProperty]
+        private bool _isConsoleFullScreen = false;
+
+        private readonly List<string> _consoleLines = [];
 
         // 控制台内容改变事件，用于通知 UI 更新 FlowDocument
         public event EventHandler<string>? ConsoleLineAdded;
@@ -157,6 +167,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _contentDialogService = contentDialogService;
             _navigationService = navigationService;
             _navigationParameterService = navigationParameterService;
+            LoadConsolePreferences();
 
             // 订阅全局状态变化事件
             ServerProcessManager.InstanceStatusChanged += OnInstanceStatusChanged;
@@ -230,20 +241,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             lock (_consoleLock)
             {
-                _consoleBuilder.AppendLine(line);
-                _lineCount++;
-
-                // 限制行数
-                if (_lineCount > MaxConsoleLines)
+                _consoleLines.Add(line);
+                if (_consoleLines.Count > MaxConsoleLines)
                 {
-                    // 找到第一个换行符并移除之前的所有内容
-                    var content = _consoleBuilder.ToString();
-                    var firstNewLine = content.IndexOf('\n');
-                    if (firstNewLine >= 0 && firstNewLine + 1 < content.Length)
-                    {
-                        _consoleBuilder.Remove(0, firstNewLine + 1);
-                        _lineCount--;
-                    }
+                    _consoleLines.RemoveAt(0);
                 }
             }
 
@@ -256,8 +257,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             lock (_consoleLock)
             {
-                _consoleBuilder.Clear();
-                _lineCount = 0;
+                _consoleLines.Clear();
             }
             ConsoleCleared?.Invoke(this, EventArgs.Empty);
         }
@@ -267,7 +267,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             lock (_consoleLock)
             {
-                var text = _consoleBuilder.ToString();
+                var text = string.Join(Environment.NewLine, _consoleLines);
                 System.Windows.Clipboard.SetText(text);
                 StatusMessage = "控制台内容已复制到剪贴板";
             }
@@ -280,12 +280,22 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             lock (_consoleLock)
             {
-                return _consoleBuilder.ToString();
+                return string.Join(Environment.NewLine, _consoleLines);
+            }
+        }
+
+        public IReadOnlyList<string> GetConsoleLines()
+        {
+            lock (_consoleLock)
+            {
+                return _consoleLines.ToArray();
             }
         }
 
         public async Task OnNavigatedToAsync()
         {
+            LoadConsolePreferences();
+
             // 从导航参数服务获取实例 ID
             var instanceId = _navigationParameterService.GetAndClearInstanceId();
             if (!string.IsNullOrEmpty(instanceId))
@@ -297,6 +307,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         public Task OnNavigatedFromAsync()
         {
+            IsConsoleFullScreen = false;
             StopPerformanceMonitoring();
             StopDashboardMonitoring();
             return Task.CompletedTask;
@@ -323,6 +334,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             EditMaxMemory = info.MaxMemoryMb.ToString();
             EditJdkPath = info.JdkPath;
             EditExtraJvmArgs = info.ExtraJvmArgs;
+            LoadConsolePreferences();
 
             // 加载已安装的JDK列表
             LoadInstalledJdks();
@@ -370,6 +382,14 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 // 静默失败，不影响主功能
                 System.Diagnostics.Debug.WriteLine($"加载已安装JDK失败: {ex.Message}");
             }
+        }
+
+        private void LoadConsolePreferences()
+        {
+            var config = ConfigManager.Current;
+            ConsoleWrapLines = config.ConsoleWrapLines;
+            ConsoleFontFamily = string.IsNullOrWhiteSpace(config.ConsoleFontFamily) ? "Consolas" : config.ConsoleFontFamily;
+            ConsoleFontSize = Math.Clamp(config.ConsoleFontSize, 10, 32);
         }
 
         private void InitializeJdkSelectionState(string? jdkPath)
@@ -905,6 +925,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 StatusMessage = $"保存失败: {ex.Message}";
             }
         }
+
+        [RelayCommand]
+        private void EnterConsoleFullScreen() => IsConsoleFullScreen = true;
+
+        [RelayCommand]
+        private void ExitConsoleFullScreen() => IsConsoleFullScreen = false;
 
         private void SaveServerPropertiesInternal()
         {

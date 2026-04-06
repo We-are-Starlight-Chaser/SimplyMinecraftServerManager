@@ -80,6 +80,9 @@ namespace SimplyMinecraftServerManager.Internals
                 DefaultJdkPath = original.DefaultJdkPath,
                 DownloadThreads = original.DownloadThreads,
                 AutoAcceptEula = original.AutoAcceptEula,
+                ConsoleWrapLines = original.ConsoleWrapLines,
+                ConsoleFontFamily = original.ConsoleFontFamily,
+                ConsoleFontSize = original.ConsoleFontSize,
                 Language = original.Language,
                 PreferredJdkDistribution = original.PreferredJdkDistribution
             };

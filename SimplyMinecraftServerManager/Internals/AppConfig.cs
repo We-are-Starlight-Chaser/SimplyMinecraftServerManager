@@ -5,6 +5,9 @@
         public string DefaultJdkPath { get; set; } = "";
         public string Language { get; set; } = "zh-CN";
         public bool AutoAcceptEula { get; set; } = true;
+        public bool ConsoleWrapLines { get; set; } = false;
+        public string ConsoleFontFamily { get; set; } = "Consolas";
+        public int ConsoleFontSize { get; set; } = 12;
         public int DefaultMinMemoryMb { get; set; } = 1024;
         public int DefaultMaxMemoryMb { get; set; } = 2048;
 
