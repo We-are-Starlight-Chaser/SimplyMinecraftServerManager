@@ -23,7 +23,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _language = "zh-CN";
 
         [ObservableProperty]
-        private bool _autoAcceptEula = false;
+        private bool _autoAcceptEula = true;
 
         [ObservableProperty]
         private int _defaultMinMemoryMb = 1024;

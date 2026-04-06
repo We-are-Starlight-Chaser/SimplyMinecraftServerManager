@@ -97,34 +97,44 @@ namespace SimplyMinecraftServerManager.Internals
             _monitorTimer = null;
             _cpuCounter?.Dispose();
             _cpuCounter = null;
+            _targetProcess?.Dispose();
             _targetProcess = null;
         }
 
         private void CollectData()
         {
-            if (_targetProcess == null) return;
+            var process = _targetProcess;
+            if (process == null) return;
+
+            var cpuCounter = _cpuCounter;
 
             try
             {
+                if (process.HasExited)
+                {
+                    Stop();
+                    return;
+                }
+
                 // 刷新进程信息
-                _targetProcess.Refresh();
+                process.Refresh();
 
                 // 获取内存使用（MB）
-                double memoryMb = _targetProcess.WorkingSet64 / (1024.0 * 1024.0);
+                double memoryMb = process.WorkingSet64 / (1024.0 * 1024.0);
 
                 // 获取 CPU 使用率
                 double cpuUsage = 0;
                 try
                 {
-                    if (_cpuCounter != null)
+                    if (cpuCounter != null)
                     {
-                        cpuUsage = _cpuCounter.NextValue();
+                        cpuUsage = cpuCounter.NextValue();
                     }
                     else
                     {
                         // 备用方法：计算 CPU 使用率
                         var now = DateTime.Now;
-                        var totalProcessorTime = _targetProcess.TotalProcessorTime;
+                        var totalProcessorTime = process.TotalProcessorTime;
                         var timeDiff = (now - _lastCpuTime).TotalMilliseconds;
                         var cpuDiff = (totalProcessorTime - _lastTotalProcessorTime).TotalMilliseconds;
 

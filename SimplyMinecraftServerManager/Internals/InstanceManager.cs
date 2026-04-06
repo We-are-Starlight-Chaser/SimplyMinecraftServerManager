@@ -7,6 +7,7 @@ namespace SimplyMinecraftServerManager.Internals
 {
     public static class InstanceManager
     {
+        private static readonly UTF8Encoding Utf8WithoutBom = new(false);
         private static readonly Lock _lock = new();
         private static List<InstanceInfo> _instances = [];
         private static bool _loaded;
@@ -361,7 +362,7 @@ namespace SimplyMinecraftServerManager.Internals
         {
             string path = PathHelper.GetEulaPath(instanceId);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, "# Auto-accepted by SMSM\neula=true\n", Encoding.UTF8);
+            File.WriteAllText(path, "# Auto-accepted by SMSM\neula=true\n", Utf8WithoutBom);
         }
 
         public static string ResolveJdkPath(string instanceId)

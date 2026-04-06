@@ -183,11 +183,20 @@
 
                                         <StackPanel Grid.Column="0" Orientation="Horizontal">
                                             <ui:Button Command="{Binding ViewModel.StartInstanceCommand, ElementName=PageRoot}" CommandParameter="{Binding}" Appearance="Success"
-                                                Height="34" Padding="12,0" Visibility="{Binding IsRunning, Converter={StaticResource InverseBooleanToVisibilityConverter}}" ToolTip="启动服务器">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <ui:SymbolIcon Symbol="Play24" FontSize="14"/>
-                                                    <TextBlock Text="启动" Margin="6,0,0,0" FontWeight="Medium"/>
-                                                </StackPanel>
+                                                Height="34" Padding="12,0" IsEnabled="{Binding IsStarting, Converter={StaticResource InverseBooleanConverter}}"
+                                                Visibility="{Binding IsRunning, Converter={StaticResource InverseBooleanToVisibilityConverter}}" ToolTip="启动服务器">
+                                                <Grid>
+                                                    <StackPanel Orientation="Horizontal"
+                                                        Visibility="{Binding IsStarting, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                                        <ui:SymbolIcon Symbol="Play24" FontSize="14"/>
+                                                        <TextBlock Text="启动" Margin="6,0,0,0" FontWeight="Medium"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal"
+                                                        Visibility="{Binding IsStarting, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <ui:ProgressRing Width="14" Height="14" IsIndeterminate="True"/>
+                                                        <TextBlock Text="启动中..." Margin="6,0,0,0" FontWeight="Medium"/>
+                                                    </StackPanel>
+                                                </Grid>
                                             </ui:Button>
 
                                             <ui:Button Command="{Binding ViewModel.StopInstanceCommand, ElementName=PageRoot}" CommandParameter="{Binding}" Appearance="Secondary"

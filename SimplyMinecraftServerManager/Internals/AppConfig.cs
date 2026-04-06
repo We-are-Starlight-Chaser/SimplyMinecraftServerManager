@@ -4,7 +4,7 @@
     {
         public string DefaultJdkPath { get; set; } = "";
         public string Language { get; set; } = "zh-CN";
-        public bool AutoAcceptEula { get; set; } = false;
+        public bool AutoAcceptEula { get; set; } = true;
         public int DefaultMinMemoryMb { get; set; } = 1024;
         public int DefaultMaxMemoryMb { get; set; } = 2048;
 

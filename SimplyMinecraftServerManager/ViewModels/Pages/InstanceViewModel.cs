@@ -41,6 +41,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private bool _isRunning = false;
 
         [ObservableProperty]
+        private bool _isStarting = false;
+
+        [ObservableProperty]
         private bool _autoScroll = true;
 
         private readonly StringBuilder _consoleBuilder = new();
@@ -163,9 +166,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             if (e.InstanceId != InstanceId) return;
 
-            Application.Current.Dispatcher.Invoke(() =>
+            RunOnUiThread(() =>
             {
                 IsRunning = e.IsRunning;
+                IsStarting = false;
                 if (!e.IsRunning)
                 {
                     StatusMessage = "服务器已停止";
@@ -175,14 +179,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 else
                 {
                     StatusMessage = "服务器运行中";
-                    // 重新订阅控制台输出
-                    SubscribeToProcessOutput();
-                    // 启动性能监控
-                    StartPerformanceMonitoring();
-                    StartDashboardPerformanceMonitoring(); // 启动仪表盘性能监控
-                    LoadDashboardData(); // 加载仪表盘数据
-                    StartServerStatusPolling(); // 启动服务器状态轮询
-                    StartUptimeCounter(); // 启动运行时间计数
+                    QueueRunningStateInitialization();
                 }
             });
         }
@@ -203,7 +200,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private void OnProcessOutputReceived(object? sender, string line)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            RunOnUiThread(() =>
             {
                 AppendConsoleLine(line);
             });
@@ -211,10 +208,22 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private void OnProcessErrorReceived(object? sender, string line)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            RunOnUiThread(() =>
             {
                 AppendConsoleLine("[ERR] " + line);
             });
+        }
+
+        private static void RunOnUiThread(Action action)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                action();
+                return;
+            }
+
+            _ = dispatcher.InvokeAsync(action);
         }
 
         private void AppendConsoleLine(string line)
@@ -326,12 +335,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             // 如果正在运行，订阅控制台输出和性能监控
             if (IsRunning)
             {
-                SubscribeToProcessOutput();
-                StartPerformanceMonitoring();
-                StartDashboardPerformanceMonitoring(); // 启动仪表盘性能监控
-                LoadDashboardData(); // 加载仪表盘数据
-                StartServerStatusPolling(); // 启动服务器状态轮询
-                StartUptimeCounter(); // 启动运行时间计数
+                QueueRunningStateInitialization();
             }
             else
             {
@@ -508,13 +512,48 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
             catch (Exception ex)
             {
-                StatusMessage = $"性能监控启动失败: {ex.Message}";
+                RunOnUiThread(() =>
+                {
+                    StatusMessage = $"性能监控启动失败: {ex.Message}";
+                });
+            }
+        }
+
+        private void QueueRunningStateInitialization()
+        {
+            _ = InitializeRunningStateAsync();
+        }
+
+        private async Task InitializeRunningStateAsync()
+        {
+            try
+            {
+                SubscribeToProcessOutput();
+
+                await Task.Run(StartPerformanceMonitoring);
+
+                RunOnUiThread(() =>
+                {
+                    if (!IsRunning)
+                    {
+                        return;
+                    }
+
+                    LoadDashboardData();
+                });
+            }
+            catch (Exception ex)
+            {
+                RunOnUiThread(() =>
+                {
+                    StatusMessage = $"运行时初始化失败: {ex.Message}";
+                });
             }
         }
 
         private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            RunOnUiThread(() =>
             {
                 CpuUsage = data.CpuUsage;
                 MemoryUsage = data.MemoryUsageMb;
@@ -613,21 +652,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private async Task StartServer()
         {
-            if (IsRunning || InstanceInfo == null) return;
+            if (IsRunning || IsStarting || InstanceInfo == null) return;
 
             try
             {
+                IsStarting = true;
+
                 // 检查是否已经在运行
                 if (ServerProcessManager.IsRunning(InstanceId))
                 {
                     IsRunning = true;
+                    IsStarting = false;
                     StatusMessage = "服务器已在运行";
-                    SubscribeToProcessOutput();
-                    StartPerformanceMonitoring();
-                    StartDashboardPerformanceMonitoring(); // 启动仪表盘性能监控
-                    LoadDashboardData(); // 加载仪表盘数据
-                    StartServerStatusPolling(); // 启动服务器状态轮询
-                    StartUptimeCounter(); // 启动运行时间计数
+                    QueueRunningStateInitialization();
                     return;
                 }
 
@@ -677,21 +714,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 // 注册到全局管理器（这会触发 InstanceStatusChanged 事件）
                 ServerProcessManager.Register(InstanceId, process);
-
-                IsRunning = true;
-                StatusMessage = "服务器已启动";
-
-                // 启动性能监控
-                StartPerformanceMonitoring();
-                StartDashboardPerformanceMonitoring(); // 启动仪表盘性能监控
-                LoadDashboardData(); // 加载仪表盘数据
-                StartServerStatusPolling(); // 启动服务器状态轮询
-                StartUptimeCounter(); // 启动运行时间计数
             }
             catch (Exception ex)
             {
                 IsRunning = false;
                 StatusMessage = $"启动失败: {ex.Message}";
+            }
+            finally
+            {
+                IsStarting = false;
             }
         }
 
@@ -928,7 +959,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 }
 
                 // 在UI线程上更新插件列表
-                Application.Current.Dispatcher.Invoke(() =>
+                RunOnUiThread(() =>
                 {
                     Plugins.Remove(plugin);
                     StatusMessage = "插件已删除";
@@ -936,7 +967,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
             catch (Exception ex)
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                RunOnUiThread(() =>
                 {
                     StatusMessage = $"删除失败: {ex.Message}";
                 });
@@ -1184,7 +1215,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         var status = MinecraftServerPing.Ping(host, port, 3000);
                         if (status != null)
                         {
-                            Application.Current.Dispatcher.Invoke(() =>
+                            RunOnUiThread(() =>
                             {
                                 OnlinePlayersCount = status.OnlinePlayers;
                                 MaxPlayersCount = status.MaxPlayers;
@@ -1200,7 +1231,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         }
                         else
                         {
-                            Application.Current.Dispatcher.Invoke(() =>
+                            RunOnUiThread(() =>
                             {
                                 OnlinePlayersCount = 0;
                                 MaxPlayersCount = 0;
@@ -1274,13 +1305,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
             catch (Exception ex)
             {
-                StatusMessage = $"仪表盘性能监控启动失败: {ex.Message}";
+                RunOnUiThread(() =>
+                {
+                    StatusMessage = $"仪表盘性能监控启动失败: {ex.Message}";
+                });
             }
         }
 
         private void OnDashboardPerformanceDataUpdated(object? sender, PerformanceData data)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            RunOnUiThread(() =>
             {
                 CpuUsage = data.CpuUsage;
                 MemoryUsage = data.MemoryUsageMb;

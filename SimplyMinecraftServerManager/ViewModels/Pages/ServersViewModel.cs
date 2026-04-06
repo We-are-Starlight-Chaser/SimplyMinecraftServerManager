@@ -29,12 +29,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private void OnInstanceStatusChanged(object? sender, (string InstanceId, bool IsRunning) e)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            RunOnUiThread(() =>
             {
                 var item = Instances.FirstOrDefault(i => i.InstanceId == e.InstanceId);
                 if (item != null && item.IsRunning != e.IsRunning)
                 {
                     item.IsRunning = e.IsRunning;
+                    item.IsStarting = false;
                     if (!e.IsRunning)
                     {
                         item.ServerProcess = null;
@@ -45,6 +46,18 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     }
                 }
             });
+        }
+
+        private static void RunOnUiThread(Action action)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                action();
+                return;
+            }
+
+            _ = dispatcher.InvokeAsync(action);
         }
 
         [ObservableProperty]
@@ -364,15 +377,18 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private async Task StartInstance(InstanceDisplayItem? item)
         {
-            if (item == null) return;
+            if (item == null || item.IsStarting) return;
 
             try
             {
+                item.IsStarting = true;
+
                 // 检查是否已经在运行
                 if (ServerProcessManager.IsRunning(item.InstanceId))
                 {
                     StatusMessage = "服务器已在运行";
                     item.IsRunning = true;
+                    item.IsStarting = false;
                     return;
                 }
 
@@ -390,7 +406,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         // 订阅事件
                         proc.OutputReceived += (_, line) =>
                         {
-                            Application.Current.Dispatcher.Invoke(() =>
+                            RunOnUiThread(() =>
                             {
                                 item.ConsoleOutput += line + "\n";
                             });
@@ -440,6 +456,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 item.IsRunning = false;
                 item.ServerProcess = null;
                 StatusMessage = $"启动失败: {ex.Message}";
+            }
+            finally
+            {
+                item.IsStarting = false;
             }
         }
 
@@ -540,6 +560,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public int MaxMemoryMb { get; } = info.MaxMemoryMb;
 
         [ObservableProperty]
+        private bool _isStarting;
+
+        [ObservableProperty]
         private bool _isRunning;
 
         [ObservableProperty]
@@ -547,9 +570,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         public ServerProcess? ServerProcess { get; set; }
 
-        public string StatusText => IsRunning ? "运行中" : "已停止";
+        public string StatusText => IsStarting ? "启动中" : IsRunning ? "运行中" : "已停止";
 
-        public string StatusColor => IsRunning ? "#4CAF50" : "#9E9E9E";
+        public string StatusColor => IsStarting ? "#2D8CF0" : IsRunning ? "#4CAF50" : "#9E9E9E";
 
         // 从 server.properties 读取服务器地址和端口
         public string ServerAddress
@@ -579,6 +602,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         // 当 IsRunning 改变时，通知 StatusText 和 StatusColor 也改变了
         partial void OnIsRunningChanged(bool value)
+        {
+            OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(StatusColor));
+        }
+
+        partial void OnIsStartingChanged(bool value)
         {
             OnPropertyChanged(nameof(StatusText));
             OnPropertyChanged(nameof(StatusColor));

@@ -88,12 +88,21 @@
                 <!-- 启动按钮 - 未运行时显示 -->
                 <ui:Button 
                     Command="{Binding ViewModel.StartServerCommand, ElementName=PageRoot}"
+                    IsEnabled="{Binding ViewModel.IsStarting, ElementName=PageRoot, Converter={StaticResource InverseBooleanConverter}}"
                     Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
                     Appearance="Success" Margin="0,0,5,0">
-                    <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="Play24"/>
-                        <TextBlock Text="启动" Margin="8,0,0,0"/>
-                    </StackPanel>
+                    <Grid>
+                        <StackPanel Orientation="Horizontal"
+                            Visibility="{Binding ViewModel.IsStarting, ElementName=PageRoot, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                            <ui:SymbolIcon Symbol="Play24"/>
+                            <TextBlock Text="启动" Margin="8,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                            Visibility="{Binding ViewModel.IsStarting, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ui:ProgressRing Width="16" Height="16" IsIndeterminate="True"/>
+                            <TextBlock Text="启动中..." Margin="8,0,0,0"/>
+                        </StackPanel>
+                    </Grid>
                 </ui:Button>
                 <!-- 停止按钮 - 运行时显示 -->
                 <ui:Button 
