@@ -81,7 +81,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 // 更新最近实例，取最新的5个
                 RecentInstances.Clear();
-                var recent = instances.Take(5).ToList();
+                var recent = instances
+                    .OrderByDescending(static inst =>
+                        DateTime.TryParse(inst.CreatedAt, out var createdAt) ? createdAt : DateTime.MinValue)
+                    .Take(5)
+                    .ToList();
                 foreach (var inst in recent)
                 {
                     var isRunning = runningInstances.Contains(inst.Id);
@@ -123,9 +127,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private void LoadAnnouncements()
         {
             Announcements.Clear();
-            Announcements.Add("欢迎使用 Simply Minecraft Server Manager v1.0");
-            Announcements.Add("支持多种服务端 (Paper, Purpur, Spigot, Fabric, Forge)");
-            Announcements.Add("自动管理 JDK 安装");
+            Announcements.Add("支持 Paper、Folia、Purpur、Leaves、Leaf 等常见服务端。");
+            Announcements.Add("新建实例时会自动初始化基础配置，并自动分配可用端口。");
+            Announcements.Add("JDK 可由管理器统一安装和切换。");
         }
 
         [RelayCommand]

@@ -24,6 +24,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _availableJdks = availableJdks;
             _onCreate = onCreate;
             _onCancel = onCancel;
+
+            if (_availableVersions.Count > 0)
+            {
+                SelectedVersion = _availableVersions[0];
+            }
+
+            if (_availableJdks.Count > 0)
+            {
+                SelectedJdk = _availableJdks[0];
+            }
         }
 
         [ObservableProperty]

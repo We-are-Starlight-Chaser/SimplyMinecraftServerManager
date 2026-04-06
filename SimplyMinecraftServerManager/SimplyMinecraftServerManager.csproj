@@ -30,7 +30,7 @@
     <PackageReference Include="WPF-UI" Version="4.2.0" />
     <PackageReference Include="WPF-UI.DependencyInjection" Version="4.2.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0 " />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 	<PackageReference Include="Tomlyn" Version="0.17.0" />
 	<PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>

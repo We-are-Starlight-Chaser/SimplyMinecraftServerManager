@@ -109,7 +109,7 @@
         <StackPanel>
           <TextBlock FontSize="18" FontWeight="Medium" Text="语言" Margin="0,0,0,12"/>
 
-          <ComboBox SelectedItem="{Binding ViewModel.Language, Mode=TwoWay}" Width="200" HorizontalAlignment="Left">
+          <ComboBox SelectedValuePath="Tag" SelectedValue="{Binding ViewModel.Language, Mode=TwoWay}" Width="200" HorizontalAlignment="Left">
             <ComboBoxItem Content="简体中文" Tag="zh-CN"/>
             <ComboBoxItem Content="English" Tag="en-US"/>
           </ComboBox>

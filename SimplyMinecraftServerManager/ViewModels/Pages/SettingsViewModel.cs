@@ -76,20 +76,28 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private void SaveConfig()
         {
+            var minMemory = Math.Max(512, DefaultMinMemoryMb);
+            var maxMemory = Math.Max(minMemory, DefaultMaxMemoryMb);
+            var downloadThreads = Math.Clamp(DownloadThreads, 1, 32);
+
             var config = ConfigManager.Current;
             config.DefaultJdkPath = DefaultJdkPath;
             config.Language = Language;
             config.AutoAcceptEula = AutoAcceptEula;
-            config.DefaultMinMemoryMb = DefaultMinMemoryMb;
-            config.DefaultMaxMemoryMb = DefaultMaxMemoryMb;
-            config.DownloadThreads = DownloadThreads;
+            config.DefaultMinMemoryMb = minMemory;
+            config.DefaultMaxMemoryMb = maxMemory;
+            config.DownloadThreads = downloadThreads;
             config.PreferredJdkDistribution = PreferredJdkDistributionIndex == 0 ? "Adoptium" : "Zulu";
+
+            DefaultMinMemoryMb = minMemory;
+            DefaultMaxMemoryMb = maxMemory;
+            DownloadThreads = downloadThreads;
 
             ConfigManager.Save();
             StatusMessage = "设置已保存";
 
             // 更新下载管理器并发数
-            DownloadManager.ReconfigureDefault(DownloadThreads);
+            DownloadManager.ReconfigureDefault(downloadThreads);
         }
 
         [RelayCommand]
@@ -113,7 +121,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         [RelayCommand]
-        private void OnChangeTheme(string parameter)
+        private void ChangeTheme(string parameter)
         {
             switch (parameter)
             {
@@ -135,21 +143,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                     break;
             }
-        }
-
-        // 自动保存
-        partial void OnDefaultJdkPathChanged(string value) => AutoSave();
-        partial void OnLanguageChanged(string value) => AutoSave();
-        partial void OnAutoAcceptEulaChanged(bool value) => AutoSave();
-        partial void OnDefaultMinMemoryMbChanged(int value) => AutoSave();
-        partial void OnDefaultMaxMemoryMbChanged(int value) => AutoSave();
-        partial void OnDownloadThreadsChanged(int value) => AutoSave();
-        partial void OnPreferredJdkDistributionIndexChanged(int value) => AutoSave();
-
-        private void AutoSave()
-        {
-            if (!_isInitialized) return;
-            SaveConfig();
         }
     }
 }

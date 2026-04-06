@@ -768,7 +768,7 @@
                                 HorizontalAlignment="Left">
                                 保存设置
                             </ui:Button>
-                            <Button Margin="0,5,0,0">
+                            <Button Margin="0,5,0,0" Command="{Binding ViewModel.OpenInstanceFolderCommand, ElementName=PageRoot}">
                                 打开实例目录
                             </Button>
                         </StackPanel>

@@ -44,6 +44,9 @@ namespace SimplyMinecraftServerManager.Internals
             {
                 using (var client = new TcpClient())
                 {
+                    client.ReceiveTimeout = timeout;
+                    client.SendTimeout = timeout;
+
                     var result = client.ConnectAsync(host, port).Wait(timeout);
                     if (!result)
                     {
@@ -52,18 +55,19 @@ namespace SimplyMinecraftServerManager.Internals
 
                     using (var stream = client.GetStream())
                     {
-                        // 发送握手包
-                        WriteVarInt(stream, 4); // Packet ID
-                        WriteVarInt(stream, 754); // Protocol version (1.20.4)
-                        WriteString(stream, host);
-                        WriteShort(stream, (short)port);
-                        WriteVarInt(stream, 1); // Status intent (1 for ping)
+                        using var handshakePacket = new MemoryStream();
+                        WriteVarInt(handshakePacket, 0); // Handshake packet id
+                        WriteVarInt(handshakePacket, 754); // Modern protocol version placeholder
+                        WriteString(handshakePacket, host);
+                        WriteUnsignedShort(handshakePacket, (ushort)port);
+                        WriteVarInt(handshakePacket, 1); // Status intent
+                        WritePacket(stream, handshakePacket.ToArray());
 
-                        // 发送请求状态包
-                        WriteVarInt(stream, 0); // Request packet ID
+                        using var requestPacket = new MemoryStream();
+                        WriteVarInt(requestPacket, 0);
+                        WritePacket(stream, requestPacket.ToArray());
 
-                        // 读取响应
-                        int responseLength = ReadVarInt(stream);
+                        _ = ReadVarInt(stream);
                         int packetId = ReadVarInt(stream);
 
                         if (packetId != 0)
@@ -88,14 +92,19 @@ namespace SimplyMinecraftServerManager.Internals
                             }
                         }
 
-                        // 发送ping包
-                        WriteVarInt(stream, 1); // Packet ID
-                        WriteLong(stream, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                        using var pingPacket = new MemoryStream();
+                        WriteVarInt(pingPacket, 1);
+                        WriteLong(pingPacket, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                        WritePacket(stream, pingPacket.ToArray());
 
-                        // 读取pong响应
-                        int pongLength = ReadVarInt(stream);
+                        _ = ReadVarInt(stream);
                         int pongPacketId = ReadVarInt(stream);
-                        long receivedTime = ReadLong(stream);
+                        _ = ReadLong(stream);
+
+                        if (pongPacketId != 1)
+                        {
+                            return null;
+                        }
 
                         if (status != null)
                         {
@@ -156,6 +165,13 @@ namespace SimplyMinecraftServerManager.Internals
             return value;
         }
 
+        private static void WritePacket(Stream stream, byte[] payload)
+        {
+            WriteVarInt(stream, payload.Length);
+            stream.Write(payload, 0, payload.Length);
+            stream.Flush();
+        }
+
         private static void WriteString(Stream stream, string value)
         {
             byte[] bytes = Encoding.UTF8.GetBytes(value);
@@ -180,20 +196,21 @@ namespace SimplyMinecraftServerManager.Internals
             return Encoding.UTF8.GetString(bytes);
         }
 
-        private static void WriteShort(Stream stream, short value)
+        private static void WriteUnsignedShort(Stream stream, ushort value)
         {
             stream.WriteByte((byte)(value >> 8));
             stream.WriteByte((byte)value);
         }
 
-        private static short ReadShort(Stream stream)
-        {
-            return (short)((stream.ReadByte() << 8) | stream.ReadByte());
-        }
-
         private static void WriteLong(Stream stream, long value)
         {
-            stream.Write(BitConverter.GetBytes(value), 0, 8);
+            var buffer = BitConverter.GetBytes(value);
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(buffer);
+            }
+
+            stream.Write(buffer, 0, buffer.Length);
         }
 
         private static long ReadLong(Stream stream)
@@ -207,6 +224,11 @@ namespace SimplyMinecraftServerManager.Internals
                 if (read == 0)
                     throw new EndOfStreamException();
                 totalRead += read;
+            }
+
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(buffer);
             }
 
             return BitConverter.ToInt64(buffer, 0);

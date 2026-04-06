@@ -231,7 +231,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Task.Run(async () =>
             {
                 await Task.Delay(2000);
-                IsCopied = false;
+                Application.Current.Dispatcher.Invoke(() => IsCopied = false);
             });
         }
 

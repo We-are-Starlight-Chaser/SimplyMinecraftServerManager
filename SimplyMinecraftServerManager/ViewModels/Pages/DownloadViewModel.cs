@@ -453,6 +453,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             string serverType,
             ServerVersionCard card)
         {
+            InstanceInfo? instance = null;
+
             if (string.IsNullOrWhiteSpace(vm.InstanceName))
             {
                 vm.StatusMessage = "请输入实例名称";
@@ -503,19 +505,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 }
 
                 // 创建实例
-                var instance = InstanceManager.CreateInstance(
+                instance = InstanceManager.CreateInstance(
                     name: vm.InstanceName,
                     serverType: serverType,
                     minecraftVersion: vm.SelectedVersion ?? card.MinecraftVersion,
                     jdkPath: javaPath,
                     serverJar: serverJarFileName,
+                    serverJarSourcePath: sourceJarPath,
                     minMemoryMb: vm.MinMemory,
                     maxMemoryMb: vm.MaxMemory
                 );
-
-                // 将JAR文件复制到实例目录
-                string instanceJarPath = PathHelper.GetServerJarPath(instance.Id, serverJarFileName);
-                System.IO.File.Copy(sourceJarPath, instanceJarPath, true);
 
                 // 关闭对话框并显示成功消息
                 dialog.Hide();
@@ -523,6 +522,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
             catch (Exception ex)
             {
+                if (instance != null)
+                {
+                    try
+                    {
+                        InstanceManager.DeleteInstance(instance.Id, deleteFiles: true);
+                    }
+                    catch
+                    {
+                    }
+                }
+
                 vm.StatusMessage = $"创建失败: {ex.Message}";
             }
             finally

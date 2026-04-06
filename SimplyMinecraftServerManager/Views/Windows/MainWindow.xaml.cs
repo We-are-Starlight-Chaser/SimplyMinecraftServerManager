@@ -84,20 +84,21 @@ namespace SimplyMinecraftServerManager.Views.Windows
         /// </summary>
         protected override void OnClosed(EventArgs e)
         {
+            ViewModel.NotificationRequested -= OnNotificationRequested;
             base.OnClosed(e);
 
             // Make sure that closing this window will begin the process of closing the application.
             Application.Current.Shutdown();
         }
 
-        INavigationView INavigationWindow.GetNavigation()
-        {
-            throw new NotImplementedException();
-        }
+        INavigationView INavigationWindow.GetNavigation() => GetNavigation();
 
         public void SetServiceProvider(IServiceProvider serviceProvider)
         {
-            throw new NotImplementedException();
+            if (serviceProvider.GetService(typeof(INavigationService)) is INavigationService navigationService)
+            {
+                navigationService.SetNavigationControl(RootNavigation);
+            }
         }
     }
 }

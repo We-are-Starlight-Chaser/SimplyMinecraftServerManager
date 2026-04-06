@@ -130,7 +130,7 @@ namespace SimplyMinecraftServerManager.Internals
             if (!File.Exists(sourceJarPath))
                 throw new FileNotFoundException("Source plugin JAR not found.", sourceJarPath);
 
-            if (SecurityHelper.IsPathTraversal(sourceJarPath))
+            if (!Path.IsPathRooted(sourceJarPath))
                 throw new ArgumentException("Invalid source path", nameof(sourceJarPath));
 
             sourceJarPath = Path.GetFullPath(sourceJarPath);

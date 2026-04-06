@@ -14,6 +14,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     public partial class InstanceViewModel : ObservableObject, INavigationAware, IDisposable
     {
         private readonly System.Text.Json.JsonSerializerOptions options = new() { WriteIndented = true };
+        private readonly IContentDialogService _contentDialogService;
         private readonly INavigationService _navigationService;
         private readonly NavigationParameterService _navigationParameterService;
         private PerformanceMonitor? _performanceMonitor;
@@ -145,8 +146,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private DateTime _serverStartTime = DateTime.MinValue;
         private PerformanceMonitor? _dashboardPerformanceMonitor;
 
-        public InstanceViewModel(INavigationService navigationService, NavigationParameterService navigationParameterService)
+        public InstanceViewModel(
+            IContentDialogService contentDialogService,
+            INavigationService navigationService,
+            NavigationParameterService navigationParameterService)
         {
+            _contentDialogService = contentDialogService;
             _navigationService = navigationService;
             _navigationParameterService = navigationParameterService;
 
@@ -281,7 +286,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             await Task.CompletedTask;
         }
 
-        public Task OnNavigatedFromAsync() => Task.CompletedTask;
+        public Task OnNavigatedFromAsync()
+        {
+            StopPerformanceMonitoring();
+            StopDashboardMonitoring();
+            return Task.CompletedTask;
+        }
 
         public void LoadInstance(string instanceId)
         {
@@ -618,7 +628,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         proc.ErrorReceived += OnProcessErrorReceived;
 
                         // 启动进程（这个操作可能耗时）
-                        proc.Start();
+                        proc.StartAsync().GetAwaiter().GetResult();
 
                         return (proc, true, (string?)null);
                     }
@@ -765,6 +775,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public void Dispose()
         {
             StopDashboardMonitoring(); // 确保停止仪表盘监控
+            StopPerformanceMonitoring();
+            ServerProcessManager.InstanceStatusChanged -= OnInstanceStatusChanged;
             GC.SuppressFinalize(this);
         }
 
@@ -792,15 +804,30 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             try
             {
-                if (int.TryParse(EditMinMemory, out int minMem))
-                    InstanceInfo.MinMemoryMb = minMem;
+                if (!int.TryParse(EditMinMemory, out var minMem) || minMem < 512)
+                {
+                    StatusMessage = "最小内存不能小于 512 MB";
+                    return;
+                }
 
-                if (int.TryParse(EditMaxMemory, out int maxMem))
-                    InstanceInfo.MaxMemoryMb = maxMem;
+                if (!int.TryParse(EditMaxMemory, out var maxMem) || maxMem < minMem)
+                {
+                    StatusMessage = "最大内存不能小于最小内存";
+                    return;
+                }
+
+                InstanceInfo.MinMemoryMb = minMem;
+                InstanceInfo.MaxMemoryMb = maxMem;
 
                 // JDK路径处理逻辑
                 if (UseCustomJdk)
                 {
+                    if (string.IsNullOrWhiteSpace(EditJdkPath) || !File.Exists(EditJdkPath))
+                    {
+                        StatusMessage = "请选择有效的 java.exe 路径";
+                        return;
+                    }
+
                     // 使用自定义JDK路径
                     InstanceInfo.JdkPath = EditJdkPath;
                 }
@@ -818,12 +845,36 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 InstanceInfo.ExtraJvmArgs = EditExtraJvmArgs;
 
                 InstanceManager.UpdateInstance(InstanceInfo);
+                SaveServerPropertiesInternal();
+                UpdateServerAddress();
+                LoadServerPropertiesForDashboard();
                 StatusMessage = "设置已保存";
             }
             catch (Exception ex)
             {
                 StatusMessage = $"保存失败: {ex.Message}";
             }
+        }
+
+        private void SaveServerPropertiesInternal()
+        {
+            if (string.IsNullOrWhiteSpace(InstanceId))
+            {
+                return;
+            }
+
+            var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in ServerProperties)
+            {
+                if (string.IsNullOrWhiteSpace(property.Key))
+                {
+                    continue;
+                }
+
+                properties[property.Key.Trim()] = property.Value ?? string.Empty;
+            }
+
+            ServerPropertiesManager.WriteAll(InstanceId, properties);
         }
 
         [RelayCommand]
@@ -843,7 +894,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     DefaultButton = Wpf.Ui.Controls.ContentDialogButton.Close
                 };
 
-                var result = await dialog.ShowAsync();
+                var result = await _contentDialogService.ShowAsync(dialog, CancellationToken.None);
 
                 if (result != Wpf.Ui.Controls.ContentDialogResult.Primary) return;
 
@@ -886,14 +937,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             try
             {
-                if (Directory.Exists(plugin.FolderPath))
-                {
-                    System.Diagnostics.Process.Start("explorer", plugin.FolderPath);
-                }
-                else
-                {
-                    StatusMessage = "插件数据目录不存在";
-                }
+                OpenFolder(plugin.FolderPath, "插件数据目录不存在");
             }
             catch (Exception ex)
             {
@@ -909,19 +953,45 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             try
             {
                 string pluginsDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "plugins");
-                if (Directory.Exists(pluginsDir))
-                {
-                    System.Diagnostics.Process.Start("explorer", pluginsDir);
-                }
-                else
-                {
-                    StatusMessage = "插件目录不存在";
-                }
+                OpenFolder(pluginsDir, "插件目录不存在");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"打开插件目录失败: {ex.Message}";
             }
+        }
+
+        [RelayCommand]
+        private void OpenInstanceFolder()
+        {
+            if (string.IsNullOrWhiteSpace(InstanceId))
+            {
+                return;
+            }
+
+            try
+            {
+                OpenFolder(PathHelper.GetInstanceDir(InstanceId), "实例目录不存在");
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"打开实例目录失败: {ex.Message}";
+            }
+        }
+
+        private void OpenFolder(string path, string missingMessage)
+        {
+            if (!Directory.Exists(path))
+            {
+                StatusMessage = missingMessage;
+                return;
+            }
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            });
         }
 
         [RelayCommand]
@@ -1109,6 +1179,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                                 }
                             });
                         }
+                        else
+                        {
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                OnlinePlayersCount = 0;
+                                MaxPlayersCount = 0;
+                                OnlinePlayers.Clear();
+                            });
+                        }
                     }
                 }
             }
@@ -1156,7 +1235,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private void StartUptimeCounter()
         {
-            _serverStartTime = DateTime.Now;
+            _serverStartTime = ServerProcessManager.GetStartTime(InstanceId) ?? DateTime.Now;
             _uptimeTimer?.Dispose();
             _uptimeTimer = new Timer((state) =>
             {

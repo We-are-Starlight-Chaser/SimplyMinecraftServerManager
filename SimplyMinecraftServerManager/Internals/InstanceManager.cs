@@ -14,6 +14,21 @@ namespace SimplyMinecraftServerManager.Internals
         private static readonly ConcurrentDictionary<string, List<InstanceInfo>> _searchCache = new();
         private static Timer? _saveDebounceTimer;
         private static bool _pendingSave;
+        private static readonly Dictionary<string, string> DefaultServerProperties = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["enable-query"] = "false",
+            ["enable-rcon"] = "false",
+            ["gamemode"] = "survival",
+            ["difficulty"] = "easy",
+            ["max-players"] = "20",
+            ["motd"] = "Simply Minecraft Server",
+            ["online-mode"] = "true",
+            ["pvp"] = "true",
+            ["server-ip"] = "",
+            ["simulation-distance"] = "10",
+            ["spawn-protection"] = "16",
+            ["view-distance"] = "10"
+        };
 
         public static void Load()
         {
@@ -85,6 +100,61 @@ namespace SimplyMinecraftServerManager.Internals
             if (!_loaded) Load();
         }
 
+        private static int GetNextAvailablePort()
+        {
+            var usedPorts = new HashSet<int>();
+
+            foreach (var instance in _instances)
+            {
+                try
+                {
+                    var port = ServerPropertiesManager.GetInt(instance.Id, "server-port", 25565);
+                    if (port > 0)
+                    {
+                        usedPorts.Add(port);
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            const int basePort = 25565;
+            for (var port = basePort; port <= 65535; port++)
+            {
+                if (!usedPorts.Contains(port))
+                {
+                    return port;
+                }
+            }
+
+            return basePort;
+        }
+
+        private static void InitializeInstanceFiles(InstanceInfo info, AppConfig config)
+        {
+            var instanceDir = PathHelper.GetInstanceDir(info.Id);
+            Directory.CreateDirectory(instanceDir);
+            Directory.CreateDirectory(PathHelper.GetPluginsDir(info.Id));
+
+            var properties = new Dictionary<string, string>(DefaultServerProperties, StringComparer.OrdinalIgnoreCase)
+            {
+                ["motd"] = info.Name,
+                ["server-port"] = GetNextAvailablePort().ToString()
+            };
+
+            var propertiesPath = PathHelper.GetServerPropertiesPath(info.Id);
+            if (!File.Exists(propertiesPath))
+            {
+                ServerPropertiesManager.WriteAll(info.Id, properties);
+            }
+
+            if (config.AutoAcceptEula)
+            {
+                AcceptEula(info.Id);
+            }
+        }
+
         public static IReadOnlyList<InstanceInfo> GetAll()
         {
             lock (_lock)
@@ -151,7 +221,7 @@ namespace SimplyMinecraftServerManager.Internals
                 if (!File.Exists(serverJarSourcePath))
                     throw new FileNotFoundException("Server JAR source not found", serverJarSourcePath);
 
-                if (SecurityHelper.IsPathTraversal(serverJarSourcePath))
+                if (!Path.IsPathRooted(serverJarSourcePath))
                     throw new ArgumentException("Invalid path in server JAR source", nameof(serverJarSourcePath));
 
                 serverJarSourcePath = Path.GetFullPath(serverJarSourcePath);
@@ -163,7 +233,7 @@ namespace SimplyMinecraftServerManager.Internals
             if (!SecurityHelper.IsValidJvmArgs(extraJvmArgs))
                 throw new ArgumentException("JVM arguments contain dangerous patterns", nameof(extraJvmArgs));
 
-            if (string.IsNullOrWhiteSpace(jdkPath) && !SecurityHelper.IsPathTraversal(jdkPath))
+            if (!string.IsNullOrWhiteSpace(jdkPath) && !Path.IsPathRooted(jdkPath))
                 throw new ArgumentException("Invalid JDK path", nameof(jdkPath));
 
             lock (_lock)
@@ -186,22 +256,22 @@ namespace SimplyMinecraftServerManager.Internals
                     CreatedAt = DateTime.Now.ToString("O")
                 };
 
-                string instanceDir = PathHelper.GetInstanceDir(info.Id);
-                if (!SecurityHelper.IsPathTraversal(instanceDir))
-                    throw new InvalidOperationException("Invalid instance directory path");
+                if (info.MinMemoryMb <= 0)
+                {
+                    info.MinMemoryMb = config.DefaultMinMemoryMb;
+                }
 
-                Directory.CreateDirectory(instanceDir);
-                Directory.CreateDirectory(PathHelper.GetPluginsDir(info.Id));
+                if (info.MaxMemoryMb < info.MinMemoryMb)
+                {
+                    info.MaxMemoryMb = Math.Max(info.MinMemoryMb, config.DefaultMaxMemoryMb);
+                }
+
+                InitializeInstanceFiles(info, config);
 
                 if (!string.IsNullOrWhiteSpace(serverJarSourcePath) && File.Exists(serverJarSourcePath))
                 {
                     string destJar = PathHelper.GetServerJarPath(info.Id, info.ServerJar);
                     File.Copy(serverJarSourcePath, destJar, overwrite: true);
-                }
-
-                if (config.AutoAcceptEula)
-                {
-                    AcceptEula(info.Id);
                 }
 
                 _instances.Add(info);
@@ -318,6 +388,15 @@ namespace SimplyMinecraftServerManager.Internals
 
         public static void Shutdown()
         {
+            lock (_lock)
+            {
+                if (_pendingSave)
+                {
+                    Save();
+                    _pendingSave = false;
+                }
+            }
+
             _saveDebounceTimer?.Dispose();
             _saveDebounceTimer = null;
         }

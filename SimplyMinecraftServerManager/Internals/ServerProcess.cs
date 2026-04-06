@@ -40,8 +40,8 @@ namespace SimplyMinecraftServerManager.Internals
         public event EventHandler<string>? ErrorReceived;
         public event EventHandler<int>? Exited;
 
-        [LibraryImport("kernel32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
-        private static partial IntPtr CreateJobObjectA(IntPtr lpJobAttributes, string lpName);
+        [LibraryImport("kernel32.dll", EntryPoint = "CreateJobObjectW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+        private static partial IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
 
         [LibraryImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -101,7 +101,7 @@ namespace SimplyMinecraftServerManager.Internals
 
         private void CreateJobObject()
         {
-            _jobHandle = CreateJobObjectA(IntPtr.Zero, $"SMSM_{InstanceId}_{Guid.NewGuid():N}");
+            _jobHandle = CreateJobObject(IntPtr.Zero, $"SMSM_{InstanceId}_{Guid.NewGuid():N}");
             if (_jobHandle == IntPtr.Zero)
             {
                 throw new InvalidOperationException($"Failed to create job object: {GetLastError()}");
@@ -131,7 +131,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        public async void Start()
+        public async Task StartAsync(CancellationToken cancellationToken = default)
         {
             if (IsRunning)
                 throw new InvalidOperationException("Server is already running.");
@@ -149,8 +149,8 @@ namespace SimplyMinecraftServerManager.Internals
             if (string.IsNullOrWhiteSpace(javaPath))
                 throw new InvalidOperationException("JDK path is not configured.");
 
-            if (!SecurityHelper.IsPathTraversal(javaPath))
-                throw new InvalidOperationException("Invalid JDK path");
+            if (!Path.IsPathRooted(javaPath) || !File.Exists(javaPath))
+                throw new InvalidOperationException("Configured JDK path is invalid.");
 
             string workDir = PathHelper.GetInstanceDir(InstanceId);
             string jarPath = PathHelper.GetServerJarPath(InstanceId, info.ServerJar);
@@ -160,7 +160,7 @@ namespace SimplyMinecraftServerManager.Internals
 
             string normalizedWorkDir = Path.GetFullPath(workDir);
             string normalizedJarPath = Path.GetFullPath(jarPath);
-            if (!normalizedJarPath.StartsWith(normalizedWorkDir + Path.DirectorySeparatorChar))
+            if (!normalizedJarPath.StartsWith(normalizedWorkDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("JAR path is outside instance directory");
 
             if (!SecurityHelper.IsValidJvmArgs(info.ExtraJvmArgs))
@@ -212,7 +212,12 @@ namespace SimplyMinecraftServerManager.Internals
                 Exited?.Invoke(this, code);
             };
 
-            await Task.Run(() => _process.Start());
+            var started = await Task.Run(() => _process.Start(), cancellationToken);
+            if (!started)
+            {
+                throw new InvalidOperationException("Failed to start Java process.");
+            }
+
             _processId = _process.Id;
 
             IntPtr processHandle = _process.Handle;
@@ -228,6 +233,11 @@ namespace SimplyMinecraftServerManager.Internals
             _process.BeginOutputReadLine();
             _process.BeginErrorReadLine();
             _startCompleted = true;
+        }
+
+        public void Start()
+        {
+            StartAsync().GetAwaiter().GetResult();
         }
 
         public void SendCommand(string command)

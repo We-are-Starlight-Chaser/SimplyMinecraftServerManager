@@ -7,8 +7,8 @@
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
   Title="{Binding ViewModel.ApplicationTitle, Mode=OneWay}"
-  Width="1100"
-  Height="650"
+  Width="1260"
+  Height="780"
   d:DataContext="{d:DesignInstance local:MainWindow,
                                      IsDesignTimeCreatable=True}"
   d:DesignHeight="450"
@@ -18,16 +18,9 @@
   WindowCornerPreference="Round"
   WindowStartupLocation="CenterScreen"
   mc:Ignorable="d" WindowStyle="None"
-  MinHeight="650"
-  MinWidth="1100"
+  MinHeight="720"
+  MinWidth="1180"
 >
-  <ui:FluentWindow.InputBindings>
-    <KeyBinding
-      Key="F"
-      Command="{Binding ElementName=AutoSuggestBox, Path=FocusCommand}"
-      Modifiers="Control"
-    />
-  </ui:FluentWindow.InputBindings>
   <Grid>
     <ui:TitleBar
       x:Name="TitleBar"
@@ -41,29 +34,20 @@
     </ui:TitleBar>
     <ui:NavigationView
       x:Name="RootNavigation"
-      Padding="42,0,42,0"
+      Padding="24,0,24,20"
       BreadcrumbBar="{Binding ElementName=BreadcrumbBar}"
       FooterMenuItemsSource="{Binding ViewModel.FooterMenuItems, Mode=OneWay}"
       FrameMargin="0"
       IsBackButtonVisible="Visible"
       IsPaneToggleVisible="True"
       MenuItemsSource="{Binding ViewModel.MenuItems, Mode=OneWay}"
-      OpenPaneLength="310"
+      OpenPaneLength="250"
       PaneDisplayMode="Left"
       TitleBar="{Binding ElementName=TitleBar, Mode=OneWay}"
     >
       <ui:NavigationView.Header>
-        <ui:BreadcrumbBar x:Name="BreadcrumbBar" Margin="42,32,42,20" />
+        <ui:BreadcrumbBar x:Name="BreadcrumbBar" Margin="24,20,24,12" />
       </ui:NavigationView.Header>
-      <ui:NavigationView.AutoSuggestBox>
-        <ui:AutoSuggestBox x:Name="AutoSuggestBox" PlaceholderText="搜索">
-          <ui:AutoSuggestBox.Icon>
-            <ui:IconSourceElement>
-              <ui:SymbolIconSource Symbol="Search24" />
-            </ui:IconSourceElement>
-          </ui:AutoSuggestBox.Icon>
-        </ui:AutoSuggestBox>
-      </ui:NavigationView.AutoSuggestBox>
       <ui:NavigationView.ContentOverlay>
         <Grid>
           <ui:SnackbarPresenter x:Name="SnackbarPresenter" />

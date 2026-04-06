@@ -136,6 +136,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private async Task CreateInstanceInternalAsync(NewInstanceDialogViewModel vm, NewInstanceDialog dialog)
         {
+            InstanceInfo? instance = null;
+
             if (string.IsNullOrWhiteSpace(vm.InstanceName))
             {
                 vm.StatusMessage = "请输入实例名称";
@@ -190,7 +192,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     return;
                 }
 
-                var instance = InstanceManager.CreateInstance(
+                instance = InstanceManager.CreateInstance(
                     name: vm.InstanceName,
                     serverType: vm.ServerType,
                     minecraftVersion: vm.SelectedVersion,
@@ -212,6 +214,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
             catch (Exception ex)
             {
+                if (instance != null)
+                {
+                    try
+                    {
+                        InstanceManager.DeleteInstance(instance.Id, deleteFiles: true);
+                    }
+                    catch
+                    {
+                    }
+                }
+
                 vm.StatusMessage = $"创建失败: {ex.Message}";
             }
             finally
@@ -239,6 +252,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             if (AvailableJdks.Count > 0)
             {
                 SelectedJdk = AvailableJdks[0];
+            }
+            else
+            {
+                SelectedJdk = null;
             }
         }
 
@@ -298,10 +315,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     NewInstanceMinecraftVersion = AvailableMinecraftVersions[0];
                 }
             }
-            catch { }
+            catch
+            {
+            }
             finally
             {
                 IsLoadingVersions = false;
+                if (AvailableMinecraftVersions.Count == 0)
+                {
+                    StatusMessage = "版本列表加载失败，请稍后重试";
+                }
             }
         }
 
@@ -374,7 +397,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         };
 
                         // 启动进程（这个操作可能耗时）
-                        proc.Start();
+                        proc.StartAsync().GetAwaiter().GetResult();
 
                         return (proc, true, (string?)null);
                     }

@@ -66,7 +66,7 @@ namespace SimplyMinecraftServerManager.Internals
             if (string.IsNullOrWhiteSpace(name)) return "Unnamed";
 
             name = name.Trim();
-            name = Regex.Replace(name, @"[^\a-zA-Z0-9_\-\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af ]", "_");
+            name = Regex.Replace(name, @"[^a-zA-Z0-9_\-\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af ]", "_");
 
             if (name.Length > 64) name = name[..64];
 

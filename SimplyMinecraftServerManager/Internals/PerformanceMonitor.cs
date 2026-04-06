@@ -97,7 +97,7 @@ namespace SimplyMinecraftServerManager.Internals
             _monitorTimer = null;
             _cpuCounter?.Dispose();
             _cpuCounter = null;
-            _targetProcess = new();
+            _targetProcess = null;
         }
 
         private void CollectData()

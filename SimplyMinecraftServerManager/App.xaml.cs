@@ -82,6 +82,8 @@ namespace SimplyMinecraftServerManager
                 Log("Application starting...");
                 AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
                 TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+                ConfigManager.Load();
+                InstanceManager.Load();
                 await _host.StartAsync();
                 Log("Application started successfully");
             }
@@ -98,6 +100,7 @@ namespace SimplyMinecraftServerManager
             try
             {
                 Log("Application shutting down...");
+                ServerProcessManager.KillAll();
                 InstanceManager.Shutdown();
                 await _host.StopAsync();
                 _host.Dispose();
