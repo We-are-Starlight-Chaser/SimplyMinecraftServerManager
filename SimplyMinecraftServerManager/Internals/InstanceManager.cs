@@ -186,8 +186,8 @@ namespace SimplyMinecraftServerManager.Internals
         /// 创建新实例。
         /// </summary>
         /// <param name="name">实例名称</param>
-        /// <param name="serverType">服务端类型 (paper/spigot/vanilla…)</param>
-        /// <param name="minecraftVersion">MC 版本</param>
+        /// <param name="serverType">保留参数，用于创建流程中的下载/显示逻辑，不持久化</param>
+        /// <param name="minecraftVersion">保留参数，用于创建流程中的 JDK 选择等逻辑，不持久化</param>
         /// <param name="jdkPath">JDK 路径，留空使用全局默认</param>
         /// <param name="serverJar">服务端 JAR 文件名</param>
         /// <param name="serverJarSourcePath">
@@ -248,8 +248,6 @@ namespace SimplyMinecraftServerManager.Internals
                     Name = name,
                     JdkPath = jdkPath,
                     ServerJar = serverJar,
-                    ServerType = serverType,
-                    MinecraftVersion = minecraftVersion,
                     MinMemoryMb = minMemoryMb > 0 ? minMemoryMb : config.DefaultMinMemoryMb,
                     MaxMemoryMb = maxMemoryMb > 0 ? maxMemoryMb : config.DefaultMaxMemoryMb,
                     ExtraJvmArgs = extraJvmArgs,

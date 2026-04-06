@@ -530,10 +530,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
     public partial class InstanceDisplayItem(InstanceInfo info) : ObservableObject
     {
+        private readonly ServerJarMetadata _metadata = ServerJarMetadataReader.Read(info);
+
         public string InstanceId { get; } = info.Id;
         public string Name { get; } = info.Name;
-        public string ServerType { get; } = info.ServerType;
-        public string MinecraftVersion { get; } = info.MinecraftVersion;
+        public string ServerType => _metadata.ServerType;
+        public string MinecraftVersion => _metadata.MinecraftVersion;
         public int MinMemoryMb { get; } = info.MinMemoryMb;
         public int MaxMemoryMb { get; } = info.MaxMemoryMb;
 

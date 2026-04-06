@@ -31,9 +31,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _jdkStatus = "";
 
         [ObservableProperty]
-        private ObservableCollection<ServerDisplayItem> _recentInstances = [];
-
-        [ObservableProperty]
         private ObservableCollection<string> _announcements = [];
 
         public DashboardViewModel(INavigationService navigationService, NavigationParameterService navigationParameterService)
@@ -68,37 +65,18 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 foreach (var inst in instances)
                 {
                     var isRunning = runningInstances.Contains(inst.Id);
+                    var metadata = ServerJarMetadataReader.Read(inst);
                     var serverItem = new ServerDisplayItem
                     {
                         Name = inst.Name,
-                        ServerType = inst.ServerType,
-                        MinecraftVersion = inst.MinecraftVersion,
+                        ServerType = metadata.ServerType,
+                        MinecraftVersion = metadata.MinecraftVersion,
                         IsRunning = isRunning,
                         InstanceId = inst.Id
                     };
                     Servers.Add(serverItem);
                 }
 
-                // 更新最近实例，取最新的5个
-                RecentInstances.Clear();
-                var recent = instances
-                    .OrderByDescending(static inst =>
-                        DateTime.TryParse(inst.CreatedAt, out var createdAt) ? createdAt : DateTime.MinValue)
-                    .Take(5)
-                    .ToList();
-                foreach (var inst in recent)
-                {
-                    var isRunning = runningInstances.Contains(inst.Id);
-                    var serverItem = new ServerDisplayItem
-                    {
-                        Name = inst.Name,
-                        ServerType = inst.ServerType,
-                        MinecraftVersion = inst.MinecraftVersion,
-                        IsRunning = isRunning,
-                        InstanceId = inst.Id
-                    };
-                    RecentInstances.Add(serverItem);
-                }
             }
             catch
             {

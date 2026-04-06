@@ -67,10 +67,11 @@ namespace SimplyMinecraftServerManager.Controls
         {
             if (info != null)
             {
+                var metadata = ServerJarMetadataReader.Read(info);
                 InstanceId = info.Id;
                 InstanceName = info.Name;
-                ServerType = info.ServerType;
-                MinecraftVersion = info.MinecraftVersion;
+                ServerType = metadata.ServerType;
+                MinecraftVersion = metadata.MinecraftVersion;
             }
         }
 
@@ -111,10 +112,11 @@ namespace SimplyMinecraftServerManager.Controls
         {
             if (info == null) return;
 
+            var metadata = ServerJarMetadataReader.Read(info);
             InstanceId = info.Id;
             InstanceName = info.Name;
-            ServerType = info.ServerType;
-            MinecraftVersion = info.MinecraftVersion;
+            ServerType = metadata.ServerType;
+            MinecraftVersion = metadata.MinecraftVersion;
         }
     }
 }

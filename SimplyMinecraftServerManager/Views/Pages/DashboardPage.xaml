@@ -41,14 +41,6 @@
                     <TextBlock Text="{Binding ViewModel.JdkStatus}" Margin="0,4,0,0" FontSize="12"
                         Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
                 </StackPanel>
-
-                <Border Grid.Column="2" Padding="14,10" CornerRadius="14"
-                    Background="{DynamicResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Center">
-                    <StackPanel>
-                        <TextBlock Text="管理目标" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                        <TextBlock Text="本地一键开服与运维" FontWeight="Medium" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
             </Grid>
         </ui:Card>
 
@@ -85,47 +77,6 @@
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0" Margin="0,0,12,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <TextBlock Grid.Row="0" Text="最近的服务器" FontSize="18" FontWeight="Medium" Margin="0,0,0,12"/>
-
-                <ListView Grid.Row="1" ItemsSource="{Binding ViewModel.RecentInstances}"
-                    VirtualizingStackPanel.IsVirtualizing="True"
-                    VirtualizingStackPanel.VirtualizationMode="Recycling"
-                    ScrollViewer.IsDeferredScrollingEnabled="True">
-                    <ListView.ItemTemplate>
-                        <DataTemplate>
-                            <ui:Card Margin="0,0,0,8" Padding="12">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <Border Grid.Column="0" Width="40" Height="40" CornerRadius="8"
-                                        Background="{DynamicResource AccentFillColorDisabledBrush}">
-                                        <ui:SymbolIcon Symbol="Server24" FontSize="20"/>
-                                    </Border>
-
-                                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="14"/>
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <Border Padding="8,3" CornerRadius="8" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
-                                                <TextBlock Text="{Binding ServerType}" FontSize="11"/>
-                                            </Border>
-                                            <Border Padding="8,3" CornerRadius="8" Margin="8,0,0,0" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
-                                                <TextBlock Text="{Binding MinecraftVersion}" FontSize="11"/>
-                                            </Border>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
-                            </ui:Card>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
             </Grid>
 
             <ui:Card Grid.Column="1" Padding="18" VerticalAlignment="Top">

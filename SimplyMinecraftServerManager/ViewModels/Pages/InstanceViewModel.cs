@@ -307,8 +307,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             InstanceInfo = info;
             InstanceName = info.Name;
-            ServerType = info.ServerType;
-            MinecraftVersion = info.MinecraftVersion;
+            var metadata = ServerJarMetadataReader.Read(info);
+            ServerType = metadata.ServerType;
+            MinecraftVersion = metadata.MinecraftVersion;
             EditMinMemory = info.MinMemoryMb.ToString();
             EditMaxMemory = info.MaxMemoryMb.ToString();
             EditJdkPath = info.JdkPath;
@@ -344,7 +345,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             // 从 ServerProcessManager 恢复运行状态
             IsRunning = ServerProcessManager.IsRunning(instanceId);
-            StatusMessage = IsRunning ? "服务器运行中" : $"{info.ServerType} - Minecraft {info.MinecraftVersion}";
+            StatusMessage = IsRunning ? "服务器运行中" : $"{ServerType} - Minecraft {MinecraftVersion}";
 
             // 如果正在运行，订阅控制台输出和性能监控
             if (IsRunning)

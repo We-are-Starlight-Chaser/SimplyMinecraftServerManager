@@ -17,12 +17,6 @@
         /// <summary>服务端 JAR 文件名（相对实例目录）</summary>
         public string ServerJar { get; set; } = "server.jar";
 
-        /// <summary>服务端类型: vanilla / paper / spigot / purpur / fabric / forge …</summary>
-        public string ServerType { get; set; } = "vanilla";
-
-        /// <summary>Minecraft 版本号</summary>
-        public string MinecraftVersion { get; set; } = "";
-
         /// <summary>最小内存 MB</summary>
         public int MinMemoryMb { get; set; } = 1024;
 
