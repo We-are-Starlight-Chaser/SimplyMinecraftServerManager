@@ -314,34 +314,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             EditMaxMemory = info.MaxMemoryMb.ToString();
             EditJdkPath = info.JdkPath;
             EditExtraJvmArgs = info.ExtraJvmArgs;
-            UseCustomJdk = !string.IsNullOrEmpty(info.JdkPath);
 
             // 加载已安装的JDK列表
             LoadInstalledJdks();
-
-            // 初始化JDK选择逻辑
-            if (!UseCustomJdk)
-            {
-                // 如果当前有JdkPath，尝试找到对应的已安装JDK
-                if (!string.IsNullOrEmpty(info.JdkPath))
-                {
-                    var matchingJdk = InstalledJdks.FirstOrDefault(j => 
-                        j.JavaExecutable.Equals(info.JdkPath, StringComparison.OrdinalIgnoreCase));
-                    if (matchingJdk != null)
-                    {
-                        SelectedInstalledJdk = matchingJdk;
-                        AutoSelectJdk = false;
-                    }
-                    else
-                    {
-                        AutoSelectJdk = true;
-                    }
-                }
-                else
-                {
-                    AutoSelectJdk = true;
-                }
-            }
+            InitializeJdkSelectionState(info.JdkPath);
 
             // 从 ServerProcessManager 恢复运行状态
             IsRunning = ServerProcessManager.IsRunning(instanceId);
@@ -389,6 +365,48 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 // 静默失败，不影响主功能
                 System.Diagnostics.Debug.WriteLine($"加载已安装JDK失败: {ex.Message}");
+            }
+        }
+
+        private void InitializeJdkSelectionState(string? jdkPath)
+        {
+            SelectedInstalledJdk = null;
+
+            if (string.IsNullOrWhiteSpace(jdkPath))
+            {
+                UseCustomJdk = false;
+                AutoSelectJdk = true;
+                return;
+            }
+
+            var matchingJdk = FindInstalledJdkByPath(jdkPath);
+            if (matchingJdk != null)
+            {
+                UseCustomJdk = false;
+                AutoSelectJdk = false;
+                SelectedInstalledJdk = matchingJdk;
+                return;
+            }
+
+            UseCustomJdk = true;
+            AutoSelectJdk = false;
+        }
+
+        private InstalledJdk? FindInstalledJdkByPath(string jdkPath)
+        {
+            try
+            {
+                var normalizedTargetPath = Path.GetFullPath(jdkPath);
+                return InstalledJdks.FirstOrDefault(jdk =>
+                    string.Equals(
+                        Path.GetFullPath(jdk.JavaExecutable),
+                        normalizedTargetPath,
+                        StringComparison.OrdinalIgnoreCase));
+            }
+            catch
+            {
+                return InstalledJdks.FirstOrDefault(jdk =>
+                    jdk.JavaExecutable.Equals(jdkPath, StringComparison.OrdinalIgnoreCase));
             }
         }
 
