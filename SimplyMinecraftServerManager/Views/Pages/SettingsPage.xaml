@@ -22,10 +22,26 @@
 
   <ScrollViewer>
     <StackPanel Margin="0,0,0,24">
-      <!-- 状态提示 -->
-      <TextBlock Text="{Binding ViewModel.StatusMessage}" 
-        Visibility="{Binding ViewModel.StatusMessage, Converter={StaticResource StringToVisibilityConverter}}"
-        Margin="0,0,0,16"/>
+      <Grid Margin="0,0,0,16">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="设置" FontSize="28" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding ViewModel.StatusMessage}"
+            Visibility="{Binding ViewModel.StatusMessage, Converter={StaticResource StringToVisibilityConverter}}"
+            Margin="0,8,0,0" />
+        </StackPanel>
+
+        <ui:Button Grid.Column="1"
+          VerticalAlignment="Top"
+          Command="{Binding ViewModel.ResetToDefaultsCommand}"
+          Appearance="Secondary">
+          重置为默认值
+        </ui:Button>
+      </Grid>
 
       <!-- 个性化 -->
       <ui:Card Padding="16" Margin="0,0,0,12">
@@ -106,23 +122,6 @@
         </StackPanel>
       </ui:Card>
 
-      <!-- JDK 设置 -->
-      <ui:Card Padding="16" Margin="0,0,0,12">
-        <StackPanel>
-          <TextBlock FontSize="18" FontWeight="Medium" Text="JDK 设置" Margin="0,0,0,12"/>
-
-          <TextBlock Text="默认 JDK 路径 (java.exe)" Margin="0,0,0,4"/>
-          <ui:TextBox Text="{Binding ViewModel.DefaultJdkPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-            PlaceholderText="留空则使用自动安装的 JDK"/>
-
-          <TextBlock Text="首选 JDK 发行版" Margin="0,12,0,4"/>
-          <ComboBox SelectedIndex="{Binding ViewModel.PreferredJdkDistributionIndex, Mode=TwoWay}" Width="200" HorizontalAlignment="Left">
-            <ComboBoxItem Content="Adoptium (Temurin)"/>
-            <ComboBoxItem Content="Azul Zulu"/>
-          </ComboBox>
-        </StackPanel>
-      </ui:Card>
-
       <!-- 下载设置 -->
       <ui:Card Padding="16" Margin="0,0,0,12">
         <StackPanel>
@@ -144,16 +143,6 @@
           </ComboBox>
         </StackPanel>
       </ui:Card>
-
-      <!-- 操作按钮 -->
-      <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-        <ui:Button Command="{Binding ViewModel.SaveConfigCommand}" Appearance="Primary">
-          保存设置
-        </ui:Button>
-        <ui:Button Command="{Binding ViewModel.ResetToDefaultsCommand}" Margin="8,0,0,0" Appearance="Secondary">
-          重置为默认值
-        </ui:Button>
-      </StackPanel>
 
       <!-- 关于 -->
       <ui:Card Padding="16" Margin="0,24,0,0">

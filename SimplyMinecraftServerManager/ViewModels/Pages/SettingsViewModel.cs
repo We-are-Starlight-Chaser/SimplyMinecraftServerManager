@@ -2,6 +2,7 @@ using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Appearance;
 
@@ -10,16 +11,14 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     public partial class SettingsViewModel : ObservableObject, INavigationAware
     {
         private bool _isInitialized = false;
+        private bool _suppressAutoSave = false;
+        private DispatcherTimer? _autoSaveTimer;
 
         [ObservableProperty]
         private string _appVersion = String.Empty;
 
         [ObservableProperty]
         private ApplicationTheme _currentTheme = ApplicationTheme.Unknown;
-
-        // AppConfig 配置项
-        [ObservableProperty]
-        private string _defaultJdkPath = "";
 
         [ObservableProperty]
         private string _language = "zh-CN";
@@ -35,9 +34,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         [ObservableProperty]
         private int _downloadThreads = 4;
-
-        [ObservableProperty]
-        private int _preferredJdkDistributionIndex = 0;
 
         [ObservableProperty]
         private bool _consoleWrapLines = false;
@@ -69,6 +65,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             CurrentTheme = ApplicationThemeManager.GetAppTheme();
             AppVersion = $"SMSM - {GetAssemblyVersion()}";
             LoadConsoleFontFamilies();
+            InitializeAutoSaveTimer();
 
             // 加载 AppConfig
             LoadConfig();
@@ -78,20 +75,21 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private void LoadConfig()
         {
+            _suppressAutoSave = true;
+
             var config = ConfigManager.Current;
-            DefaultJdkPath = config.DefaultJdkPath;
             Language = config.Language;
             AutoAcceptEula = config.AutoAcceptEula;
             DefaultMinMemoryMb = config.DefaultMinMemoryMb;
             DefaultMaxMemoryMb = config.DefaultMaxMemoryMb;
             DownloadThreads = config.DownloadThreads;
-            PreferredJdkDistributionIndex = config.PreferredJdkDistribution == "Zulu" ? 1 : 0;
             ConsoleWrapLines = config.ConsoleWrapLines;
             ConsoleFontFamily = string.IsNullOrWhiteSpace(config.ConsoleFontFamily) ? "Consolas" : config.ConsoleFontFamily;
             ConsoleFontSize = Math.Clamp(config.ConsoleFontSize, 10, 32);
+
+            _suppressAutoSave = false;
         }
 
-        [RelayCommand]
         private void SaveConfig()
         {
             var minMemory = Math.Max(512, DefaultMinMemoryMb);
@@ -101,25 +99,25 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             var consoleFontFamily = string.IsNullOrWhiteSpace(ConsoleFontFamily) ? "Consolas" : ConsoleFontFamily.Trim();
 
             var config = ConfigManager.Current;
-            config.DefaultJdkPath = DefaultJdkPath;
             config.Language = Language;
             config.AutoAcceptEula = AutoAcceptEula;
             config.DefaultMinMemoryMb = minMemory;
             config.DefaultMaxMemoryMb = maxMemory;
             config.DownloadThreads = downloadThreads;
-            config.PreferredJdkDistribution = PreferredJdkDistributionIndex == 0 ? "Adoptium" : "Zulu";
             config.ConsoleWrapLines = ConsoleWrapLines;
             config.ConsoleFontFamily = consoleFontFamily;
             config.ConsoleFontSize = consoleFontSize;
 
+            _suppressAutoSave = true;
             DefaultMinMemoryMb = minMemory;
             DefaultMaxMemoryMb = maxMemory;
             DownloadThreads = downloadThreads;
             ConsoleFontFamily = consoleFontFamily;
             ConsoleFontSize = consoleFontSize;
+            _suppressAutoSave = false;
 
             ConfigManager.Save();
-            StatusMessage = "设置已保存";
+            StatusMessage = "设置已自动保存";
 
             // 更新下载管理器并发数
             DownloadManager.ReconfigureDefault(downloadThreads);
@@ -129,17 +127,66 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private void ResetToDefaults()
         {
             var config = new AppConfig();
-            DefaultJdkPath = config.DefaultJdkPath;
+            _suppressAutoSave = true;
+
             Language = config.Language;
             AutoAcceptEula = config.AutoAcceptEula;
             DefaultMinMemoryMb = config.DefaultMinMemoryMb;
             DefaultMaxMemoryMb = config.DefaultMaxMemoryMb;
             DownloadThreads = config.DownloadThreads;
-            PreferredJdkDistributionIndex = 0;
             ConsoleWrapLines = config.ConsoleWrapLines;
             ConsoleFontFamily = config.ConsoleFontFamily;
             ConsoleFontSize = config.ConsoleFontSize;
-            StatusMessage = "已重置为默认值（需点击保存）";
+
+            _suppressAutoSave = false;
+            SaveConfig();
+            StatusMessage = "已重置为默认值";
+        }
+
+        partial void OnLanguageChanged(string value) => QueueAutoSave();
+
+        partial void OnAutoAcceptEulaChanged(bool value) => QueueAutoSave();
+
+        partial void OnDefaultMinMemoryMbChanged(int value) => QueueAutoSave();
+
+        partial void OnDefaultMaxMemoryMbChanged(int value) => QueueAutoSave();
+
+        partial void OnDownloadThreadsChanged(int value) => QueueAutoSave();
+
+        partial void OnConsoleWrapLinesChanged(bool value) => QueueAutoSave();
+
+        partial void OnConsoleFontFamilyChanged(string value) => QueueAutoSave();
+
+        partial void OnConsoleFontSizeChanged(int value) => QueueAutoSave();
+
+        private void QueueAutoSave()
+        {
+            if (_suppressAutoSave || !_isInitialized)
+            {
+                return;
+            }
+
+            _autoSaveTimer?.Stop();
+            _autoSaveTimer?.Start();
+        }
+
+        private void InitializeAutoSaveTimer()
+        {
+            if (_autoSaveTimer != null)
+            {
+                return;
+            }
+
+            _autoSaveTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(350)
+            };
+
+            _autoSaveTimer.Tick += (_, _) =>
+            {
+                _autoSaveTimer.Stop();
+                SaveConfig();
+            };
         }
 
         private void LoadConsoleFontFamilies()
