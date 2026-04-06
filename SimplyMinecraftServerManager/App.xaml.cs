@@ -39,12 +39,14 @@ namespace SimplyMinecraftServerManager
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<IContentDialogService, ContentDialogService>();
                 services.AddSingleton<NavigationParameterService>();
+                services.AddSingleton<AppNotificationService>();
 
                 services.AddSingleton<INavigationWindow, MainWindow>();
                 services.AddSingleton<MainWindowViewModel>(provider =>
                 {
                     var downloadsViewModel = provider.GetRequiredService<DownloadsViewModel>();
-                    return new MainWindowViewModel(downloadsViewModel);
+                    var notificationService = provider.GetRequiredService<AppNotificationService>();
+                    return new MainWindowViewModel(downloadsViewModel, notificationService);
                 });
 
                 services.AddSingleton<DashboardPage>();

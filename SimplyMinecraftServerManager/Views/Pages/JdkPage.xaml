@@ -7,7 +7,6 @@
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
   x:Name="JdkPageRoot"
-  Title="运行时管理"
   d:DataContext="{d:DesignInstance local:JdkPage, IsDesignTimeCreatable=False}"
   d:DesignHeight="600"
   d:DesignWidth="900"

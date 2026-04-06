@@ -3,9 +3,13 @@ using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Services;
+using SimplyMinecraftServerManager.Models;
+using SimplyMinecraftServerManager.ViewModels.Dialogs;
 using SimplyMinecraftServerManager.Views.Pages;
 using System;
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -57,7 +61,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _pluginSearchQuery = "";
 
         [ObservableProperty]
-        private ObservableCollection<ModrinthProject> _pluginSearchResults = [];
+        private ObservableCollection<PluginTargetInstanceItem> _pluginTargetInstances = [];
+
+        [ObservableProperty]
+        private PluginTargetInstanceItem? _selectedPluginTargetInstance;
+
+        [ObservableProperty]
+        private bool _hasSelectedPluginTarget = false;
+
+        [ObservableProperty]
+        private ObservableCollection<PluginSearchResultCard> _pluginSearchResults = [];
 
         [ObservableProperty]
         private bool _isSearchingPlugins = false;
@@ -66,30 +79,27 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private bool _isLoadingMorePlugins = false;
 
         [ObservableProperty]
+        private bool _isLoadingPluginVersions = false;
+
+        [ObservableProperty]
+        private string _pluginVersionLoadingMessage = "";
+
+        [ObservableProperty]
         private bool _hasMorePlugins = false;
 
         [ObservableProperty]
         private string _pluginSearchStatus = "";
 
         [ObservableProperty]
-        private ObservableCollection<InstanceInfo> _availableInstances = [];
+        private string _pluginTargetPrompt = "先选择目标实例，再按该实例的服务端类型和 Minecraft 版本搜索兼容插件。";
 
         [ObservableProperty]
-        private ObservableCollection<string> _serverVersionOptions = [];
-
-        [ObservableProperty]
-        private string _selectedServerVersion = "全部";
-
-        [ObservableProperty]
-        private ObservableCollection<string> _serverTypeOptions = [];
-
-        [ObservableProperty]
-        private string _selectedServerType = "全部";
+        private string _pluginSearchContextText = "未选择目标实例";
 
         // 插件分页相关字段
         private List<ModrinthProject> _allPluginResults = [];
         private int _loadedPluginCount = 0;
-        private const int _pluginPageSize = 10;
+        private const int _pluginPageSize = 12;
         private int _pluginSearchOffset = 0;
         private int _pluginTotalHits = 0;
 
@@ -122,45 +132,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         public async Task OnNavigatedToAsync()
         {
-            // 加载可用实例
-            AvailableInstances.Clear();
-            foreach (var inst in InstanceManager.GetAll())
-            {
-                AvailableInstances.Add(inst);
-            }
-
-            // 初始化服务端版本选项
-            ServerVersionOptions.Clear();
-            ServerVersionOptions.Add("全部");
-            // 这里可以添加常用的Minecraft版本，或者从API获取
-            ServerVersionOptions.Add("1.21.4");
-            ServerVersionOptions.Add("1.21.3");
-            ServerVersionOptions.Add("1.21.2");
-            ServerVersionOptions.Add("1.21.1");
-            ServerVersionOptions.Add("1.21");
-            ServerVersionOptions.Add("1.20.6");
-            ServerVersionOptions.Add("1.20.5");
-            ServerVersionOptions.Add("1.20.4");
-            ServerVersionOptions.Add("1.20.3");
-            ServerVersionOptions.Add("1.20.2");
-            ServerVersionOptions.Add("1.20.1");
-
-            // 初始化服务端类型选项
-            ServerTypeOptions.Clear();
-            ServerTypeOptions.Add("全部");
-            ServerTypeOptions.Add("bukkit");
-            ServerTypeOptions.Add("spigot");
-            ServerTypeOptions.Add("paper");
-            ServerTypeOptions.Add("purpur");
-            ServerTypeOptions.Add("folia");
-
-            // 加载服务端版本
+            LoadPluginTargetInstances();
             await LoadServerVersionsAsync();
         }
 
         public Task OnNavigatedFromAsync()
         {
-            // 离开页面时取消所有加载任务
             _loadCancellationTokenSource?.Cancel();
             return Task.CompletedTask;
         }
@@ -359,9 +336,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             try
             {
-                var platform = GetSelectedServerPlatform();
-                if (platform == null) return;
-
                 string destPath = System.IO.Path.Combine(
                     PathHelper.Root,
                     "downloads",
@@ -369,8 +343,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(destPath)!);
 
-                await platform.DownloadAsync(card.LatestBuild, destPath);
-                ServerDownloadStatus = $"已添加下载任务: {card.LatestBuild.FileName}";
+                DownloadManager.Default.Queue(CreateServerDownloadTask(card, destPath));
+                ServerDownloadStatus = $"已创建下载任务: {card.LatestBuild.FileName}";
             }
             catch (Exception ex)
             {
@@ -557,12 +531,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 if (saveDialog.ShowDialog() == true)
                 {
-                    var platform = GetSelectedServerPlatform();
-                    if (platform == null) return;
-
-                    ServerDownloadStatus = $"正在下载: {card.LatestBuild.FileName}";
-                    await platform.DownloadAsync(card.LatestBuild, saveDialog.FileName);
-                    ServerDownloadStatus = $"下载完成: {saveDialog.FileName}";
+                    DownloadManager.Default.Queue(CreateServerDownloadTask(card, saveDialog.FileName));
+                    ServerDownloadStatus = $"已创建下载任务: {card.LatestBuild.FileName}";
                 }
             }
             catch (Exception ex)
@@ -611,9 +581,64 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         #region 插件搜索下载方法
 
         [RelayCommand]
+        private void SelectPluginTargetInstance(PluginTargetInstanceItem? item)
+        {
+            SelectedPluginTargetInstance = item;
+        }
+
+        [RelayCommand]
+        private void SwitchPluginTargetInstance()
+        {
+            SelectedPluginTargetInstance = null;
+        }
+
+        partial void OnSelectedPluginTargetInstanceChanged(PluginTargetInstanceItem? value)
+        {
+            HasSelectedPluginTarget = value != null;
+            PluginSearchResults.Clear();
+            _allPluginResults.Clear();
+            _loadedPluginCount = 0;
+            _pluginSearchOffset = 0;
+            _pluginTotalHits = 0;
+            HasMorePlugins = false;
+
+            if (value == null)
+            {
+                PluginSearchContextText = "未选择目标实例";
+                PluginSearchStatus = PluginTargetInstances.Count == 0
+                    ? "请先创建一个服务器实例，再到这里安装插件。"
+                    : "请选择一个目标实例后开始搜索。";
+                return;
+            }
+
+            PluginSearchContextText = value.SearchContextText;
+            PluginSearchStatus = $"已选择 {value.Name}，现在会按 {value.ServerTypeDisplay} / {value.MinecraftVersionDisplay} 搜索兼容插件。";
+
+            if (!string.IsNullOrWhiteSpace(PluginSearchQuery))
+            {
+                _ = SearchPluginsAsync();
+            }
+        }
+
+        [RelayCommand]
         private async Task SearchPluginsAsync()
         {
-            if (string.IsNullOrWhiteSpace(PluginSearchQuery) || IsSearchingPlugins) return;
+            if (IsSearchingPlugins)
+            {
+                return;
+            }
+
+            if (SelectedPluginTargetInstance == null)
+            {
+                PluginSearchStatus = "请先选择目标实例。";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(PluginSearchQuery))
+            {
+                PluginSearchStatus = "请输入插件关键词。";
+                return;
+            }
 
             IsSearchingPlugins = true;
             PluginSearchResults.Clear();
@@ -622,49 +647,29 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _pluginSearchOffset = 0;
             _pluginTotalHits = 0;
             HasMorePlugins = false;
-            PluginSearchStatus = "搜索中...";
+            PluginSearchStatus = $"正在搜索兼容 {SelectedPluginTargetInstance.Name} 的插件...";
 
             try
             {
                 var modrinth = new ModrinthProvider();
-                
-                // 构建加载器筛选条件
-                IEnumerable<string>? loaders = null;
-                if (SelectedServerType != "全部")
-                {
-                    loaders = [SelectedServerType];
-                }
-                else
-                {
-                    // 默认筛选条件：支持常见的服务端类型
-                    loaders = ["bukkit", "spigot", "paper", "purpur"];
-                }
-                
-                // 构建游戏版本筛选条件
-                IEnumerable<string>? gameVersions = null;
-                if (SelectedServerVersion != "全部")
-                {
-                    gameVersions = [SelectedServerVersion];
-                }
-                
                 var result = await modrinth.SearchAsync(
-                    PluginSearchQuery,
-                    loaders: loaders,
-                    gameVersions: gameVersions,
+                    PluginSearchQuery.Trim(),
+                    loaders: SelectedPluginTargetInstance.LoaderFilters,
+                    gameVersions: SelectedPluginTargetInstance.VersionFilters,
                     projectType: "plugin",
                     limit: _pluginPageSize,
-                    offset: _pluginSearchOffset
-                );
+                    offset: _pluginSearchOffset);
 
                 _allPluginResults = [.. result.Hits];
                 _pluginTotalHits = result.TotalHits;
-                _pluginSearchOffset += _pluginPageSize;
-                HasMorePlugins = _pluginTotalHits > _pluginPageSize;
+                _pluginSearchOffset += result.Limit;
+                HasMorePlugins = _pluginTotalHits > _allPluginResults.Count;
 
-                // 加载第一页
-                await LoadPluginsPageAsync(0, _pluginPageSize);
-                
-                PluginSearchStatus = $"找到 {_pluginTotalHits} 个结果，已加载 {PluginSearchResults.Count} 个";
+                await LoadPluginsPageAsync(0, _pluginPageSize, SelectedPluginTargetInstance);
+
+                PluginSearchStatus = _pluginTotalHits == 0
+                    ? $"没有找到兼容 {SelectedPluginTargetInstance.ServerTypeDisplay} / {SelectedPluginTargetInstance.MinecraftVersionDisplay} 的结果。"
+                    : $"找到 {_pluginTotalHits} 个结果，已展示 {PluginSearchResults.Count} 个。";
             }
             catch (Exception ex)
             {
@@ -679,55 +684,33 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private async Task LoadMorePluginsAsync()
         {
-            if (IsLoadingMorePlugins || !HasMorePlugins) return;
+            if (IsLoadingMorePlugins || !HasMorePlugins || SelectedPluginTargetInstance == null)
+            {
+                return;
+            }
 
             IsLoadingMorePlugins = true;
-            PluginSearchStatus = "正在加载更多插件...";
 
             try
             {
-                // 如果还有更多结果需要从API获取
                 if (_loadedPluginCount >= _allPluginResults.Count && _loadedPluginCount < _pluginTotalHits)
                 {
                     var modrinth = new ModrinthProvider();
-                    
-                    // 构建加载器筛选条件（与SearchPluginsAsync保持一致）
-                    IEnumerable<string>? loaders = null;
-                    if (SelectedServerType != "全部")
-                    {
-                        loaders = [SelectedServerType];
-                    }
-                    else
-                    {
-                        // 默认筛选条件：支持常见的服务端类型
-                        loaders = ["bukkit", "spigot", "paper", "purpur"];
-                    }
-                    
-                    // 构建游戏版本筛选条件
-                    IEnumerable<string>? gameVersions = null;
-                    if (SelectedServerVersion != "全部")
-                    {
-                        gameVersions = [SelectedServerVersion];
-                    }
-                    
                     var result = await modrinth.SearchAsync(
-                        PluginSearchQuery,
-                        loaders: loaders,
-                        gameVersions: gameVersions,
+                        PluginSearchQuery.Trim(),
+                        loaders: SelectedPluginTargetInstance.LoaderFilters,
+                        gameVersions: SelectedPluginTargetInstance.VersionFilters,
                         projectType: "plugin",
                         limit: _pluginPageSize,
-                        offset: _pluginSearchOffset
-                    );
+                        offset: _pluginSearchOffset);
 
                     _allPluginResults.AddRange(result.Hits);
-                    _pluginSearchOffset += _pluginPageSize;
+                    _pluginSearchOffset += result.Limit;
                 }
 
-                // 加载下一页
-                await LoadPluginsPageAsync(_loadedPluginCount, _pluginPageSize);
-                
+                await LoadPluginsPageAsync(_loadedPluginCount, _pluginPageSize, SelectedPluginTargetInstance);
                 HasMorePlugins = _loadedPluginCount < _pluginTotalHits;
-                PluginSearchStatus = $"已加载 {PluginSearchResults.Count} 个插件，共 {_pluginTotalHits} 个";
+                PluginSearchStatus = $"已展示 {PluginSearchResults.Count} / {_pluginTotalHits} 个结果。";
             }
             catch (Exception ex)
             {
@@ -739,237 +722,278 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-        private async Task LoadPluginsPageAsync(int startIndex, int count)
+        private async Task LoadPluginsPageAsync(int startIndex, int count, PluginTargetInstanceItem targetInstance)
         {
             var endIndex = Math.Min(startIndex + count, _allPluginResults.Count);
-            
+
             for (int i = startIndex; i < endIndex; i++)
             {
-                PluginSearchResults.Add(_allPluginResults[i]);
+                PluginSearchResults.Add(new PluginSearchResultCard(_allPluginResults[i], targetInstance));
                 _loadedPluginCount++;
-                
-                // 添加微小延迟以避免UI冻结
-                if (i % 5 == 0)
-                    await Task.Delay(1);
+
+                if ((i - startIndex + 1) % 4 == 0)
+                {
+                    await Task.Yield();
+                }
             }
         }
 
         [RelayCommand]
-        private async Task DownloadPluginAsync(ModrinthProject? project)
+        private async Task DownloadPluginAsync(PluginSearchResultCard? card)
         {
-            if (project == null) return;
+            if (card == null || SelectedPluginTargetInstance == null)
+            {
+                return;
+            }
 
             try
             {
-                // 如果没有可用实例，提示用户
-                if (AvailableInstances.Count == 0)
+                var selectedVersion = await ShowPluginVersionDialogAsync(card.Project, SelectedPluginTargetInstance, installMode: true);
+                if (selectedVersion?.Version.PrimaryFile == null)
                 {
-                    PluginSearchStatus = "请先创建一个服务器实例";
                     return;
                 }
 
-                // 如果只有一个实例，直接使用它
-                string? targetInstanceId = null;
-                if (AvailableInstances.Count == 1)
-                {
-                    targetInstanceId = AvailableInstances[0].Id;
-                }
-                else
-                {
-                    // 弹出对话框让用户选择实例
-                    var dialog = new ContentDialog
-                    {
-                        Title = "选择目标实例",
-                        Content = "请选择要将插件安装到的服务器实例:",
-                        PrimaryButtonText = "确定",
-                        CloseButtonText = "取消",
-                        DefaultButton = ContentDialogButton.Primary
-                    };
-
-                    var comboBox = new ComboBox
-                    {
-                        ItemsSource = AvailableInstances,
-                        DisplayMemberPath = "Name",
-                        SelectedValuePath = "Id",
-                        Width = 300,
-                        Margin = new Thickness(0, 12, 0, 0)
-                    };
-
-                    if (AvailableInstances.Count > 0)
-                    {
-                        comboBox.SelectedIndex = 0;
-                    }
-
-                    var stackPanel = new StackPanel();
-                    stackPanel.Children.Add(new System.Windows.Controls.TextBlock { Text = "选择实例:" });
-                    stackPanel.Children.Add(comboBox);
-                    dialog.Content = stackPanel;
-
-                    var result = await _contentDialogService.ShowAsync(dialog, CancellationToken.None);
-                    if (result != ContentDialogResult.Primary)
-                    {
-                        return; // 用户取消
-                    }
-
-                    targetInstanceId = comboBox.SelectedValue?.ToString();
-                    if (string.IsNullOrEmpty(targetInstanceId))
-                    {
-                        PluginSearchStatus = "未选择实例";
-                        return;
-                    }
-                }
-
-                PluginSearchStatus = $"正在获取 {project.Title} 的版本列表...";
-
-                var modrinth = new ModrinthProvider();
-                var versions = await modrinth.GetVersionsAsync(
-                    project.ProjectId,
-                    loaders: ["bukkit", "spigot", "paper", "purpur"]
-                );
-
-                if (versions.Count == 0)
-                {
-                    PluginSearchStatus = "未找到可用版本";
-                    return;
-                }
-
-                // 显示版本选择弹窗
-                var versionDialog = new ContentDialog
-                {
-                    Title = $"选择 {project.Title} 版本",
-                    Content = "请选择要下载的插件版本:",
-                    PrimaryButtonText = "下载",
-                    CloseButtonText = "取消",
-                    DefaultButton = ContentDialogButton.Primary
-                };
-
-                var versionListView = new System.Windows.Controls.ListView
-                {
-                    ItemsSource = versions,
-                    DisplayMemberPath = "Name",
-                    SelectedValuePath = "Id",
-                    Height = 300,
-                    Width = 400,
-                    Margin = new Thickness(0, 12, 0, 0)
-                };
-
-                if (versions.Count > 0)
-                {
-                    versionListView.SelectedIndex = 0;
-                }
-
-                var versionStackPanel = new StackPanel();
-                versionStackPanel.Children.Add(new System.Windows.Controls.TextBlock { Text = "可用版本:" });
-                versionStackPanel.Children.Add(versionListView);
-                versionDialog.Content = versionStackPanel;
-
-                var versionResult = await _contentDialogService.ShowAsync(versionDialog, CancellationToken.None);
-                if (versionResult != ContentDialogResult.Primary)
-                {
-                    PluginSearchStatus = "下载已取消";
-                    return; // 用户取消
-                }
-
-                if (versionListView.SelectedItem is not ModrinthVersion selectedVersion)
-                {
-                    PluginSearchStatus = "未选择版本";
-                    return;
-                }
-
-                PluginSearchStatus = $"正在下载 {project.Title} {selectedVersion.Name}...";
-                string destPath = System.IO.Path.Combine(
-                    PathHelper.GetPluginsDir(targetInstanceId!),
-                    selectedVersion.PrimaryFile!.FileName);
-
-                await modrinth.DownloadFileAsync(selectedVersion.PrimaryFile!, destPath, $"{project.Title} {selectedVersion.Name}");
-                PluginSearchStatus = $"已添加下载任务: {project.Title} {selectedVersion.Name}";
+                QueuePluginInstall(card.Project, selectedVersion.Version, SelectedPluginTargetInstance);
+                PluginSearchStatus = $"已将 {card.Title} {selectedVersion.VersionNumber} 加入安装任务。";
             }
             catch (Exception ex)
             {
-                PluginSearchStatus = $"下载失败: {ex.Message}";
+                PluginSearchStatus = $"安装失败: {ex.Message}";
+            }
+            finally
+            {
+                PluginVersionLoadingMessage = "";
+                IsLoadingPluginVersions = false;
             }
         }
 
         [RelayCommand]
-        private async Task SavePluginAsAsync(ModrinthProject? project)
+        private async Task SavePluginAsAsync(PluginSearchResultCard? card)
         {
-            if (project == null) return;
+            if (card == null || SelectedPluginTargetInstance == null)
+            {
+                return;
+            }
 
             try
             {
-                var modrinth = new ModrinthProvider();
-                var versions = await modrinth.GetVersionsAsync(
-                    project.ProjectId,
-                    loaders: ["bukkit", "spigot", "paper", "purpur"]
-                );
-
-                if (versions.Count == 0)
+                var selectedVersion = await ShowPluginVersionDialogAsync(card.Project, SelectedPluginTargetInstance, installMode: false);
+                if (selectedVersion?.Version.PrimaryFile == null)
                 {
-                    PluginSearchStatus = "未找到可用版本";
-                    return;
-                }
-
-                // 显示版本选择弹窗
-                var versionDialog = new ContentDialog
-                {
-                    Title = $"选择 {project.Title} 版本",
-                    Content = "请选择要保存的插件版本:",
-                    PrimaryButtonText = "保存",
-                    CloseButtonText = "取消",
-                    DefaultButton = ContentDialogButton.Primary
-                };
-
-                var saveListView = new System.Windows.Controls.ListView
-                {
-                    ItemsSource = versions,
-                    DisplayMemberPath = "Name",
-                    SelectedValuePath = "Id",
-                    Height = 300,
-                    Width = 400,
-                    Margin = new Thickness(0, 12, 0, 0)
-                };
-
-                if (versions.Count > 0)
-                {
-                    saveListView.SelectedIndex = 0;
-                }
-
-                var saveStackPanel = new StackPanel();
-                saveStackPanel.Children.Add(new System.Windows.Controls.TextBlock { Text = "可用版本:" });
-                saveStackPanel.Children.Add(saveListView);
-                versionDialog.Content = saveStackPanel;
-
-                var saveResult = await _contentDialogService.ShowAsync(versionDialog, CancellationToken.None);
-                if (saveResult != ContentDialogResult.Primary)
-                {
-                    PluginSearchStatus = "保存已取消";
-                    return; // 用户取消
-                }
-
-                if (saveListView.SelectedItem is not ModrinthVersion selectedVersion)
-                {
-                    PluginSearchStatus = "未选择版本";
                     return;
                 }
 
                 var saveDialog = new SaveFileDialog
                 {
-                    FileName = selectedVersion.PrimaryFile!.FileName,
+                    FileName = selectedVersion.Version.PrimaryFile.FileName,
                     Filter = "JAR 文件 (*.jar)|*.jar|所有文件 (*.*)|*.*",
                     Title = "保存插件文件"
                 };
 
-                if (saveDialog.ShowDialog() == true)
+                if (saveDialog.ShowDialog() != true)
                 {
-                    PluginSearchStatus = $"正在下载: {project.Title} {selectedVersion.Name}";
-                    await modrinth.DownloadFileAsync(selectedVersion.PrimaryFile!, saveDialog.FileName, $"{project.Title} {selectedVersion.Name}");
-                    PluginSearchStatus = $"下载完成: {saveDialog.FileName}";
+                    PluginSearchStatus = "保存已取消。";
+                    return;
                 }
+
+                QueuePluginSave(card.Project, selectedVersion.Version, saveDialog.FileName);
+                PluginSearchStatus = $"已将 {card.Title} {selectedVersion.VersionNumber} 加入下载任务。";
             }
             catch (Exception ex)
             {
                 PluginSearchStatus = $"保存失败: {ex.Message}";
             }
+            finally
+            {
+                PluginVersionLoadingMessage = "";
+                IsLoadingPluginVersions = false;
+            }
+        }
+
+        private async Task<PluginVersionListItem?> ShowPluginVersionDialogAsync(
+            ModrinthProject project,
+            PluginTargetInstanceItem targetInstance,
+            bool installMode)
+        {
+            IsLoadingPluginVersions = true;
+            PluginVersionLoadingMessage = $"正在获取 {project.Title} 的可用版本...";
+            PluginSearchStatus = PluginVersionLoadingMessage;
+            await Task.Yield();
+
+            var versions = await LoadPluginVersionsAsync(project, targetInstance);
+            if (versions.Count == 0)
+            {
+                PluginVersionLoadingMessage = "";
+                PluginSearchStatus = $"没有找到适用于 {targetInstance.Name} 的可用版本。";
+                return null;
+            }
+
+            var dialogViewModel = PluginVersionDialogViewModel.Create(
+                project.Title,
+                installMode
+                    ? $"目标实例：{targetInstance.Name} · {targetInstance.ServerTypeDisplay} · {targetInstance.MinecraftVersionDisplay}"
+                    : $"另存为下载 · 当前兼容筛选：{targetInstance.ServerTypeDisplay} · {targetInstance.MinecraftVersionDisplay}",
+                installMode ? "安装到实例" : "加入下载任务",
+                versions);
+
+            var dialog = new PluginVersionDialog
+            {
+                DataContext = dialogViewModel
+            };
+
+            await _contentDialogService.ShowAsync(dialog, CancellationToken.None);
+
+            if (!dialog.IsConfirmed || dialog.SelectedVersionItem == null)
+            {
+                PluginVersionLoadingMessage = "";
+                PluginSearchStatus = installMode ? "安装已取消。" : "保存已取消。";
+                return null;
+            }
+
+            PluginVersionLoadingMessage = "";
+            return dialog.SelectedVersionItem;
+        }
+
+        private async Task<List<ModrinthVersion>> LoadPluginVersionsAsync(ModrinthProject project, PluginTargetInstanceItem targetInstance)
+        {
+            var provider = new ModrinthProvider();
+            var versions = await provider.GetVersionsAsync(
+                project.ProjectId,
+                loaders: targetInstance.LoaderFilters,
+                gameVersions: targetInstance.VersionFilters);
+
+            if (versions.Count == 0 && targetInstance.LoaderFilters.Count > 0)
+            {
+                versions = await provider.GetVersionsAsync(project.ProjectId, loaders: targetInstance.LoaderFilters);
+            }
+
+            if (versions.Count == 0)
+            {
+                versions = await provider.GetVersionsAsync(project.ProjectId);
+            }
+
+            return await Task.Run(() => versions
+                .Where(static version => version.PrimaryFile != null)
+                .OrderByDescending(static version => PluginVersionListItem.ParsePublishedDate(version.DatePublished))
+                .ToList());
+        }
+
+        private void QueuePluginInstall(ModrinthProject project, ModrinthVersion version, PluginTargetInstanceItem targetInstance)
+        {
+            var primaryFile = version.PrimaryFile ?? throw new InvalidOperationException("所选版本没有可用主文件。");
+            var (expectedHash, hashAlgorithm) = GetPreferredHash(primaryFile);
+            var stagingPath = GetPluginStagingPath(targetInstance.InstanceId, primaryFile.FileName);
+            var displayName = $"{project.Title} {version.VersionNumber}";
+
+            DownloadManager.Default.Queue(new DownloadTask
+            {
+                DisplayName = displayName,
+                Url = primaryFile.Url,
+                DestinationPath = stagingPath,
+                ExpectedHash = expectedHash,
+                HashAlgorithm = hashAlgorithm,
+                Type = TaskType.DownloadAndInstall,
+                TargetInstanceId = targetInstance.InstanceId,
+                CreatedNotification = TaskNotificationMessage.Info(
+                    "任务已创建",
+                    $"开始下载 {displayName}..."),
+                CompletedNotification = TaskNotificationMessage.Success(
+                    "任务已完成",
+                    $"已将 {displayName} 安装至实例 {targetInstance.Name}。"),
+                FailedNotification = TaskNotificationMessage.Danger(
+                    "任务失败",
+                    $"{displayName} 安装失败。")
+            });
+        }
+
+        private void QueuePluginSave(ModrinthProject project, ModrinthVersion version, string destinationPath)
+        {
+            var primaryFile = version.PrimaryFile ?? throw new InvalidOperationException("所选版本没有可用主文件。");
+            var (expectedHash, hashAlgorithm) = GetPreferredHash(primaryFile);
+            var displayName = $"{project.Title} {version.VersionNumber}";
+
+            DownloadManager.Default.Queue(new DownloadTask
+            {
+                DisplayName = displayName,
+                Url = primaryFile.Url,
+                DestinationPath = destinationPath,
+                ExpectedHash = expectedHash,
+                HashAlgorithm = hashAlgorithm,
+                CreatedNotification = TaskNotificationMessage.Info(
+                    "任务已创建",
+                    $"开始下载 {displayName}..."),
+                CompletedNotification = TaskNotificationMessage.Success(
+                    "任务已完成",
+                    $"{displayName} 已下载完成。"),
+                FailedNotification = TaskNotificationMessage.Danger(
+                    "任务失败",
+                    $"{displayName} 下载失败。")
+            });
+        }
+
+        private static DownloadTask CreateServerDownloadTask(ServerVersionCard card, string destinationPath)
+        {
+            var displayName = $"{card.PlatformName} {card.MinecraftVersion} #{card.LatestBuild.BuildNumber}";
+
+            return new DownloadTask
+            {
+                DisplayName = displayName,
+                Url = card.LatestBuild.DownloadUrl,
+                DestinationPath = destinationPath,
+                ExpectedHash = card.LatestBuild.Sha256,
+                HashAlgorithm = "SHA256",
+                CreatedNotification = TaskNotificationMessage.Info(
+                    "任务已创建",
+                    $"开始下载 {displayName}..."),
+                CompletedNotification = TaskNotificationMessage.Success(
+                    "任务已完成",
+                    $"{displayName} 已下载完成。"),
+                FailedNotification = TaskNotificationMessage.Danger(
+                    "任务失败",
+                    $"{displayName} 下载失败。")
+            };
+        }
+
+        private static (string? ExpectedHash, string HashAlgorithm) GetPreferredHash(ModrinthFile file)
+        {
+            if (file.Hashes.TryGetValue("sha1", out var sha1) && !string.IsNullOrWhiteSpace(sha1))
+            {
+                return (sha1, "SHA1");
+            }
+
+            if (file.Hashes.TryGetValue("sha512", out var sha512) && !string.IsNullOrWhiteSpace(sha512))
+            {
+                return (sha512, "SHA512");
+            }
+
+            return (null, "SHA256");
+        }
+
+        private static string GetPluginStagingPath(string instanceId, string fileName)
+        {
+            string safeFileName = Path.GetFileName(fileName);
+            string directory = Path.Combine(PathHelper.Root, "downloads", "plugins", instanceId);
+            Directory.CreateDirectory(directory);
+            return Path.Combine(directory, safeFileName);
+        }
+
+        private void LoadPluginTargetInstances()
+        {
+            PluginTargetInstances.Clear();
+
+            var runningInstances = ServerProcessManager.GetRunningInstanceIds();
+            foreach (var instance in InstanceManager.GetAll().OrderBy(static instance => instance.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var metadata = ServerJarMetadataReader.Read(instance);
+                PluginTargetInstances.Add(new PluginTargetInstanceItem(instance, metadata, runningInstances.Contains(instance.Id)));
+            }
+
+            SelectedPluginTargetInstance = null;
+            PluginSearchContextText = "未选择目标实例";
+            PluginSearchStatus = PluginTargetInstances.Count == 0
+                ? "请先创建一个服务器实例，再到这里安装插件。"
+                : "请选择一个目标实例后开始搜索。";
         }
 
         #endregion
@@ -1009,6 +1033,196 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         /// <summary>显示的版本标签 (如 1.21.4)</summary>
         public string VersionTag => $"MC {MinecraftVersion}";
+    }
+
+    public sealed class PluginTargetInstanceItem
+    {
+        private static readonly IReadOnlyList<string> DefaultPluginLoaders = ["paper", "purpur", "folia", "spigot", "bukkit"];
+
+        public PluginTargetInstanceItem(InstanceInfo instance, ServerJarMetadata metadata, bool isRunning)
+        {
+            InstanceId = instance.Id;
+            Name = instance.Name;
+            IsRunning = isRunning;
+
+            ServerTypeDisplay = string.IsNullOrWhiteSpace(metadata.ServerType) ? "未知类型" : metadata.ServerType;
+            MinecraftVersionDisplay = string.IsNullOrWhiteSpace(metadata.MinecraftVersion) ? "未知版本" : metadata.MinecraftVersion;
+            LoaderFilters = BuildLoaderFilters(metadata.ServerType);
+            VersionFilters = !string.IsNullOrWhiteSpace(metadata.MinecraftVersion) && metadata.MinecraftVersion != "未知版本"
+                ? [metadata.MinecraftVersion]
+                : [];
+
+            SearchContextText = $"目标实例：{Name} · {ServerTypeDisplay} · {MinecraftVersionDisplay}";
+            CompatibilityHint = LoaderFilters.Count == 0
+                ? "将使用通用 Bukkit / Paper 兼容范围搜索。"
+                : $"将按 {string.Join(" / ", LoaderFilters)} 搜索兼容插件。";
+        }
+
+        public string InstanceId { get; }
+
+        public string Name { get; }
+
+        public bool IsRunning { get; }
+
+        public string ServerTypeDisplay { get; }
+
+        public string MinecraftVersionDisplay { get; }
+
+        public IReadOnlyList<string> LoaderFilters { get; }
+
+        public IReadOnlyList<string> VersionFilters { get; }
+
+        public string SearchContextText { get; }
+
+        public string CompatibilityHint { get; }
+
+        public string RunningText => IsRunning ? "运行中" : "未运行";
+
+        public string TargetBadgeText => $"{ServerTypeDisplay} · {MinecraftVersionDisplay}";
+
+        public string Initial => string.IsNullOrWhiteSpace(Name) ? "S" : Name[..1].ToUpperInvariant();
+
+        private static IReadOnlyList<string> BuildLoaderFilters(string? serverType)
+        {
+            if (string.IsNullOrWhiteSpace(serverType) || serverType == "未知类型")
+            {
+                return DefaultPluginLoaders;
+            }
+
+            return serverType.ToLowerInvariant() switch
+            {
+                "paper" => ["paper", "spigot", "bukkit"],
+                "purpur" => ["purpur", "paper", "spigot", "bukkit"],
+                "folia" => ["folia", "paper", "spigot", "bukkit"],
+                "leaves" => ["paper", "spigot", "bukkit"],
+                "leaf" => ["paper", "spigot", "bukkit"],
+                "pufferfish" => ["paper", "spigot", "bukkit"],
+                "spigot" => ["spigot", "bukkit"],
+                "bukkit" => ["bukkit"],
+                _ => [serverType.ToLowerInvariant()]
+            };
+        }
+    }
+
+    public sealed class PluginSearchResultCard
+    {
+        public PluginSearchResultCard(ModrinthProject project, PluginTargetInstanceItem targetInstance)
+        {
+            Project = project;
+            Title = string.IsNullOrWhiteSpace(project.Title) ? project.Slug : project.Title;
+            Description = string.IsNullOrWhiteSpace(project.Description) ? "该项目没有提供简介。" : project.Description;
+            Author = string.IsNullOrWhiteSpace(project.Author) ? "未知作者" : project.Author;
+            Initial = string.IsNullOrWhiteSpace(Title) ? "P" : Title[..1].ToUpperInvariant();
+            IconUrl = project.IconUrl;
+            HasIcon = !string.IsNullOrWhiteSpace(project.IconUrl);
+            DownloadsText = FormatMetric(project.Downloads);
+            FollowsText = FormatMetric(project.Follows);
+            LatestVersionText = string.IsNullOrWhiteSpace(project.LatestGameVersion) ? "最新支持未知" : $"最新支持 {project.LatestGameVersion}";
+            LoadersText = project.Loaders.Count > 0 ? string.Join(" / ", project.Loaders.Take(5)) : "未标注加载器";
+            GameVersionsText = FormatGameVersionRange(project.GameVersions);
+            CompatibilityText = BuildCompatibilityText(project, targetInstance);
+            ServerSideText = string.IsNullOrWhiteSpace(project.ServerSide) ? "服务器支持未知" : $"服务端：{project.ServerSide}";
+            ClientSideText = string.IsNullOrWhiteSpace(project.ClientSide) ? "客户端支持未知" : $"客户端：{project.ClientSide}";
+        }
+
+        public ModrinthProject Project { get; }
+
+        public string Title { get; }
+
+        public string Description { get; }
+
+        public string Author { get; }
+
+        public string Initial { get; }
+
+        public string IconUrl { get; }
+
+        public bool HasIcon { get; }
+
+        public string DownloadsText { get; }
+
+        public string FollowsText { get; }
+
+        public string LatestVersionText { get; }
+
+        public string LoadersText { get; }
+
+        public string GameVersionsText { get; }
+
+        public string CompatibilityText { get; }
+
+        public string ServerSideText { get; }
+
+        public string ClientSideText { get; }
+
+        private static string BuildCompatibilityText(ModrinthProject project, PluginTargetInstanceItem targetInstance)
+        {
+            bool loaderCompatible = project.Loaders.Count == 0
+                || project.Loaders.Any(loader => targetInstance.LoaderFilters.Contains(loader, StringComparer.OrdinalIgnoreCase));
+            bool versionCompatible = targetInstance.VersionFilters.Count == 0
+                || project.GameVersions.Count == 0
+                || project.GameVersions.Any(version => targetInstance.VersionFilters.Contains(version, StringComparer.OrdinalIgnoreCase));
+
+            if (loaderCompatible && versionCompatible)
+            {
+                return $"支持 {targetInstance.ServerTypeDisplay} {targetInstance.MinecraftVersionDisplay}";
+            }
+
+            if (loaderCompatible)
+            {
+                return $"加载器兼容，版本标签未覆盖 {targetInstance.MinecraftVersionDisplay}";
+            }
+
+            return $"请检查与 {targetInstance.ServerTypeDisplay} 的兼容性";
+        }
+
+        private static string FormatMetric(long value)
+        {
+            if (value >= 1_000_000_000) return $"{value / 1_000_000_000d:F1}B";
+            if (value >= 1_000_000) return $"{value / 1_000_000d:F1}M";
+            if (value >= 1_000) return $"{value / 1_000d:F1}K";
+            return value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string FormatGameVersionRange(IReadOnlyCollection<string>? versions)
+        {
+            if (versions == null || versions.Count == 0)
+            {
+                return "未标注版本";
+            }
+
+            var ordered = versions
+                .Where(static version => !string.IsNullOrWhiteSpace(version))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static version => ParseComparableVersion(version))
+                .ToList();
+
+            if (ordered.Count == 0)
+            {
+                return "未标注版本";
+            }
+
+            if (ordered.Count == 1)
+            {
+                return ordered[0];
+            }
+
+            return $"{ordered[0]} - {ordered[^1]}";
+        }
+
+        private static Version ParseComparableVersion(string version)
+        {
+            var normalized = version;
+            var dashIndex = normalized.IndexOf('-');
+            if (dashIndex > 0)
+            {
+                normalized = normalized[..dashIndex];
+            }
+
+            return Version.TryParse(normalized, out var parsed)
+                ? parsed
+                : new Version(0, 0);
+        }
     }
 
     #endregion

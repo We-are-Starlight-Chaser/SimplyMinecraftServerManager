@@ -33,6 +33,10 @@
       <helpers:StringToUpperConverter x:Key="StringToUpperConverter"/>
       <helpers:ListToStringConverter x:Key="ListToStringConverter"/>
       <helpers:GameVersionsToRangeConverter x:Key="GameVersionsToRangeConverter"/>
+      <helpers:NotificationAppearanceToBadgeBrushConverter x:Key="NotificationAppearanceToBadgeBrushConverter"/>
+      <helpers:NotificationAppearanceToForegroundBrushConverter x:Key="NotificationAppearanceToForegroundBrushConverter"/>
+      <helpers:NotificationAppearanceToBorderBrushConverter x:Key="NotificationAppearanceToBorderBrushConverter"/>
+      <helpers:NotificationAppearanceToSymbolConverter x:Key="NotificationAppearanceToSymbolConverter"/>
     </ResourceDictionary>
   </Application.Resources>
 </Application>

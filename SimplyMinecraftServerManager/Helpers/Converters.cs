@@ -344,6 +344,123 @@ namespace SimplyMinecraftServerManager.Helpers
         }
     }
 
+    internal class NotificationAppearanceToBadgeBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+
+            if (value is ControlAppearance appearance)
+            {
+                return appearance switch
+                {
+                    ControlAppearance.Success => new SolidColorBrush(isDark
+                        ? Color.FromRgb(0x1E, 0x5E, 0x38)
+                        : Color.FromRgb(0xE5, 0xF6, 0xEA)),
+                    ControlAppearance.Danger => new SolidColorBrush(isDark
+                        ? Color.FromRgb(0x7A, 0x22, 0x22)
+                        : Color.FromRgb(0xFD, 0xEA, 0xEA)),
+                    ControlAppearance.Caution => new SolidColorBrush(isDark
+                        ? Color.FromRgb(0x74, 0x54, 0x10)
+                        : Color.FromRgb(0xFD, 0xF2, 0xD9)),
+                    _ => new SolidColorBrush(isDark
+                        ? Color.FromRgb(0x18, 0x4E, 0x77)
+                        : Color.FromRgb(0xE4, 0xF1, 0xFB))
+                };
+            }
+
+            return new SolidColorBrush(Colors.Transparent);
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    internal class NotificationAppearanceToForegroundBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+
+            if (value is ControlAppearance appearance)
+            {
+                return appearance switch
+                {
+                    ControlAppearance.Success => new SolidColorBrush(isDark
+                        ? Color.FromRgb(0x8B, 0xE2, 0xA8)
+                        : Color.FromRgb(0x1D, 0x6F, 0x42)),
+                    ControlAppearance.Danger => new SolidColorBrush(isDark
+                        ? Color.FromRgb(0xFF, 0xB3, 0xB3)
+                        : Color.FromRgb(0xB4, 0x23, 0x18)),
+                    ControlAppearance.Caution => new SolidColorBrush(isDark
+                        ? Color.FromRgb(0xFF, 0xD8, 0x75)
+                        : Color.FromRgb(0x8F, 0x61, 0x00)),
+                    _ => new SolidColorBrush(isDark
+                        ? Color.FromRgb(0x9A, 0xD3, 0xFF)
+                        : Color.FromRgb(0x0E, 0x63, 0xA9))
+                };
+            }
+
+            return new SolidColorBrush(Colors.Gray);
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    internal class NotificationAppearanceToBorderBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is ControlAppearance appearance)
+            {
+                var foreground = new NotificationAppearanceToForegroundBrushConverter()
+                    .Convert(appearance, targetType, parameter, culture);
+
+                if (foreground is SolidColorBrush brush)
+                {
+                    var color = brush.Color;
+                    return new SolidColorBrush(Color.FromArgb(0x66, color.R, color.G, color.B));
+                }
+            }
+
+            return new SolidColorBrush(Color.FromArgb(0x22, 0x7F, 0x7F, 0x7F));
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    internal class NotificationAppearanceToSymbolConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is ControlAppearance appearance)
+            {
+                return appearance switch
+                {
+                    ControlAppearance.Success => SymbolRegular.CheckmarkCircle24,
+                    ControlAppearance.Danger => SymbolRegular.ErrorCircle24,
+                    ControlAppearance.Caution => SymbolRegular.Warning24,
+                    _ => SymbolRegular.Info24
+                };
+            }
+
+            return SymbolRegular.Info24;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     /// <summary>
     /// 布尔值到启用/禁用文本转换器
     /// </summary>

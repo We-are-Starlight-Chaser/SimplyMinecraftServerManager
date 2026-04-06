@@ -1,6 +1,10 @@
+using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads;
+using SimplyMinecraftServerManager.Models;
+using SimplyMinecraftServerManager.Services;
 using System.Collections.ObjectModel;
 using Wpf.Ui.Abstractions.Controls;
+using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
@@ -20,14 +24,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         public event EventHandler<int>? TaskCountChanged;
 
-        /// <summary>
-        /// 安装完成时触发
-        /// </summary>
-        public event EventHandler<string>? InstallationCompleted;
+        private readonly AppNotificationService _notificationService;
 
-        public DownloadsViewModel()
+        public DownloadsViewModel(AppNotificationService notificationService)
         {
+            _notificationService = notificationService;
+
             // 订阅下载管理器事件
+            DownloadManager.Default.TaskQueued -= OnDownloadTaskQueued;
+            DownloadManager.Default.TaskQueued += OnDownloadTaskQueued;
             DownloadManager.Default.ProgressChanged -= OnDownloadProgress;
             DownloadManager.Default.ProgressChanged += OnDownloadProgress;
             DownloadManager.Default.TaskCompleted -= OnDownloadTaskCompleted;
@@ -58,6 +63,29 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateCounts();
         }
 
+        private void OnDownloadTaskQueued(object? sender, DownloadTask task)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
+                if (item == null)
+                {
+                    var newItem = new DownloadTaskItem(task);
+                    newItem.RequestRemove += OnTaskRequestRemove;
+                    DownloadTasks.Insert(0, newItem);
+                }
+
+                if (task.NotifyOnCreated)
+                {
+                    ShowTaskNotification(task.CreatedNotification ?? TaskNotificationMessage.Info(
+                        "任务已创建",
+                        $"开始下载 {task.DisplayName}..."));
+                }
+
+                UpdateCounts();
+            });
+        }
+
         private void OnDownloadProgress(object? sender, DownloadProgressInfo e)
         {
             Application.Current.Dispatcher.Invoke(() =>
@@ -86,6 +114,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     item.UpdateFromTask(task);
                 }
+
+                if (task.InstallationStatus != InstallationStatus.Installed)
+                {
+                    if (task.NotifyOnCompleted)
+                    {
+                        ShowTaskNotification(task.CompletedNotification ?? TaskNotificationMessage.Success(
+                            "任务已完成",
+                            $"{task.DisplayName} 已完成。"));
+                    }
+                }
+
                 UpdateCounts();
             });
         }
@@ -99,6 +138,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     item.UpdateFromTask(task);
                 }
+
+                if (task.Status != DownloadStatus.Cancelled)
+                {
+                    if (task.NotifyOnFailed)
+                    {
+                        ShowTaskNotification(task.FailedNotification ?? TaskNotificationMessage.Danger(
+                            "任务失败",
+                            string.IsNullOrWhiteSpace(task.ErrorMessage)
+                                ? $"{task.DisplayName} 执行失败。"
+                                : $"{task.DisplayName}: {task.ErrorMessage}"));
+                    }
+                }
+
                 UpdateCounts();
             });
         }
@@ -111,9 +163,14 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 if (item != null)
                 {
                     item.UpdateFromTask(task);
-                    // 显示安装成功通知
-                    ShowInstallationNotification(task.DisplayName);
                 }
+
+                if (task.NotifyOnCompleted)
+                {
+                    var fallbackMessage = BuildInstalledNotification(task);
+                    ShowTaskNotification(task.CompletedNotification ?? fallbackMessage);
+                }
+
                 UpdateCounts();
             });
         }
@@ -139,9 +196,22 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             TaskCountChanged?.Invoke(this, ActiveCount);
         }
 
-        private void ShowInstallationNotification(string displayName)
+        private void ShowTaskNotification(TaskNotificationMessage message)
         {
-            InstallationCompleted?.Invoke(this, $"{displayName} 安装完成");
+            _notificationService.Show(message);
+        }
+
+        private static TaskNotificationMessage BuildInstalledNotification(DownloadTask task)
+        {
+            var targetInstanceName = !string.IsNullOrWhiteSpace(task.TargetInstanceId)
+                ? InstanceManager.GetById(task.TargetInstanceId)?.Name
+                : null;
+
+            var content = string.IsNullOrWhiteSpace(targetInstanceName)
+                ? $"{task.DisplayName} 已安装完成。"
+                : $"已将 {task.DisplayName} 安装至实例 {targetInstanceName}。";
+
+            return TaskNotificationMessage.Success("任务已完成", content);
         }
 
         [RelayCommand]

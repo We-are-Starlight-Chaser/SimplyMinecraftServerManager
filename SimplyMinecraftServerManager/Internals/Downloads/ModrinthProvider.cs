@@ -318,7 +318,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 ServerSide = GetStr(elem, "server_side"),
                 ClientSide = GetStr(elem, "client_side"),
                 LatestVersionId = GetStr(elem, "latest_version"),
-                LatestVersionNumber = "", // 初始化为空，稍后填充
+                LatestGameVersion = GetStr(elem, "latest_version"),
             };
 
             if (elem.TryGetProperty("versions", out var versions))

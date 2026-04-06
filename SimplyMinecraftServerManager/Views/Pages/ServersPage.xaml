@@ -6,7 +6,6 @@
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-  Title="服务端管理"
   d:DataContext="{d:DesignInstance local:ServersPage, IsDesignTimeCreatable=False}"
   d:DesignHeight="600"
   d:DesignWidth="900"
@@ -33,36 +32,14 @@
     <Grid Margin="8,0,8,12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="0,0,0,16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:SymbolIcon Symbol="Server24" FontSize="28" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,0,12,0"/>
-                <TextBlock Text="服务器实例" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <ui:Button Command="{Binding ViewModel.RefreshInstancesCommand, ElementName=PageRoot}" Margin="16,0,0,0" Appearance="Transparent" ToolTip="刷新列表">
-                    <ui:SymbolIcon Symbol="ArrowSync24" FontSize="18"/>
-                </ui:Button>
-            </StackPanel>
-
-            <ui:Button Grid.Column="1" Command="{Binding ViewModel.CreateNewInstanceCommand, ElementName=PageRoot}" Appearance="Primary">
-                <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="Add24" FontSize="16"/>
-                    <TextBlock Text="新建实例" Margin="8,0,0,0" FontWeight="Medium"/>
-                </StackPanel>
-            </ui:Button>
-        </Grid>
-
-        <ui:Card Grid.Row="1" Margin="0,0,0,16" Padding="16">
+        <ui:Card Grid.Row="0" Margin="0,0,0,16" Padding="16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
@@ -72,13 +49,29 @@
                         Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                 </StackPanel>
 
-                <Border Grid.Column="1" Padding="14,10" CornerRadius="14" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                <Border Grid.Column="1" Padding="14,10" Margin="12,0,12,0" CornerRadius="14" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
                     <TextBlock Text="{Binding ViewModel.Instances.Count, ElementName=PageRoot, StringFormat='共 {0} 个实例'}" FontWeight="SemiBold"/>
                 </Border>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <ui:Button Command="{Binding ViewModel.RefreshInstancesCommand, ElementName=PageRoot}" Margin="0,0,8,0" Appearance="Secondary" ToolTip="刷新列表">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="16"/>
+                            <TextBlock Text="刷新" Margin="8,0,0,0" FontWeight="Medium"/>
+                        </StackPanel>
+                    </ui:Button>
+
+                    <ui:Button Command="{Binding ViewModel.CreateNewInstanceCommand, ElementName=PageRoot}" Appearance="Primary">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Add24" FontSize="16"/>
+                            <TextBlock Text="新建实例" Margin="8,0,0,0" FontWeight="Medium"/>
+                        </StackPanel>
+                    </ui:Button>
+                </StackPanel>
             </Grid>
         </ui:Card>
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <ItemsControl ItemsSource="{Binding ViewModel.Instances, ElementName=PageRoot}" HorizontalAlignment="Stretch">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -231,7 +224,7 @@
             </ItemsControl>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center"
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
             Visibility="{Binding ViewModel.Instances.Count, ElementName=PageRoot, Converter={StaticResource IntToVisibilityConverter}, ConverterParameter=inverse}">
             <Border Width="80" Height="80" CornerRadius="20" Background="{DynamicResource SubtleFillColorTertiaryBrush}" HorizontalAlignment="Center">
                 <ui:SymbolIcon Symbol="Server24" FontSize="36" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>

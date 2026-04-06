@@ -1,7 +1,8 @@
-﻿<ui:FluentWindow
+<ui:FluentWindow
   x:Class="SimplyMinecraftServerManager.Views.Windows.MainWindow"
   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:controls="clr-namespace:SimplyMinecraftServerManager.Controls"
   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Windows"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -17,21 +18,21 @@
   WindowBackdropType="Mica"
   WindowCornerPreference="Round"
   WindowStartupLocation="CenterScreen"
-  mc:Ignorable="d" WindowStyle="None"
+  mc:Ignorable="d"
+  WindowStyle="None"
   MinHeight="720"
-  MinWidth="1180"
->
+  MinWidth="1180">
   <Grid>
     <ui:TitleBar
       x:Name="TitleBar"
-      Title="{Binding ViewModel.ApplicationTitle}"
       Grid.Row="0"
-      CloseWindowByDoubleClickOnIcon="True"
-    >
+      Title="{Binding ViewModel.ApplicationTitle}"
+      CloseWindowByDoubleClickOnIcon="True">
       <ui:TitleBar.Icon>
         <ui:ImageIcon Source="pack://application:,,,/Assets/Pictures/SMSM-icon-256.jpg" />
       </ui:TitleBar.Icon>
     </ui:TitleBar>
+
     <ui:NavigationView
       x:Name="RootNavigation"
       Padding="24,0,24,20"
@@ -43,17 +44,32 @@
       MenuItemsSource="{Binding ViewModel.MenuItems, Mode=OneWay}"
       OpenPaneLength="250"
       PaneDisplayMode="Left"
-      TitleBar="{Binding ElementName=TitleBar, Mode=OneWay}"
-    >
+      TitleBar="{Binding ElementName=TitleBar, Mode=OneWay}">
       <ui:NavigationView.Header>
         <ui:BreadcrumbBar x:Name="BreadcrumbBar" Margin="24,20,24,12" />
       </ui:NavigationView.Header>
       <ui:NavigationView.ContentOverlay>
         <Grid>
-          <ui:SnackbarPresenter x:Name="SnackbarPresenter" />
+          <ItemsControl
+            Margin="0,16,18,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            ItemsSource="{Binding ViewModel.Notifications, Mode=OneWay}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Vertical" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <controls:NotificationToast Margin="0,0,0,12" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </Grid>
       </ui:NavigationView.ContentOverlay>
     </ui:NavigationView>
+
     <ui:ContentDialogHost x:Name="RootContentDialogPresenter" Grid.Row="0" />
   </Grid>
 </ui:FluentWindow>

@@ -1,4 +1,6 @@
 using SimplyMinecraftServerManager.Internals;
+using SimplyMinecraftServerManager.Models;
+using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.ViewModels.Pages;
 using System.Collections.ObjectModel;
 using Wpf.Ui.Controls;
@@ -28,14 +30,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         private Wpf.Ui.Controls.NavigationViewItem? _downloadTasksNavItem;
 
         private readonly DownloadsViewModel _downloadsViewModel;
+        private readonly AppNotificationService _notificationService;
 
-        public MainWindowViewModel(DownloadsViewModel downloadsViewModel)
+        public ObservableCollection<AppNotificationItem> Notifications => _notificationService.Notifications;
+
+        public MainWindowViewModel(DownloadsViewModel downloadsViewModel, AppNotificationService notificationService)
         {
             _downloadsViewModel = downloadsViewModel;
+            _notificationService = notificationService;
             
             // 订阅下载任务事件
             _downloadsViewModel.TaskCountChanged += OnTaskCountChanged;
-            _downloadsViewModel.InstallationCompleted += OnInstallationCompleted;
             
             _menuItems =
             [
@@ -118,31 +123,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         {
             UpdateDownloadTaskBadge(count);
         }
-
-        /// <summary>
-        /// 安装完成事件处理
-        /// </summary>
-        private void OnInstallationCompleted(object? sender, string message)
-        {
-            // 显示右下角弹窗通知
-            ShowNotification(message);
-        }
-
-        /// <summary>
-        /// 显示右下角弹窗通知
-        /// </summary>
-        private void ShowNotification(string message)
-        {
-            // 这里将触发UI更新，需要在UI线程执行
-            // 实际UI更新将在MainWindow.xaml.cs中处理
-            // 通过事件或命令通知主窗口显示弹窗
-            NotificationRequested?.Invoke(this, message);
-        }
-
-        /// <summary>
-        /// 通知请求事件
-        /// </summary>
-        public event EventHandler<string>? NotificationRequested;
 
         /// <summary>
         /// 刷新实例菜单（在运行时管理下面添加实例入口）

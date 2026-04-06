@@ -48,6 +48,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         private volatile int _maxConcurrent;
 
         public event EventHandler<DownloadProgressInfo>? ProgressChanged;
+        public event EventHandler<DownloadTask>? TaskQueued;
         public event EventHandler<DownloadTask>? TaskCompleted;
         public event EventHandler<DownloadTask>? TaskFailed;
         public event EventHandler<DownloadTask>? TaskInstalled;
@@ -171,9 +172,19 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         public Task<DownloadTask> EnqueueAsync(DownloadTask downloadTask)
         {
             _tasks[downloadTask.Id] = downloadTask;
+            TaskQueued?.Invoke(this, downloadTask);
             // 捕获当前 semaphore 引用，保证任务全生命周期使用同一个
             var semaphore = _semaphore;
             return Task.Run(() => ExecuteAsync(downloadTask, semaphore));
+        }
+
+        public DownloadTask Queue(DownloadTask downloadTask)
+        {
+            _tasks[downloadTask.Id] = downloadTask;
+            TaskQueued?.Invoke(this, downloadTask);
+            var semaphore = _semaphore;
+            _ = Task.Run(() => ExecuteAsync(downloadTask, semaphore));
+            return downloadTask;
         }
 
         public Task<DownloadTask> EnqueueAsync(
@@ -217,6 +228,30 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 TargetInstanceId = targetInstanceId
             };
             return EnqueueAsync(task);
+        }
+
+        public DownloadTask QueueDownloadAndInstall(
+            string url,
+            string destinationPath,
+            string targetInstanceId,
+            string displayName = "",
+            string? expectedHash = null,
+            string hashAlgorithm = "SHA256")
+        {
+            var task = new DownloadTask
+            {
+                Url = url,
+                DestinationPath = destinationPath,
+                DisplayName = string.IsNullOrEmpty(displayName)
+                    ? Path.GetFileName(destinationPath)
+                    : displayName,
+                ExpectedHash = expectedHash,
+                HashAlgorithm = hashAlgorithm,
+                Type = TaskType.DownloadAndInstall,
+                TargetInstanceId = targetInstanceId
+            };
+
+            return Queue(task);
         }
 
         public async Task<DownloadTask[]> EnqueueBatchAsync(IEnumerable<DownloadTask> tasks)

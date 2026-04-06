@@ -1,4 +1,6 @@
-﻿namespace SimplyMinecraftServerManager.Internals.Downloads
+using SimplyMinecraftServerManager.Models;
+
+namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     /// <summary>
     /// 下载任务状态枚举。
@@ -67,6 +69,24 @@
 
         /// <summary>目标实例ID（用于安装任务）</summary>
         public string? TargetInstanceId { get; init; }
+
+        /// <summary>任务创建时显示的通知</summary>
+        public TaskNotificationMessage? CreatedNotification { get; init; }
+
+        /// <summary>是否显示任务创建通知</summary>
+        public bool NotifyOnCreated { get; init; } = true;
+
+        /// <summary>任务完成时显示的通知</summary>
+        public TaskNotificationMessage? CompletedNotification { get; init; }
+
+        /// <summary>是否显示任务完成通知</summary>
+        public bool NotifyOnCompleted { get; init; } = true;
+
+        /// <summary>任务失败时显示的通知</summary>
+        public TaskNotificationMessage? FailedNotification { get; init; }
+
+        /// <summary>是否显示任务失败通知</summary>
+        public bool NotifyOnFailed { get; init; } = true;
 
         /// <summary>已下载字节数</summary>
         public long BytesDownloaded { get; internal set; }

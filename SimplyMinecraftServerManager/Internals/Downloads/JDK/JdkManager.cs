@@ -160,7 +160,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
                 Url = jdkInfo.DownloadUrl,
                 DestinationPath = tempArchive,
                 ExpectedHash = jdkInfo.Sha256,
-                HashAlgorithm = "SHA256"
+                HashAlgorithm = "SHA256",
+                NotifyOnCreated = false,
+                NotifyOnCompleted = false,
+                NotifyOnFailed = false
             };
 
             if (ct != default)

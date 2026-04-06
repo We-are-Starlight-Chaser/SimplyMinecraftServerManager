@@ -45,8 +45,8 @@
         /// <summary>最新版本 ID</summary>
         public string LatestVersionId { get; set; } = "";
 
-        /// <summary>最新版本号</summary>
-        public string LatestVersionNumber { get; set; } = "";
+        /// <summary>搜索结果中的最新支持 Minecraft 版本</summary>
+        public string LatestGameVersion { get; set; } = "";
 
         /// <summary>Modrinth 页面 URL</summary>
         public string Url => $"https://modrinth.com/{ProjectType}/{Slug}";

@@ -1,4 +1,5 @@
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
+using SimplyMinecraftServerManager.Services;
 using System.Collections.ObjectModel;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
@@ -9,6 +10,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     public partial class JdkViewModel : ObservableObject, INavigationAware
     {
         private readonly IContentDialogService _contentDialogService;
+        private readonly AppNotificationService _notificationService;
 
         [ObservableProperty]
         private ObservableCollection<InstalledJdkDisplayItem> _installedJdks = [];
@@ -34,9 +36,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private string _installStatus = "";
 
-        public JdkViewModel(IContentDialogService contentDialogService)
+        public JdkViewModel(IContentDialogService contentDialogService, AppNotificationService notificationService)
         {
             _contentDialogService = contentDialogService;
+            _notificationService = notificationService;
         }
 
         public async Task OnNavigatedToAsync()
@@ -117,6 +120,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     ? JdkDistribution.Adoptium
                     : JdkDistribution.Zulu;
 
+                _notificationService.ShowInfo(
+                    "任务已创建",
+                    $"开始下载 JDK {distribution} {SelectedJdkMajorVersion}...");
+
                 var installed = await JdkManager.AutoInstallAsync(
                     SelectedJdkMajorVersion,
                     distribution,
@@ -129,11 +136,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 );
 
                 InstallStatus = $"安装完成: {installed.JavaExecutable}";
+                _notificationService.ShowSuccess(
+                    "任务已完成",
+                    $"已安装 JDK {installed.Distribution} {installed.FullVersion}。");
                 LoadInstalledJdks();
             }
             catch (Exception ex)
             {
                 InstallStatus = $"安装失败: {ex.Message}";
+                _notificationService.ShowDanger(
+                    "任务失败",
+                    $"JDK {SelectedJdkMajorVersion} 安装失败：{ex.Message}");
             }
             finally
             {
