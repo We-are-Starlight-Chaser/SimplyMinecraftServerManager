@@ -95,6 +95,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         [ObservableProperty]
         private string _pluginSearchContextText = "未选择目标实例";
+        private int _pluginSearchRequestId = 0;
+        private CancellationTokenSource? _pluginSearchCancellationTokenSource;
 
         // 插件分页相关字段
         private List<ModrinthProject> _allPluginResults = [];
@@ -139,6 +141,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public Task OnNavigatedFromAsync()
         {
             _loadCancellationTokenSource?.Cancel();
+            CancelPluginSearch();
             return Task.CompletedTask;
         }
 
@@ -594,6 +597,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         partial void OnSelectedPluginTargetInstanceChanged(PluginTargetInstanceItem? value)
         {
+            CancelPluginSearch();
             HasSelectedPluginTarget = value != null;
             PluginSearchResults.Clear();
             _allPluginResults.Clear();
@@ -623,11 +627,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private async Task SearchPluginsAsync()
         {
-            if (IsSearchingPlugins)
-            {
-                return;
-            }
-
             if (SelectedPluginTargetInstance == null)
             {
                 PluginSearchStatus = "请先选择目标实例。";
@@ -640,6 +639,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 return;
             }
 
+            CancelPluginSearch();
+            _pluginSearchCancellationTokenSource = new CancellationTokenSource();
+            CancellationToken cancellationToken = _pluginSearchCancellationTokenSource.Token;
+            int requestId = ++_pluginSearchRequestId;
+            var targetInstance = SelectedPluginTargetInstance;
+            string query = PluginSearchQuery.Trim();
+
             IsSearchingPlugins = true;
             PluginSearchResults.Clear();
             _allPluginResults.Clear();
@@ -647,37 +653,57 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _pluginSearchOffset = 0;
             _pluginTotalHits = 0;
             HasMorePlugins = false;
-            PluginSearchStatus = $"正在搜索兼容 {SelectedPluginTargetInstance.Name} 的插件...";
+            PluginSearchStatus = $"正在搜索兼容 {targetInstance.Name} 的插件...";
 
             try
             {
                 var modrinth = new ModrinthProvider();
                 var result = await modrinth.SearchAsync(
-                    PluginSearchQuery.Trim(),
-                    loaders: SelectedPluginTargetInstance.LoaderFilters,
-                    gameVersions: SelectedPluginTargetInstance.VersionFilters,
+                    query,
+                    loaders: targetInstance.LoaderFilters,
+                    gameVersions: targetInstance.VersionFilters,
                     projectType: "plugin",
                     limit: _pluginPageSize,
-                    offset: _pluginSearchOffset);
+                    offset: _pluginSearchOffset,
+                    ct: cancellationToken);
+
+                if (!IsCurrentPluginSearch(requestId, targetInstance))
+                {
+                    return;
+                }
 
                 _allPluginResults = [.. result.Hits];
                 _pluginTotalHits = result.TotalHits;
                 _pluginSearchOffset += result.Limit;
                 HasMorePlugins = _pluginTotalHits > _allPluginResults.Count;
 
-                await LoadPluginsPageAsync(0, _pluginPageSize, SelectedPluginTargetInstance);
+                await LoadPluginsPageAsync(0, _pluginPageSize, targetInstance);
+
+                if (!IsCurrentPluginSearch(requestId, targetInstance))
+                {
+                    return;
+                }
 
                 PluginSearchStatus = _pluginTotalHits == 0
-                    ? $"没有找到兼容 {SelectedPluginTargetInstance.ServerTypeDisplay} / {SelectedPluginTargetInstance.MinecraftVersionDisplay} 的结果。"
+                    ? $"没有找到兼容 {targetInstance.ServerTypeDisplay} / {targetInstance.MinecraftVersionDisplay} 的结果。"
                     : $"找到 {_pluginTotalHits} 个结果，已展示 {PluginSearchResults.Count} 个。";
+            }
+            catch (OperationCanceledException)
+            {
             }
             catch (Exception ex)
             {
-                PluginSearchStatus = $"搜索失败: {ex.Message}";
+                if (IsCurrentPluginSearch(requestId, targetInstance))
+                {
+                    PluginSearchStatus = $"搜索失败: {ex.Message}";
+                }
             }
             finally
             {
-                IsSearchingPlugins = false;
+                if (requestId == _pluginSearchRequestId)
+                {
+                    IsSearchingPlugins = false;
+                }
             }
         }
 
@@ -690,6 +716,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
 
             IsLoadingMorePlugins = true;
+            var targetInstance = SelectedPluginTargetInstance;
+            int requestId = _pluginSearchRequestId;
+            CancellationToken cancellationToken = _pluginSearchCancellationTokenSource?.Token ?? CancellationToken.None;
 
             try
             {
@@ -698,28 +727,60 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     var modrinth = new ModrinthProvider();
                     var result = await modrinth.SearchAsync(
                         PluginSearchQuery.Trim(),
-                        loaders: SelectedPluginTargetInstance.LoaderFilters,
-                        gameVersions: SelectedPluginTargetInstance.VersionFilters,
+                        loaders: targetInstance.LoaderFilters,
+                        gameVersions: targetInstance.VersionFilters,
                         projectType: "plugin",
                         limit: _pluginPageSize,
-                        offset: _pluginSearchOffset);
+                        offset: _pluginSearchOffset,
+                        ct: cancellationToken);
+
+                    if (!IsCurrentPluginSearch(requestId, targetInstance))
+                    {
+                        return;
+                    }
 
                     _allPluginResults.AddRange(result.Hits);
                     _pluginSearchOffset += result.Limit;
                 }
 
-                await LoadPluginsPageAsync(_loadedPluginCount, _pluginPageSize, SelectedPluginTargetInstance);
+                await LoadPluginsPageAsync(_loadedPluginCount, _pluginPageSize, targetInstance);
+                if (!IsCurrentPluginSearch(requestId, targetInstance))
+                {
+                    return;
+                }
+
                 HasMorePlugins = _loadedPluginCount < _pluginTotalHits;
                 PluginSearchStatus = $"已展示 {PluginSearchResults.Count} / {_pluginTotalHits} 个结果。";
             }
+            catch (OperationCanceledException)
+            {
+            }
             catch (Exception ex)
             {
-                PluginSearchStatus = $"加载失败: {ex.Message}";
+                if (IsCurrentPluginSearch(requestId, targetInstance))
+                {
+                    PluginSearchStatus = $"加载失败: {ex.Message}";
+                }
             }
             finally
             {
                 IsLoadingMorePlugins = false;
             }
+        }
+
+        private void CancelPluginSearch()
+        {
+            _pluginSearchCancellationTokenSource?.Cancel();
+            _pluginSearchCancellationTokenSource?.Dispose();
+            _pluginSearchCancellationTokenSource = null;
+            IsSearchingPlugins = false;
+            IsLoadingMorePlugins = false;
+        }
+
+        private bool IsCurrentPluginSearch(int requestId, PluginTargetInstanceItem targetInstance)
+        {
+            return requestId == _pluginSearchRequestId
+                && SelectedPluginTargetInstance?.InstanceId == targetInstance.InstanceId;
         }
 
         private async Task LoadPluginsPageAsync(int startIndex, int count, PluginTargetInstanceItem targetInstance)

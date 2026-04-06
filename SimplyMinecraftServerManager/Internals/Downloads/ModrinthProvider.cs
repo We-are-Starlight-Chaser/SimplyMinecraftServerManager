@@ -318,7 +318,6 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 ServerSide = GetStr(elem, "server_side"),
                 ClientSide = GetStr(elem, "client_side"),
                 LatestVersionId = GetStr(elem, "latest_version"),
-                LatestGameVersion = GetStr(elem, "latest_version"),
             };
 
             if (elem.TryGetProperty("versions", out var versions))
@@ -327,6 +326,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                     .Select(v => v.GetString()!)
                     .ToList();
             }
+
+            project.LatestGameVersion = GetLatestGameVersion(project.GameVersions);
 
             if (elem.TryGetProperty("categories", out var cats))
             {
@@ -349,6 +350,28 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             }
 
             return project;
+        }
+
+        private static string GetLatestGameVersion(IEnumerable<string> gameVersions)
+        {
+            return gameVersions
+                .Where(static version => !string.IsNullOrWhiteSpace(version))
+                .OrderByDescending(ParseComparableMinecraftVersion)
+                .FirstOrDefault() ?? "";
+        }
+
+        private static Version ParseComparableMinecraftVersion(string version)
+        {
+            string normalized = version;
+            int separatorIndex = normalized.IndexOfAny(['-', '+']);
+            if (separatorIndex >= 0)
+            {
+                normalized = normalized[..separatorIndex];
+            }
+
+            return Version.TryParse(normalized, out var parsed)
+                ? parsed
+                : new Version(0, 0);
         }
 
         private static ModrinthProject ParseProjectDetail(JsonElement elem)
