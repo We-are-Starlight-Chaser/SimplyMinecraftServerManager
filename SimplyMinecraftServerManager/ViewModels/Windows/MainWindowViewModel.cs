@@ -59,7 +59,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
                 },
                 new NavigationViewItem()
                 {
-                    Content = "JDK 管理",
+                    Content = "运行时管理",
                     Icon = new SymbolIcon { Symbol = SymbolRegular.DeveloperBoard24 },
                     TargetPageType = typeof(Views.Pages.JdkPage)
                 }
@@ -145,7 +145,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         public event EventHandler<string>? NotificationRequested;
 
         /// <summary>
-        /// 刷新实例菜单（在 JDK 管理下面添加实例入口）
+        /// 刷新实例菜单（在运行时管理下面添加实例入口）
         /// </summary>
         public void RefreshInstanceMenus()
         {

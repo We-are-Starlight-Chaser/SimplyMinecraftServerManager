@@ -7,7 +7,7 @@
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
   x:Name="JdkPageRoot"
-  Title="JDK 管理"
+  Title="运行时管理"
   d:DataContext="{d:DesignInstance local:JdkPage, IsDesignTimeCreatable=False}"
   d:DesignHeight="600"
   d:DesignWidth="900"
@@ -33,7 +33,7 @@
             <StackPanel Grid.Column="0" Orientation="Horizontal">
                 <ui:SymbolIcon Symbol="DeveloperBoard24" FontSize="28" 
                     Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
-                <TextBlock Text="JDK 管理" FontSize="24" FontWeight="Medium" 
+                <TextBlock Text="运行时管理" FontSize="24" FontWeight="Medium" 
                     VerticalAlignment="Center" Margin="12,0,0,0"/>
             </StackPanel>
 
