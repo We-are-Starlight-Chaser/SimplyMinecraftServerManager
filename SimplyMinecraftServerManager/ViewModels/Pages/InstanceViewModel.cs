@@ -2,8 +2,10 @@ using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
+using SimplyMinecraftServerManager.Helpers;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
@@ -209,35 +211,51 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             process.ErrorReceived += OnProcessErrorReceived;
         }
 
+private ThrottledDispatcher? _consoleThrottler;
+        private readonly List<string> _pendingConsoleLines = new();
+        private readonly object _pendingConsoleLock = new();
+
         private void OnProcessOutputReceived(object? sender, string line)
         {
-            RunOnUiThread(() =>
+            lock (_pendingConsoleLock)
             {
-                AppendConsoleLine(line);
-            });
+                _pendingConsoleLines.Add(line);
+            }
+            EnsureConsoleThrottler();
         }
 
         private void OnProcessErrorReceived(object? sender, string line)
         {
-            RunOnUiThread(() =>
+            lock (_pendingConsoleLock)
             {
-                AppendConsoleLine("[ERR] " + line);
-            });
+                _pendingConsoleLines.Add("[ERR] " + line);
+            }
+            EnsureConsoleThrottler();
         }
 
-        private static void RunOnUiThread(Action action)
+        private void EnsureConsoleThrottler()
         {
-            var dispatcher = Application.Current?.Dispatcher;
-            if (dispatcher == null || dispatcher.CheckAccess())
+            _consoleThrottler ??= new ThrottledDispatcher(DispatcherPriority.Background, 50);
+            _consoleThrottler.Invoke(FlushPendingConsoleLines);
+        }
+
+        private void FlushPendingConsoleLines()
+        {
+            List<string> lines;
+            lock (_pendingConsoleLock)
             {
-                action();
-                return;
+                if (_pendingConsoleLines.Count == 0) return;
+                lines = new List<string>(_pendingConsoleLines);
+                _pendingConsoleLines.Clear();
             }
 
-            _ = dispatcher.InvokeAsync(action);
+            foreach (var line in lines)
+            {
+                AppendConsoleLineInternal(line);
+            }
         }
 
-        private void AppendConsoleLine(string line)
+        private void AppendConsoleLineInternal(string line)
         {
             lock (_consoleLock)
             {
@@ -247,9 +265,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     _consoleLines.RemoveAt(0);
                 }
             }
-
-            // 触发事件通知 UI
             ConsoleLineAdded?.Invoke(this, line);
+        }
+
+private void AppendConsoleLine(string line)
+        {
+            AppendConsoleLineInternal(line);
+        }
+
+        private static void RunOnUiThread(Action action)
+        {
+            DispatcherHelper.InvokeIfNeeded(action);
         }
 
         [RelayCommand]

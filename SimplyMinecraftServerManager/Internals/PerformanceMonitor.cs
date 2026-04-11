@@ -28,7 +28,7 @@ namespace SimplyMinecraftServerManager.Internals
     /// <summary>
     /// 服务器性能监控器，用于监控运行中的服务器进程。
     /// </summary>
-    public class PerformanceMonitor(string instanceId) : IDisposable
+public class PerformanceMonitor(string instanceId) : IDisposable
     {
         private readonly string _instanceId = instanceId;
         private Timer? _monitorTimer;
@@ -36,6 +36,11 @@ namespace SimplyMinecraftServerManager.Internals
         private Process? _targetProcess;
         private DateTime _lastCpuTime = DateTime.MinValue;
         private TimeSpan _lastTotalProcessorTime = TimeSpan.Zero;
+
+        private long _cachedStorageMb;
+        private Dictionary<string, long> _cachedWorldSizes = new();
+        private DateTime _lastStorageCacheTime = DateTime.MinValue;
+        private readonly int _storageCacheIntervalMs = 30000;
 
         public string InstanceId => _instanceId;
 
@@ -150,11 +155,11 @@ namespace SimplyMinecraftServerManager.Internals
                 }
                 catch { }
 
-                // 限制 CPU 显示范围
+// 限制 CPU 显示范围
                 cpuUsage = Math.Clamp(cpuUsage, 0, 100 * Environment.ProcessorCount);
 
-                // 获取存储空间使用
-                var (TotalMb, WorldSizes) = GetStorageUsage();
+                // 获取存储空间使用（使用缓存，减少频繁计算）
+                var (TotalMb, WorldSizes) = GetStorageUsageCached();
 
                 var data = new PerformanceData
                 {
@@ -203,7 +208,18 @@ namespace SimplyMinecraftServerManager.Internals
             }
             catch { }
 
-            return (totalBytes / (1024 * 1024), worldSizes);
+return (totalBytes / (1024 * 1024), worldSizes);
+        }
+
+        private (long TotalMb, Dictionary<string, long> WorldSizes) GetStorageUsageCached()
+        {
+            var now = DateTime.Now;
+            if ((now - _lastStorageCacheTime).TotalMilliseconds >= _storageCacheIntervalMs)
+            {
+                (_cachedStorageMb, _cachedWorldSizes) = GetStorageUsage();
+                _lastStorageCacheTime = now;
+            }
+            return (_cachedStorageMb, _cachedWorldSizes);
         }
 
         private static long GetDirectorySize(string path)
