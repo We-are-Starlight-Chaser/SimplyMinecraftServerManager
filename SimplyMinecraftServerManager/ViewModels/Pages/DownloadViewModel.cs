@@ -374,7 +374,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(tempPath)!);
 
                 ServerDownloadStatus = $"正在下载服务端: {card.LatestBuild.FileName}";
-                await platform.DownloadAsync(card.LatestBuild, tempPath);
+                var res = await platform.DownloadAsync(card.LatestBuild, tempPath);
+                if (res.Status == DownloadStatus.Failed || res.Status == DownloadStatus.Cancelled || res.Status == DownloadStatus.Paused) throw new Exception("Download failed!");
                 ServerDownloadStatus = $"下载完成，准备创建实例...";
 
                 // 获取平台名称
@@ -916,7 +917,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return dialog.SelectedVersionItem;
         }
 
-        private async Task<List<ModrinthVersion>> LoadPluginVersionsAsync(ModrinthProject project, PluginTargetInstanceItem targetInstance)
+        private static async Task<List<ModrinthVersion>> LoadPluginVersionsAsync(ModrinthProject project, PluginTargetInstanceItem targetInstance)
         {
             var provider = new ModrinthProvider();
             var versions = await provider.GetVersionsAsync(
@@ -940,7 +941,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 .ToList());
         }
 
-        private void QueuePluginInstall(ModrinthProject project, ModrinthVersion version, PluginTargetInstanceItem targetInstance)
+        private static void QueuePluginInstall(ModrinthProject project, ModrinthVersion version, PluginTargetInstanceItem targetInstance)
         {
             var primaryFile = version.PrimaryFile ?? throw new InvalidOperationException("所选版本没有可用主文件。");
             var (expectedHash, hashAlgorithm) = GetPreferredHash(primaryFile);
@@ -968,7 +969,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
-        private void QueuePluginSave(ModrinthProject project, ModrinthVersion version, string destinationPath)
+        private static void QueuePluginSave(ModrinthProject project, ModrinthVersion version, string destinationPath)
         {
             var primaryFile = version.PrimaryFile ?? throw new InvalidOperationException("所选版本没有可用主文件。");
             var (expectedHash, hashAlgorithm) = GetPreferredHash(primaryFile);
@@ -1245,7 +1246,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return value.ToString(CultureInfo.InvariantCulture);
         }
 
-        private static string FormatGameVersionRange(IReadOnlyCollection<string>? versions)
+        private static string FormatGameVersionRange(List<string>? versions)
         {
             if (versions == null || versions.Count == 0)
             {

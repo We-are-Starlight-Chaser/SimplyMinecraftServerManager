@@ -116,6 +116,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public void Dispose()
         {
             ServerProcessManager.InstanceStatusChanged -= OnInstanceStatusChanged;
+            GC.SuppressFinalize(this);
         }
 
         [RelayCommand]
@@ -614,19 +615,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
-    public class JdkDisplayItem
+    public class JdkDisplayItem(InstalledJdk jdk)
     {
-        public string DisplayName { get; }
-        public string JavaPath { get; }
-        public int MajorVersion { get; }
-        public string Distribution { get; }
-
-        public JdkDisplayItem(InstalledJdk jdk)
-        {
-            DisplayName = $"{jdk.Distribution} JDK {jdk.MajorVersion} ({jdk.Architecture})";
-            JavaPath = jdk.JavaExecutable;
-            MajorVersion = jdk.MajorVersion;
-            Distribution = jdk.Distribution.ToString();
-        }
+        public string DisplayName { get; } = $"{jdk.Distribution} JDK {jdk.MajorVersion} ({jdk.Architecture})";
+        public string JavaPath { get; } = jdk.JavaExecutable;
+        public int MajorVersion { get; } = jdk.MajorVersion;
+        public string Distribution { get; } = jdk.Distribution.ToString();
     }
 }

@@ -133,7 +133,7 @@ namespace SimplyMinecraftServerManager.Helpers
         {
             if (value is long bytes)
             {
-                string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
+                string[] suffixes = ["B", "KB", "MB", "GB", "TB"];
                 int i = 0;
                 double size = bytes;
                 while (size >= 1024 && i < suffixes.Length - 1)
@@ -193,7 +193,7 @@ namespace SimplyMinecraftServerManager.Helpers
                 var isDark = Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark;
 
                 var colorHex = isDark ? darkColor : lightColor;
-                if (colorHex.StartsWith("#") && colorHex.Length == 7)
+                if (colorHex.StartsWith('#') && colorHex.Length == 7)
                 {
                     var color = (Color)ColorConverter.ConvertFromString(colorHex);
                     return new SolidColorBrush(color);
@@ -567,6 +567,20 @@ namespace SimplyMinecraftServerManager.Helpers
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+    internal class MultiBooleanConverter : IMultiValueConverter
+    {
+
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if ((bool)values[0] == true || (bool)values[1] == true) return false;
+            return true;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
         {
             throw new NotImplementedException();
         }

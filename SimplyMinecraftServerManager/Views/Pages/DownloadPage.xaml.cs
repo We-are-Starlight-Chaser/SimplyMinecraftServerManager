@@ -39,8 +39,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
 
         private void OnServerVersionsScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            var scrollViewer = sender as ScrollViewer;
-            if (scrollViewer == null) return;
+            if (sender is not ScrollViewer scrollViewer) return;
 
             // 检查是否滚动到底部
             if (scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight - 100 && 
@@ -72,11 +71,9 @@ namespace SimplyMinecraftServerManager.Views.Pages
         public void Dispose()
         {
             _scrollDebounceTimer?.Stop();
-            if (_scrollDebounceTimer != null)
-            {
-                _scrollDebounceTimer.Tick -= OnScrollDebounceTimerTick;
-                _scrollDebounceTimer = null;
-            }
+            _scrollDebounceTimer?.Tick -= OnScrollDebounceTimerTick;
+            _scrollDebounceTimer = null;
+            GC.SuppressFinalize(this);
         }
     }
 }

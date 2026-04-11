@@ -7,6 +7,7 @@
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+  xmlns:converters="clr-namespace:SimplyMinecraftServerManager.Helpers"
   Title="下载"
   d:DataContext="{d:DesignInstance local:DownloadPage, IsDesignTimeCreatable=False}"
   d:DesignHeight="600"
@@ -15,6 +16,9 @@
   ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
   mc:Ignorable="d"
 >
+    <Page.Resources>
+        <converters:MultiBooleanConverter x:Key="MultiBooleanConverter" />
+    </Page.Resources>
     <Grid>
         <TabControl>
             <TabItem Header="服务端">
@@ -48,6 +52,7 @@
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                 <ComboBox 
                                     SelectedIndex="{Binding ViewModel.SelectedServerPlatformIndex, Mode=TwoWay}"
+                                    IsEnabled="{Binding ViewModel.IsLoadingVersions,Converter={StaticResource InverseBooleanConverter}}"
                                     Width="140" Margin="0,0,8,0">
                                     <ComboBoxItem Content="Paper"/>
                                     <ComboBoxItem Content="Folia"/>
