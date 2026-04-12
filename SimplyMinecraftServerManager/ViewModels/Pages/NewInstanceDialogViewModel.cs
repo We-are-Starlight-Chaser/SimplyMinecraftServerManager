@@ -4,6 +4,7 @@ using Wpf.Ui.Abstractions.Controls;
 using Microsoft.Win32;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
+using System.Windows.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
@@ -40,7 +41,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private string _instanceName = "";
 
         [ObservableProperty]
-        private string _serverType = "paper";
+        private string _serverType = "Paper";
 
         [ObservableProperty]
         private string? _selectedVersion;
@@ -69,7 +70,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public ObservableCollection<string> AvailableVersions => _availableVersions;
         public ObservableCollection<JdkDisplayItem> AvailableJdks => _availableJdks;
 
-        public string[] ServerTypes => ["paper", "purpur", "leaves", "leaf"];
+        public string[] ServerTypes => ["Paper", "Purpur", "Leaves", "Leaf", "Folia"];
 
         [RelayCommand]
         private void BrowseCustomJar()

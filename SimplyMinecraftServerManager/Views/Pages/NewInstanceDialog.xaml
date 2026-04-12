@@ -45,7 +45,7 @@
         <StackPanel Grid.Row="1" Margin="0,0,0,12">
             <TextBlock Text="服务端类型" FontWeight="Medium" Margin="0,0,0,4"/>
             <ComboBox ItemsSource="{Binding ServerTypes}"
-                SelectedItem="{Binding ServerType, Mode=TwoWay}"
+                SelectedValue="{Binding ServerType, Mode=TwoWay}"
                 Width="350"/>
         </StackPanel>
         <StackPanel Grid.Row="2" Margin="0,0,0,12">

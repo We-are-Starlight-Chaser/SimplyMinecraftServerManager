@@ -4,6 +4,7 @@ using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Views.Pages;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
@@ -188,16 +189,34 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     }
                 }
 
-                var platform = vm.ServerType.ToLowerInvariant() switch
+                var platform = vm.ServerType switch
                 {
-                    "paper" => ServerPlatform.Paper,
-                    "purpur" => ServerPlatform.Purpur,
-                    "leaves" => ServerPlatform.Leaves,
-                    "leaf" => ServerPlatform.Leaf,
+                    "Paper" => ServerPlatform.Paper,
+                    "Purpur" => ServerPlatform.Purpur,
+                    "Leaves" => ServerPlatform.Leaves,
+                    "Leaf" => ServerPlatform.Leaf,
+                    "Foila" => ServerPlatform.Folia,
                     _ => ServerPlatform.Paper
                 };
 
                 var provider = ServerProviderFactory.Get(platform);
+                    if (vm.UseCustomJar) {
+                        instance = InstanceManager.CreateInstance(
+                        name: vm.InstanceName,
+                        serverType: vm.ServerType,
+                        minecraftVersion: vm.SelectedVersion,
+                        jdkPath: javaPath,
+                        serverJarSourcePath: vm.CustomJarPath!,
+                        minMemoryMb: vm.MinMemory,
+                        maxMemoryMb: vm.MaxMemory
+                    );
+                    Instances.Add(new InstanceDisplayItem(instance));
+
+                    // 关闭对话框并显示成功消息
+                    dialog.Hide();
+                    StatusMessage = $"实例 \"{instance.Name}\" 创建成功";
+                    return;
+                }
                 var build = await provider.GetLatestBuildAsync(vm.SelectedVersion);
 
                 if (build == null)

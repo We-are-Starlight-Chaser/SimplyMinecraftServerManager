@@ -212,8 +212,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
 private ThrottledDispatcher? _consoleThrottler;
-        private readonly List<string> _pendingConsoleLines = new();
-        private readonly object _pendingConsoleLock = new();
+        private readonly List<string> _pendingConsoleLines = [];
+        private readonly Lock _pendingConsoleLock = new();
 
         private void OnProcessOutputReceived(object? sender, string line)
         {
@@ -245,7 +245,7 @@ private ThrottledDispatcher? _consoleThrottler;
             lock (_pendingConsoleLock)
             {
                 if (_pendingConsoleLines.Count == 0) return;
-                lines = new List<string>(_pendingConsoleLines);
+                lines = [.. _pendingConsoleLines];
                 _pendingConsoleLines.Clear();
             }
 
@@ -314,7 +314,7 @@ private void AppendConsoleLine(string line)
         {
             lock (_consoleLock)
             {
-                return _consoleLines.ToArray();
+                return [.. _consoleLines];
             }
         }
 
