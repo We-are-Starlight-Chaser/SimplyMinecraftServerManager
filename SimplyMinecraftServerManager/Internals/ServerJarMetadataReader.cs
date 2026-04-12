@@ -189,22 +189,53 @@ namespace SimplyMinecraftServerManager.Internals
 
         private static string? DetectServerTypeFromEntries(ZipArchive archive)
         {
+            string? fallbackType = null;
+
             foreach (var entry in archive.Entries)
             {
-                var lowerName = entry.FullName.ToLowerInvariant();
+                var detectedType = DetectServerTypeFromEntryName(entry.FullName);
+                if (string.IsNullOrWhiteSpace(detectedType))
+                {
+                    continue;
+                }
 
-                if (lowerName.Contains("paperclip")) return "paper";
-                if (lowerName.Contains("io/papermc/")) return "paper";
-                if (lowerName.Contains("gg/pufferfish/")) return "pufferfish";
-                if (lowerName.Contains("org/bukkit/")) return "bukkit";
-                if (lowerName.Contains("org/spigotmc/")) return "spigot";
-                if (lowerName.Contains("net/fabricmc/")) return "fabric";
-                if (lowerName.Contains("net/minecraftforge/")) return "forge";
-                if (lowerName.Contains("net/neoforged/")) return "neoforge";
-                if (lowerName.Contains("mohist")) return "mohist";
-                if (lowerName.Contains("magma")) return "magma";
-                if (lowerName.Contains("arclight")) return "arclight";
+                // Folia 仍然包含大量 Paper 包路径，必须优先吃掉更具体的特征。
+                if (string.Equals(detectedType, "folia", StringComparison.Ordinal))
+                {
+                    return detectedType;
+                }
+
+                fallbackType ??= detectedType;
             }
+
+            return fallbackType;
+        }
+
+        private static string? DetectServerTypeFromEntryName(string? entryName)
+        {
+            if (string.IsNullOrWhiteSpace(entryName))
+            {
+                return null;
+            }
+
+            var lowerName = entryName.Replace('\\', '/').ToLowerInvariant();
+
+            if (lowerName.Contains("folia")) return "folia";
+            if (lowerName.Contains("threadedregions")) return "folia";
+            if (lowerName.Contains("regionizedserver")) return "folia";
+            if (lowerName.Contains("regionscheduler")) return "folia";
+            if (lowerName.Contains("entityscheduler")) return "folia";
+            if (lowerName.Contains("paperclip")) return "paper";
+            if (lowerName.Contains("io/papermc/")) return "paper";
+            if (lowerName.Contains("gg/pufferfish/")) return "pufferfish";
+            if (lowerName.Contains("org/bukkit/")) return "bukkit";
+            if (lowerName.Contains("org/spigotmc/")) return "spigot";
+            if (lowerName.Contains("net/fabricmc/")) return "fabric";
+            if (lowerName.Contains("net/minecraftforge/")) return "forge";
+            if (lowerName.Contains("net/neoforged/")) return "neoforge";
+            if (lowerName.Contains("mohist")) return "mohist";
+            if (lowerName.Contains("magma")) return "magma";
+            if (lowerName.Contains("arclight")) return "arclight";
 
             return null;
         }
