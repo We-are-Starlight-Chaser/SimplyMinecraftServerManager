@@ -33,6 +33,11 @@ namespace SimplyMinecraftServerManager.Views.Pages
             {
                 ViewModel.RefreshDashboardCommand.Execute(null);
             }
+
+            if (e.AddedItems.Count > 0 && e.AddedItems[0] is TabItem selectedTab && selectedTab == PlayersTabItem)
+            {
+                ViewModel.RefreshPlayersCommand.Execute(null);
+            }
         }
     }
 }

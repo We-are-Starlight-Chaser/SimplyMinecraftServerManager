@@ -203,7 +203,6 @@
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
@@ -220,60 +219,47 @@
                                         VerticalAlignment="Center"/>
                                 </StackPanel>
 
-                                <ListView Grid.Row="2" 
-                                    ItemsSource="{Binding ViewModel.OnlinePlayers, ElementName=PageRoot,IsAsync=True}"
-                                    BorderThickness="0"
-                                    MaxHeight="200">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border BorderThickness="0" Padding="8" CornerRadius="4" >
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <Grid Grid.Row="1" MinHeight="96">
+                                    <ListView
+                                        ItemsSource="{Binding ViewModel.OnlinePlayers, ElementName=PageRoot, IsAsync=True}"
+                                        BorderThickness="0"
+                                        MaxHeight="200">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderThickness="0" Padding="8,6" CornerRadius="4">
+                                                    <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="{Binding Name}" FontWeight="Medium" VerticalAlignment="Center"/>
-                                                        <TextBlock Text=" (ID: " FontSize="11" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="{Binding Id}" FontSize="11" VerticalAlignment="Center"/>
-                                                        <TextBlock Text=")" FontSize="11" VerticalAlignment="Center"/>
-                                                        <TextBlock Text=" [OP]" FontSize="11" Foreground="#FFC107" FontWeight="Bold" 
-                                                            Visibility="{Binding IsOp, Converter={StaticResource BooleanToVisibilityConverter}}" 
-                                                            Margin="4,0,0,0" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                        <ui:Button 
-                                                            Command="{Binding DataContext.ViewModel.SetPlayerAsOpCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="设为OP"
-                                                            Margin="4,0,0,0"
-                                                            Appearance="Secondary"
-                                                            Padding="8,2"
+                                                        <TextBlock
+                                                            Text="管理员"
+                                                            Margin="8,0,0,0"
+                                                            Padding="6,1"
                                                             FontSize="11"
-                                                            Visibility="{Binding IsOp, Converter={StaticResource InverseBooleanToVisibilityConverter}}"/>
-                                                        <ui:Button 
-                                                            Command="{Binding DataContext.ViewModel.RemovePlayerOpCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="取消OP"
-                                                            Margin="4,0,0,0"
-                                                            Appearance="Secondary"
-                                                            Padding="8,2"
-                                                            FontSize="11"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="#8A5A00"
+                                                            Background="#FFF0C2"
                                                             Visibility="{Binding IsOp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                        <ui:Button 
-                                                            Command="{Binding DataContext.ViewModel.KickPlayerCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="踢出"
-                                                            Margin="4,0,0,0"
-                                                            Appearance="Caution"
-                                                            Padding="8,2"
-                                                            FontSize="11"/>
                                                     </StackPanel>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+
+                                    <StackPanel
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding ViewModel.ShowOnlinePlayersHint, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ui:ProgressRing
+                                            Width="22"
+                                            Height="22"
+                                            Margin="0,0,0,8"
+                                            IsIndeterminate="True"
+                                            Visibility="{Binding ViewModel.IsRefreshingPlayers, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock
+                                            Text="{Binding ViewModel.OnlinePlayersHint, ElementName=PageRoot}"
+                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                            HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
                             </Grid>
                         </ui:Card>
 
@@ -440,6 +426,248 @@
                                         </ListView>
                                     </Grid>
                                 </ui:Card>
+                            </Grid>
+                        </ui:Card>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="玩家" x:Name="PlayersTabItem">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock
+                                Grid.Column="0"
+                                Text="{Binding ViewModel.PlayerDataCount, ElementName=PageRoot, StringFormat='服务器上拥有 {0} 位玩家数据'}"
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                VerticalAlignment="Center"/>
+
+                            <ui:Button
+                                Grid.Column="1"
+                                Command="{Binding ViewModel.RefreshPlayersCommand, ElementName=PageRoot}"
+                                Appearance="Secondary">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="ArrowSync24"/>
+                                    <TextBlock Text="刷新" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </ui:Button>
+                        </Grid>
+
+                        <ui:Card Padding="18" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                                    <TextBlock Text="在线玩家" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <TextBlock
+                                        Text="{Binding ViewModel.OnlinePlayersCount, ElementName=PageRoot}"
+                                        Margin="8,0,0,0"
+                                        FontSize="16"
+                                        FontWeight="SemiBold"
+                                        Foreground="{DynamicResource AccentFillColorDefaultBrush}"/>
+                                    <TextBlock Text="/" Margin="4,0" VerticalAlignment="Center"/>
+                                    <TextBlock
+                                        Text="{Binding ViewModel.MaxPlayersCount, ElementName=PageRoot}"
+                                        FontSize="16"
+                                        FontWeight="SemiBold"
+                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="1" MinHeight="180">
+                                    <ListView
+                                        ItemsSource="{Binding ViewModel.OnlinePlayers, ElementName=PageRoot, IsAsync=True}"
+                                        BorderThickness="0"
+                                        Visibility="{Binding ViewModel.IsRunning, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border
+                                                    Padding="10,8"
+                                                    CornerRadius="8"
+                                                    Margin="0,0,0,6"
+                                                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                                    Tag="{Binding DataContext.ViewModel, RelativeSource={RelativeSource AncestorType=Page}}">
+                                                    <Border.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem
+                                                                Header="设为管理员"
+                                                                Command="{Binding PlacementTarget.Tag.SetPlayerAsOpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                Visibility="{Binding IsOp, Converter={StaticResource InverseBooleanToVisibilityConverter}}"/>
+                                                            <MenuItem
+                                                                Header="取消管理员"
+                                                                Command="{Binding PlacementTarget.Tag.RemovePlayerOpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                Visibility="{Binding IsOp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            <Separator/>
+                                                            <MenuItem
+                                                                Header="踢出"
+                                                                Command="{Binding PlacementTarget.Tag.KickPlayerCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            <MenuItem
+                                                                Header="封禁"
+                                                                Command="{Binding PlacementTarget.Tag.BanPlayerCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            <MenuItem
+                                                                Header="封禁 IP"
+                                                                Command="{Binding PlacementTarget.Tag.BanPlayerIpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            <Separator/>
+                                                            <MenuItem
+                                                                Header="发送消息"
+                                                                Command="{Binding PlacementTarget.Tag.SendMessageToPlayerCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                        </ContextMenu>
+                                                    </Border.ContextMenu>
+
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14"/>
+                                                            <TextBlock
+                                                                Text="右键查看更多操作"
+                                                                Margin="0,4,0,0"
+                                                                FontSize="12"
+                                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                        </StackPanel>
+
+                                                        <Border
+                                                            Grid.Column="1"
+                                                            Padding="8,3"
+                                                            CornerRadius="999"
+                                                            Background="#FFF0C2"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="{Binding IsOp, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="管理员" FontSize="11" FontWeight="SemiBold" Foreground="#8A5A00"/>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+
+                                    <StackPanel
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding ViewModel.ShowOnlinePlayersHint, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ui:ProgressRing
+                                            Width="26"
+                                            Height="26"
+                                            Margin="0,0,0,10"
+                                            IsIndeterminate="True"
+                                            Visibility="{Binding ViewModel.IsRefreshingPlayers, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock
+                                            Text="{Binding ViewModel.OnlinePlayersHint, ElementName=PageRoot}"
+                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                            HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </ui:Card>
+
+                        <ui:Card Padding="18">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="管理员" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12"/>
+
+                                <Grid Grid.Row="1" MinHeight="180">
+                                    <ListView
+                                        ItemsSource="{Binding ViewModel.AdminPlayers, ElementName=PageRoot, IsAsync=True}"
+                                        BorderThickness="0">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border
+                                                    Padding="10,8"
+                                                    CornerRadius="8"
+                                                    Margin="0,0,0,6"
+                                                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                                    Tag="{Binding DataContext.ViewModel, RelativeSource={RelativeSource AncestorType=Page}}">
+                                                    <Border.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem
+                                                                Header="设为管理员"
+                                                                Command="{Binding PlacementTarget.Tag.SetPlayerAsOpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                Visibility="{Binding IsOp, Converter={StaticResource InverseBooleanToVisibilityConverter}}"/>
+                                                            <MenuItem
+                                                                Header="取消管理员"
+                                                                Command="{Binding PlacementTarget.Tag.RemovePlayerOpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                Visibility="{Binding IsOp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            <Separator/>
+                                                            <MenuItem
+                                                                Header="踢出"
+                                                                Command="{Binding PlacementTarget.Tag.KickPlayerCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            <MenuItem
+                                                                Header="封禁"
+                                                                Command="{Binding PlacementTarget.Tag.BanPlayerCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            <MenuItem
+                                                                Header="封禁 IP"
+                                                                Command="{Binding PlacementTarget.Tag.BanPlayerIpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            <Separator/>
+                                                            <MenuItem
+                                                                Header="发送消息"
+                                                                Command="{Binding PlacementTarget.Tag.SendMessageToPlayerCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                        </ContextMenu>
+                                                    </Border.ContextMenu>
+
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14"/>
+                                                            <TextBlock
+                                                                Text="{Binding SecondaryText}"
+                                                                Margin="0,4,0,0"
+                                                                FontSize="12"
+                                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                Visibility="{Binding HasSecondaryText, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </StackPanel>
+
+                                                        <Border
+                                                            Grid.Column="1"
+                                                            Padding="8,3"
+                                                            CornerRadius="999"
+                                                            Background="#FFF0C2"
+                                                            VerticalAlignment="Center">
+                                                            <TextBlock Text="管理员" FontSize="11" FontWeight="SemiBold" Foreground="#8A5A00"/>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+
+                                    <TextBlock
+                                        Text="当前没有管理员记录"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                        Visibility="{Binding ViewModel.ShowAdminPlayersHint, ElementName=PageRoot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                </Grid>
                             </Grid>
                         </ui:Card>
                     </StackPanel>

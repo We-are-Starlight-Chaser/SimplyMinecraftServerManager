@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using Tomlyn;
 
@@ -18,7 +19,8 @@ namespace SimplyMinecraftServerManager.Internals
         private static readonly Dictionary<string, string> DefaultServerProperties = new(StringComparer.OrdinalIgnoreCase)
         {
             ["enable-query"] = "false",
-            ["enable-rcon"] = "false",
+            ["enable-rcon"] = "true",
+            ["broadcast-rcon-to-ops"] = "false",
             ["gamemode"] = "survival",
             ["difficulty"] = "easy",
             ["max-players"] = "20",
@@ -149,6 +151,8 @@ namespace SimplyMinecraftServerManager.Internals
             {
                 ServerPropertiesManager.WriteAll(info.Id, properties);
             }
+
+            EnsureRconConfiguration(info.Id);
 
             if (config.AutoAcceptEula)
             {
@@ -365,6 +369,77 @@ namespace SimplyMinecraftServerManager.Internals
             File.WriteAllText(path, "# Auto-accepted by SMSM\neula=true\n", Utf8WithoutBom);
         }
 
+        public static RconConnectionInfo EnsureRconConfiguration(string instanceId)
+        {
+            EnsureLoaded();
+
+            var props = ServerPropertiesManager.Read(instanceId);
+            int serverPort = GetPositivePort(props.GetValueOrDefault("server-port"), 25565);
+            int preferredRconPort = serverPort switch
+            {
+                <= 55535 => serverPort + 10000,
+                _ => 25575
+            };
+
+            int rconPort = GetPositivePort(props.GetValueOrDefault("rcon.port"), 0);
+            if (rconPort <= 0 || rconPort == serverPort)
+            {
+                rconPort = GetNextAvailableRconPort(instanceId, preferredRconPort);
+            }
+
+            string password = props.GetValueOrDefault("rcon.password", string.Empty);
+            if (string.IsNullOrWhiteSpace(password) || password.Length < 16)
+            {
+                password = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+            }
+
+            string host = props.GetValueOrDefault("server-ip", string.Empty);
+            if (string.IsNullOrWhiteSpace(host) || host == "0.0.0.0" || host == "::")
+            {
+                host = "127.0.0.1";
+            }
+
+            ServerPropertiesManager.SetValues(instanceId, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["enable-rcon"] = "true",
+                ["broadcast-rcon-to-ops"] = "false",
+                ["rcon.port"] = rconPort.ToString(),
+                ["rcon.password"] = password
+            });
+
+            return new RconConnectionInfo
+            {
+                Host = host,
+                Port = rconPort,
+                Password = password
+            };
+        }
+
+        public static RconConnectionInfo GetRconConnectionInfo(string instanceId)
+        {
+            var props = ServerPropertiesManager.Read(instanceId);
+            string host = props.GetValueOrDefault("server-ip", string.Empty);
+            if (string.IsNullOrWhiteSpace(host) || host == "0.0.0.0" || host == "::")
+            {
+                host = "127.0.0.1";
+            }
+
+            int port = GetPositivePort(props.GetValueOrDefault("rcon.port"), 0);
+            string password = props.GetValueOrDefault("rcon.password", string.Empty);
+
+            if (port <= 0 || string.IsNullOrWhiteSpace(password))
+            {
+                return EnsureRconConfiguration(instanceId);
+            }
+
+            return new RconConnectionInfo
+            {
+                Host = host,
+                Port = port,
+                Password = password
+            };
+        }
+
         public static string ResolveJdkPath(string instanceId)
         {
             var info = GetById(instanceId);
@@ -398,6 +473,53 @@ namespace SimplyMinecraftServerManager.Internals
 
             _saveDebounceTimer?.Dispose();
             _saveDebounceTimer = null;
+        }
+
+        private static int GetNextAvailableRconPort(string instanceId, int preferredPort)
+        {
+            var usedPorts = new HashSet<int>();
+
+            foreach (var instance in _instances)
+            {
+                if (string.Equals(instance.Id, instanceId, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    int port = ServerPropertiesManager.GetInt(instance.Id, "rcon.port", 0);
+                    if (port > 0)
+                    {
+                        usedPorts.Add(port);
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            if (preferredPort > 0 && preferredPort <= 65535 && !usedPorts.Contains(preferredPort))
+            {
+                return preferredPort;
+            }
+
+            for (int port = 25575; port <= 65535; port++)
+            {
+                if (!usedPorts.Contains(port))
+                {
+                    return port;
+                }
+            }
+
+            return 25575;
+        }
+
+        private static int GetPositivePort(string? rawValue, int fallbackValue)
+        {
+            return int.TryParse(rawValue, out int port) && port is > 0 and <= 65535
+                ? port
+                : fallbackValue;
         }
     }
 }

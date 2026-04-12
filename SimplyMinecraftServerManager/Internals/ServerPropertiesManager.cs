@@ -9,6 +9,8 @@ namespace SimplyMinecraftServerManager.Internals
     /// </summary>
     public static class ServerPropertiesManager
     {
+        private static readonly Lock FileLock = new();
+
         /// <summary>
         /// 读取全部属性为字典。
         /// </summary>
@@ -20,18 +22,21 @@ namespace SimplyMinecraftServerManager.Internals
 
             var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (string line in File.ReadAllLines(path, Encoding.UTF8))
+            lock (FileLock)
             {
-                string trimmed = line.Trim();
-                if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
-                    continue;
+                foreach (string line in ReadAllLinesWithRetry(path))
+                {
+                    string trimmed = line.Trim();
+                    if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
+                        continue;
 
-                int eq = trimmed.IndexOf('=');
-                if (eq < 0) continue;
+                    int eq = trimmed.IndexOf('=');
+                    if (eq < 0) continue;
 
-                string key = trimmed[..eq].Trim();
-                string value = trimmed[(eq + 1)..]; // 不 Trim value，保留前后空格（虽然极少见）
-                result[key] = value;
+                    string key = trimmed[..eq].Trim();
+                    string value = trimmed[(eq + 1)..];
+                    result[key] = value;
+                }
             }
 
             return result;
@@ -78,35 +83,39 @@ namespace SimplyMinecraftServerManager.Internals
         public static void SetValue(string instanceId, string key, string value)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
-            var lines = File.Exists(path)
-                ? File.ReadAllLines(path, Encoding.UTF8).ToList()
-                : [];
-
-            bool found = false;
-
-            for (int i = 0; i < lines.Count; i++)
+            lock (FileLock)
             {
-                string trimmed = lines[i].TrimStart();
-                if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
-                    continue;
+                var lines = File.Exists(path)
+                    ? ReadAllLinesWithRetry(path).ToList()
+                    : [];
 
-                int eq = trimmed.IndexOf('=');
-                if (eq < 0) continue;
+                bool found = false;
 
-                string k = trimmed[..eq].Trim();
-                if (k.Equals(key, StringComparison.OrdinalIgnoreCase))
+                for (int i = 0; i < lines.Count; i++)
                 {
-                    lines[i] = $"{key}={value}";
-                    found = true;
-                    break;
+                    string trimmed = lines[i].TrimStart();
+                    if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
+                        continue;
+
+                    int eq = trimmed.IndexOf('=');
+                    if (eq < 0) continue;
+
+                    string k = trimmed[..eq].Trim();
+                    if (k.Equals(key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        lines[i] = $"{key}={value}";
+                        found = true;
+                        break;
+                    }
                 }
+
+                if (!found)
+                {
+                    lines.Add($"{key}={value}");
+                }
+
+                WriteAllLinesWithRetry(path, lines);
             }
-
-            if (!found)
-                lines.Add($"{key}={value}");
-
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllLines(path, lines, Encoding.UTF8);
         }
 
         /// <summary>
@@ -114,38 +123,38 @@ namespace SimplyMinecraftServerManager.Internals
         /// </summary>
         public static void SetValues(string instanceId, Dictionary<string, string> values)
         {
-            // 为了效率，一次性读写而不是逐个调用 SetValue
             string path = PathHelper.GetServerPropertiesPath(instanceId);
-            var lines = File.Exists(path)
-                ? File.ReadAllLines(path, Encoding.UTF8).ToList()
-                : [];
-
-            var remaining = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
-
-            for (int i = 0; i < lines.Count && remaining.Count > 0; i++)
+            lock (FileLock)
             {
-                string trimmed = lines[i].TrimStart();
-                if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
-                    continue;
+                var lines = File.Exists(path)
+                    ? ReadAllLinesWithRetry(path).ToList()
+                    : [];
 
-                int eq = trimmed.IndexOf('=');
-                if (eq < 0) continue;
+                var remaining = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
 
-                string k = trimmed[..eq].Trim();
-
-                if (remaining.TryGetValue(k, out string? newVal))
+                for (int i = 0; i < lines.Count && remaining.Count > 0; i++)
                 {
-                    lines[i] = $"{k}={newVal}";
-                    remaining.Remove(k);
+                    string trimmed = lines[i].TrimStart();
+                    if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
+                        continue;
+
+                    int eq = trimmed.IndexOf('=');
+                    if (eq < 0) continue;
+
+                    string k = trimmed[..eq].Trim();
+
+                    if (remaining.TryGetValue(k, out string? newVal))
+                    {
+                        lines[i] = $"{k}={newVal}";
+                        remaining.Remove(k);
+                    }
                 }
+
+                foreach (var kvp in remaining)
+                    lines.Add($"{kvp.Key}={kvp.Value}");
+
+                WriteAllLinesWithRetry(path, lines);
             }
-
-            // 追加文件中不存在的新键
-            foreach (var kvp in remaining)
-                lines.Add($"{kvp.Key}={kvp.Value}");
-
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllLines(path, lines, Encoding.UTF8);
         }
 
         /// <summary>
@@ -163,8 +172,10 @@ namespace SimplyMinecraftServerManager.Internals
             foreach (var kvp in properties.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
                 lines.Add($"{kvp.Key}={kvp.Value}");
 
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllLines(path, lines, Encoding.UTF8);
+            lock (FileLock)
+            {
+                WriteAllLinesWithRetry(path, lines);
+            }
         }
 
         /// <summary>
@@ -175,20 +186,72 @@ namespace SimplyMinecraftServerManager.Internals
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             if (!File.Exists(path)) return false;
 
-            var lines = File.ReadAllLines(path, Encoding.UTF8).ToList();
-            int removed = lines.RemoveAll(line =>
+            lock (FileLock)
             {
-                string t = line.TrimStart();
-                if (t.Length == 0 || t[0] == '#' || t[0] == '!') return false;
-                int eq = t.IndexOf('=');
-                if (eq < 0) return false;
-                return t[..eq].Trim().Equals(key, StringComparison.OrdinalIgnoreCase);
-            });
+                var lines = ReadAllLinesWithRetry(path).ToList();
+                int removed = lines.RemoveAll(line =>
+                {
+                    string t = line.TrimStart();
+                    if (t.Length == 0 || t[0] == '#' || t[0] == '!') return false;
+                    int eq = t.IndexOf('=');
+                    if (eq < 0) return false;
+                    return t[..eq].Trim().Equals(key, StringComparison.OrdinalIgnoreCase);
+                });
 
-            if (removed > 0)
-                File.WriteAllLines(path, lines, Encoding.UTF8);
+                if (removed > 0)
+                    WriteAllLinesWithRetry(path, lines);
 
-            return removed > 0;
+                return removed > 0;
+            }
+        }
+
+        private static string[] ReadAllLinesWithRetry(string path, int retryCount = 6, int delayMs = 40)
+        {
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                    var lines = new List<string>();
+                    while (!reader.EndOfStream)
+                    {
+                        lines.Add(reader.ReadLine() ?? string.Empty);
+                    }
+
+                    return [.. lines];
+                }
+                catch (IOException) when (attempt < retryCount)
+                {
+                    Thread.Sleep(delayMs * (attempt + 1));
+                }
+            }
+        }
+
+        private static void WriteAllLinesWithRetry(string path, IEnumerable<string> lines, int retryCount = 6, int delayMs = 40)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
+                    using var writer = new StreamWriter(stream, Encoding.UTF8);
+                    foreach (var line in lines)
+                    {
+                        writer.WriteLine(line);
+                    }
+
+                    writer.Flush();
+                    stream.Flush(true);
+                    return;
+                }
+                catch (IOException) when (attempt < retryCount)
+                {
+                    Thread.Sleep(delayMs * (attempt + 1));
+                }
+            }
         }
     }
 }

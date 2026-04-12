@@ -5,6 +5,10 @@ using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Helpers;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
+using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Wpf.Ui;
@@ -19,6 +23,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private readonly INavigationService _navigationService;
         private readonly NavigationParameterService _navigationParameterService;
         private PerformanceMonitor? _performanceMonitor;
+        private readonly SemaphoreSlim _playerRefreshLock = new(1, 1);
 
         private readonly Lock _consoleLock = new();
 
@@ -146,6 +151,21 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private ObservableCollection<PlayerDisplayItem> _onlinePlayers = [];
 
         [ObservableProperty]
+        private ObservableCollection<PlayerDisplayItem> _adminPlayers = [];
+
+        [ObservableProperty]
+        private int _playerDataCount = 0;
+
+        [ObservableProperty]
+        private string _onlinePlayersHint = "启动服务器以查看";
+
+        [ObservableProperty]
+        private bool _isRefreshingPlayers = false;
+
+        public bool ShowOnlinePlayersHint => OnlinePlayers.Count == 0;
+        public bool ShowAdminPlayersHint => AdminPlayers.Count == 0;
+
+        [ObservableProperty]
         private string _uptime = "00:00:00";
 
         [ObservableProperty]
@@ -170,6 +190,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _navigationService = navigationService;
             _navigationParameterService = navigationParameterService;
             LoadConsolePreferences();
+            OnlinePlayers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowOnlinePlayersHint));
+            AdminPlayers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowAdminPlayersHint));
 
             // 订阅全局状态变化事件
             ServerProcessManager.InstanceStatusChanged += OnInstanceStatusChanged;
@@ -188,6 +210,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     StatusMessage = "服务器已停止";
                     StopPerformanceMonitoring();
                     StopDashboardMonitoring();
+                    ResetOnlinePlayersState();
                 }
                 else
                 {
@@ -379,14 +402,12 @@ private void AppendConsoleLine(string line)
             {
                 // 未运行时加载静态存储信息
                 LoadStaticStorageInfo();
-                // 服务器未运行时，清空在线玩家信息
-                OnlinePlayersCount = 0;
-                MaxPlayersCount = 0;
-                OnlinePlayers.Clear();
+                ResetOnlinePlayersState();
             }
 
             LoadPlugins();
             LoadServerProperties();
+            LoadPlayerManagementData();
             
             // 加载仪表盘数据
             LoadDashboardData();
@@ -545,6 +566,99 @@ private void AppendConsoleLine(string line)
             }
             catch { }
             return size;
+        }
+
+        private void LoadPlayerManagementData()
+        {
+            LoadPlayerDataCount();
+            LoadAdminPlayers();
+
+            if (IsRunning)
+            {
+                _ = RefreshOnlinePlayersAsync();
+            }
+            else
+            {
+                ResetOnlinePlayersState();
+            }
+        }
+
+        private void LoadPlayerDataCount()
+        {
+            try
+            {
+                var properties = ServerPropertiesManager.Read(InstanceId);
+                string levelName = properties.GetValueOrDefault("level-name", "world");
+                if (string.IsNullOrWhiteSpace(levelName))
+                {
+                    levelName = "world";
+                }
+
+                string playerDataDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), levelName, "playerdata");
+                PlayerDataCount = Directory.Exists(playerDataDir)
+                    ? Directory.EnumerateFiles(playerDataDir, "*.dat", SearchOption.TopDirectoryOnly).Count()
+                    : 0;
+            }
+            catch
+            {
+                PlayerDataCount = 0;
+            }
+        }
+
+        private void LoadAdminPlayers()
+        {
+            AdminPlayers.Clear();
+
+            foreach (var op in ReadOps())
+            {
+                AdminPlayers.Add(new PlayerDisplayItem(op.Name, op.Uuid)
+                {
+                    IsOp = true,
+                    SecondaryText = $"等级 {op.Level}" + (string.IsNullOrWhiteSpace(op.Uuid) ? string.Empty : $"  UUID {op.Uuid}")
+                });
+            }
+        }
+
+        private List<OpEntry> ReadOps()
+        {
+            try
+            {
+                string opsFilePath = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "ops.json");
+                if (!File.Exists(opsFilePath))
+                {
+                    return [];
+                }
+
+                var ops = System.Text.Json.JsonSerializer.Deserialize<List<OpEntry>>(File.ReadAllText(opsFilePath));
+                return ops?
+                    .Where(op => !string.IsNullOrWhiteSpace(op.Name))
+                    .OrderBy(op => op.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? [];
+            }
+            catch
+            {
+                return [];
+            }
+        }
+
+        private void WriteOps(IEnumerable<OpEntry> ops)
+        {
+            string opsFilePath = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "ops.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(opsFilePath)!);
+            File.WriteAllText(
+                opsFilePath,
+                System.Text.Json.JsonSerializer.Serialize(ops.OrderBy(op => op.Name, StringComparer.OrdinalIgnoreCase), options));
+        }
+
+        private void ResetOnlinePlayersState()
+        {
+            OnlinePlayersCount = 0;
+            MaxPlayersCount = string.IsNullOrWhiteSpace(InstanceId)
+                ? 20
+                : ServerPropertiesManager.GetInt(InstanceId, "max-players", 20);
+            OnlinePlayers.Clear();
+            OnlinePlayersHint = "启动服务器以查看";
+            IsRefreshingPlayers = false;
         }
 
         private void StartPerformanceMonitoring()
@@ -942,8 +1056,10 @@ private void AppendConsoleLine(string line)
 
                 InstanceManager.UpdateInstance(InstanceInfo);
                 SaveServerPropertiesInternal();
+                InstanceManager.EnsureRconConfiguration(InstanceId);
                 UpdateServerAddress();
                 LoadServerPropertiesForDashboard();
+                LoadPlayerManagementData();
                 StatusMessage = "设置已保存";
             }
             catch (Exception ex)
@@ -1191,10 +1307,7 @@ private void AppendConsoleLine(string line)
             }
             else
             {
-                // 服务器未运行时，清空在线玩家信息
-                OnlinePlayersCount = 0;
-                MaxPlayersCount = 0;
-                OnlinePlayers.Clear();
+                ResetOnlinePlayersState();
             }
         }
 
@@ -1254,85 +1367,107 @@ private void AppendConsoleLine(string line)
             }
         }
 
-        private void LoadServerStatus()
+        private async Task RefreshOnlinePlayersAsync()
         {
+            if (!await _playerRefreshLock.WaitAsync(0))
+            {
+                return;
+            }
+
             try
             {
-                var addressParts = ServerAddress.Split(':');
-                if (addressParts.Length >= 2)
+                RunOnUiThread(() =>
                 {
-                    var host = addressParts[0];
-                    if (int.TryParse(addressParts[1], out var port))
-                    {
-                        var status = MinecraftServerPing.Ping(host, port, 3000);
-                        if (status != null)
-                        {
-                            RunOnUiThread(() =>
-                            {
-                                OnlinePlayersCount = status.OnlinePlayers;
-                                MaxPlayersCount = status.MaxPlayers;
+                    IsRefreshingPlayers = true;
+                    OnlinePlayersHint = "正在读取在线玩家...";
+                });
 
-                                OnlinePlayers.Clear();
-                                foreach (var player in status.Players)
-                                {
-                                    // 检查玩家是否是OP
-                                    bool isOp = IsPlayerOp(player.Name);
-                                    OnlinePlayers.Add(new PlayerDisplayItem(player.Name, player.Id) { IsOp = isOp });
-                                }
-                            });
-                        }
-                        else
-                        {
-                            RunOnUiThread(() =>
-                            {
-                                OnlinePlayersCount = 0;
-                                MaxPlayersCount = 0;
-                                OnlinePlayers.Clear();
-                            });
-                        }
-                    }
+                var process = ServerProcessManager.GetProcess(InstanceId);
+                if (process == null || !process.IsRunning)
+                {
+                    RunOnUiThread(ResetOnlinePlayersState);
+                    return;
                 }
+
+                string response = await process.ExecuteRconCommandAsync("list");
+                var onlinePlayersState = ParseOnlinePlayersResponse(response);
+                var opLookup = ReadOps()
+                    .Select(op => op.Name)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                int configuredMaxPlayers = ServerPropertiesManager.GetInt(InstanceId, "max-players", 20);
+
+                RunOnUiThread(() =>
+                {
+                    OnlinePlayersCount = onlinePlayersState.OnlineCount;
+                    MaxPlayersCount = onlinePlayersState.MaxPlayers > 0 ? onlinePlayersState.MaxPlayers : configuredMaxPlayers;
+                    OnlinePlayers.Clear();
+
+                    foreach (string playerName in onlinePlayersState.PlayerNames)
+                    {
+                        OnlinePlayers.Add(new PlayerDisplayItem(playerName, string.Empty)
+                        {
+                            IsOp = opLookup.Contains(playerName)
+                        });
+                    }
+
+                    OnlinePlayersHint = OnlinePlayers.Count == 0 ? "当前没有在线玩家" : string.Empty;
+                });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"获取服务器状态失败: {ex.Message}");
+                Console.WriteLine($"获取在线玩家失败: {ex.Message}");
+                RunOnUiThread(() =>
+                {
+                    OnlinePlayersCount = 0;
+                    MaxPlayersCount = ServerPropertiesManager.GetInt(InstanceId, "max-players", 20);
+                    OnlinePlayers.Clear();
+                    OnlinePlayersHint = IsRunning ? "服务器正在启动或 RCON 尚未就绪" : "启动服务器以查看";
+                });
             }
+            finally
+            {
+                RunOnUiThread(() => IsRefreshingPlayers = false);
+                _playerRefreshLock.Release();
+            }
+        }
+
+        private static OnlinePlayersState ParseOnlinePlayersResponse(string response)
+        {
+            string normalized = (response ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Trim();
+            var numbers = Regex.Matches(normalized, @"\d+")
+                .Select(match => int.TryParse(match.Value, out int value) ? value : 0)
+                .ToList();
+
+            int onlineCount = numbers.Count > 0 ? numbers[0] : 0;
+            int maxPlayers = numbers.Count > 1 ? numbers[1] : 0;
+
+            int separatorIndex = Math.Max(normalized.LastIndexOf(':'), normalized.LastIndexOf('：'));
+            var playerNames = new List<string>();
+            if (separatorIndex >= 0 && separatorIndex < normalized.Length - 1)
+            {
+                playerNames = normalized[(separatorIndex + 1)..]
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            return new OnlinePlayersState(onlineCount, maxPlayers, playerNames);
         }
 
         private bool IsPlayerOp(string playerName)
         {
-            try
-            {
-                string opsFilePath = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "ops.json");
-                if (File.Exists(opsFilePath))
-                {
-                    var opsJson = System.Text.Json.JsonSerializer.Deserialize<OpEntry[]>(File.ReadAllText(opsFilePath));
-                    if (opsJson != null)
-                    {
-                        foreach (var op in opsJson)
-                        {
-                            if (string.Equals(op.Name, playerName, StringComparison.OrdinalIgnoreCase))
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"检查OP状态失败: {ex.Message}");
-            }
-            return false;
+            return ReadOps().Any(op => string.Equals(op.Name, playerName, StringComparison.OrdinalIgnoreCase));
         }
 
         private void StartServerStatusPolling()
         {
             _serverStatusTimer?.Dispose();
-            _serverStatusTimer = new Timer(async (state) =>
+            _serverStatusTimer = new Timer(_ =>
             {
-                await Task.Run(() => LoadServerStatus());
-            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(5)); // 每5秒更新一次
+                _ = RefreshOnlinePlayersAsync();
+            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
         }
 
         private void StartUptimeCounter()
@@ -1390,30 +1525,29 @@ private void AppendConsoleLine(string line)
         }
 
         [RelayCommand]
-        private void SetPlayerAsOp(PlayerDisplayItem? player)
+        private async Task SetPlayerAsOp(PlayerDisplayItem? player)
         {
-            if (player == null || string.IsNullOrEmpty(InstanceId)) return;
+            if (player == null || string.IsNullOrEmpty(InstanceId))
+            {
+                return;
+            }
 
             try
             {
-                // 检查ops.json文件是否存在
-                string opsFilePath = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "ops.json");
-                var ops = new List<OpEntry>();
-                
-                if (File.Exists(opsFilePath))
+                if (IsPlayerOp(player.Name))
                 {
-                    var opsJson = System.Text.Json.JsonSerializer.Deserialize<OpEntry[]>(File.ReadAllText(opsFilePath));
-                    if (opsJson != null)
-                    {
-                        ops = [.. opsJson];
-                    }
+                    StatusMessage = $"{player.Name} 已经是管理员";
+                    return;
                 }
 
-                // 检查玩家是否已经是OP
-                var existingOp = ops.Find(op => string.Equals(op.Name, player.Name, StringComparison.OrdinalIgnoreCase));
-                if (existingOp == null)
+                if (IsRunning)
                 {
-                    // 添加为OP
+                    await ExecutePlayerRconCommandAsync($"op {player.Name}");
+                    await Task.Delay(300);
+                }
+                else
+                {
+                    var ops = ReadOps();
                     ops.Add(new OpEntry
                     {
                         Name = player.Name,
@@ -1421,82 +1555,200 @@ private void AppendConsoleLine(string line)
                         Level = 4,
                         BypassesPlayerLimit = false
                     });
+                    WriteOps(ops);
+                }
 
-                    // 写入文件
-                    File.WriteAllText(opsFilePath, System.Text.Json.JsonSerializer.Serialize(ops.ToArray(), options));
-                    
-                    // 更新UI状态
-                    player.IsOp = true;
-                    StatusMessage = $"已将 {player.Name} 设置为OP";
-                }
-                else
-                {
-                    StatusMessage = $"{player.Name} 已经是OP";
-                }
+                player.IsOp = true;
+                LoadAdminPlayers();
+                await RefreshOnlinePlayersAsync();
+                StatusMessage = $"已将 {player.Name} 设为管理员";
             }
             catch (Exception ex)
             {
-                StatusMessage = $"设置OP失败: {ex.Message}";
+                StatusMessage = $"设置管理员失败: {ex.Message}";
             }
         }
 
         [RelayCommand]
-        private void RemovePlayerOp(PlayerDisplayItem? player)
+        private async Task RemovePlayerOp(PlayerDisplayItem? player)
         {
-            if (player == null || string.IsNullOrEmpty(InstanceId)) return;
+            if (player == null || string.IsNullOrEmpty(InstanceId))
+            {
+                return;
+            }
 
             try
             {
-                // 检查ops.json文件是否存在
-                string opsFilePath = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "ops.json");
-                
-                if (File.Exists(opsFilePath))
+                if (!IsPlayerOp(player.Name))
                 {
-                    var ops = System.Text.Json.JsonSerializer.Deserialize<OpEntry[]>(File.ReadAllText(opsFilePath));
-                    if (ops != null)
+                    StatusMessage = $"{player.Name} 不是管理员";
+                    return;
+                }
+
+                if (IsRunning)
+                {
+                    await ExecutePlayerRconCommandAsync($"deop {player.Name}");
+                    await Task.Delay(300);
+                }
+                else
+                {
+                    var ops = ReadOps();
+                    var opToRemove = ops.FirstOrDefault(op => string.Equals(op.Name, player.Name, StringComparison.OrdinalIgnoreCase));
+                    if (opToRemove != null)
                     {
-                        var opsList = new List<OpEntry>(ops);
-                        var opToRemove = opsList.Find(op => string.Equals(op.Name, player.Name, StringComparison.OrdinalIgnoreCase));
-                        
-                        if (opToRemove != null)
-                        {
-                            opsList.Remove(opToRemove);
-                            
-                            // 写入文件
-                            File.WriteAllText(opsFilePath, System.Text.Json.JsonSerializer.Serialize(opsList.ToArray(), options));
-                            
-                            // 更新UI状态
-                            player.IsOp = false;
-                            StatusMessage = $"已移除 {player.Name} 的OP权限";
-                        }
-                        else
-                        {
-                            StatusMessage = $"{player.Name} 不是OP";
-                        }
+                        ops.Remove(opToRemove);
+                        WriteOps(ops);
                     }
                 }
+
+                player.IsOp = false;
+                LoadAdminPlayers();
+                await RefreshOnlinePlayersAsync();
+                StatusMessage = $"已移除 {player.Name} 的管理员权限";
             }
             catch (Exception ex)
             {
-                StatusMessage = $"移除OP失败: {ex.Message}";
+                StatusMessage = $"取消管理员失败: {ex.Message}";
             }
         }
 
         [RelayCommand]
-        private void KickPlayer(PlayerDisplayItem? player)
+        private async Task KickPlayer(PlayerDisplayItem? player)
         {
-            if (player == null || string.IsNullOrEmpty(InstanceId)) return;
-
-            var process = ServerProcessManager.GetProcess(InstanceId);
-            if (process != null && process.IsRunning)
+            if (player == null)
             {
-                process.SendCommand($"kick {player.Name}");
+                return;
+            }
+
+            try
+            {
+                await ExecutePlayerRconCommandAsync($"kick {player.Name}");
+                await Task.Delay(200);
+                await RefreshOnlinePlayersAsync();
                 StatusMessage = $"已踢出玩家 {player.Name}";
             }
-            else
+            catch (Exception ex)
             {
-                StatusMessage = "服务器未运行，无法踢出玩家";
+                StatusMessage = $"踢出玩家失败: {ex.Message}";
             }
+        }
+
+        [RelayCommand]
+        private async Task BanPlayer(PlayerDisplayItem? player)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            try
+            {
+                await ExecutePlayerRconCommandAsync($"ban {player.Name}");
+                await Task.Delay(200);
+                await RefreshOnlinePlayersAsync();
+                StatusMessage = $"已封禁玩家 {player.Name}";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"封禁玩家失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private async Task BanPlayerIp(PlayerDisplayItem? player)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            try
+            {
+                await ExecutePlayerRconCommandAsync($"ban-ip {player.Name}");
+                await Task.Delay(200);
+                await RefreshOnlinePlayersAsync();
+                StatusMessage = $"已封禁 {player.Name} 的 IP";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"封禁 IP 失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private async Task SendMessageToPlayer(PlayerDisplayItem? player)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            var messageBox = new Wpf.Ui.Controls.TextBox
+            {
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                MinWidth = 360,
+                MinHeight = 120,
+                PlaceholderText = "输入要发送的消息"
+            };
+
+            var dialogContent = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = $"发送给 {player.Name}",
+                        Margin = new Thickness(0, 0, 0, 8)
+                    },
+                    messageBox
+                }
+            };
+
+            var dialog = new Wpf.Ui.Controls.ContentDialog
+            {
+                Title = "发送消息",
+                Content = dialogContent,
+                PrimaryButtonText = "发送",
+                CloseButtonText = "取消",
+                DefaultButton = Wpf.Ui.Controls.ContentDialogButton.Primary
+            };
+
+            var result = await _contentDialogService.ShowAsync(dialog, CancellationToken.None);
+            string message = messageBox.Text?.Trim() ?? string.Empty;
+            if (result != Wpf.Ui.Controls.ContentDialogResult.Primary || string.IsNullOrWhiteSpace(message))
+            {
+                return;
+            }
+
+            try
+            {
+                string singleLineMessage = Regex.Replace(message, @"\s+", " ").Trim();
+                await ExecutePlayerRconCommandAsync($"msg {player.Name} {singleLineMessage}");
+                StatusMessage = $"已向 {player.Name} 发送消息";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"发送消息失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private void RefreshPlayers()
+        {
+            LoadPlayerManagementData();
+            StatusMessage = "玩家信息已刷新";
+        }
+
+        private async Task ExecutePlayerRconCommandAsync(string command)
+        {
+            var process = ServerProcessManager.GetProcess(InstanceId);
+            if (process == null || !process.IsRunning)
+            {
+                throw new InvalidOperationException("服务器未运行，无法执行该操作。");
+            }
+
+            await process.ExecuteRconCommandAsync(command);
         }
 
         [RelayCommand]
@@ -1512,8 +1764,43 @@ private void AppendConsoleLine(string line)
     /// </summary>
     public partial class PlayerDisplayItem(string name, string id) : ObservableObject
     {
-        public string Name { get; set; } = name;
-        public string Id { get; set; } = id;
+        private string _name = name;
+        private string _id = id;
+        private string _secondaryText = "";
+
+        public string Name
+        {
+            get => _name;
+            set => SetProperty(ref _name, value);
+        }
+
+        public string Id
+        {
+            get => _id;
+            set
+            {
+                if (SetProperty(ref _id, value))
+                {
+                    OnPropertyChanged(nameof(HasId));
+                }
+            }
+        }
+
+        public bool HasId => !string.IsNullOrWhiteSpace(Id);
+
+        public string SecondaryText
+        {
+            get => _secondaryText;
+            set
+            {
+                if (SetProperty(ref _secondaryText, value))
+                {
+                    OnPropertyChanged(nameof(HasSecondaryText));
+                }
+            }
+        }
+
+        public bool HasSecondaryText => !string.IsNullOrWhiteSpace(SecondaryText);
 
         private bool _isOp;
         public bool IsOp
@@ -1532,11 +1819,20 @@ private void AppendConsoleLine(string line)
 
     public class OpEntry
     {
+        [JsonPropertyName("name")]
         public string Name { get; set; } = "";
+
+        [JsonPropertyName("uuid")]
         public string Uuid { get; set; } = "";
+
+        [JsonPropertyName("level")]
         public int Level { get; set; } = 4;
+
+        [JsonPropertyName("bypassesPlayerLimit")]
         public bool BypassesPlayerLimit { get; set; } = false;
     }
+
+    internal readonly record struct OnlinePlayersState(int OnlineCount, int MaxPlayers, IReadOnlyList<string> PlayerNames);
 
     /// <summary>
     /// 插件显示项

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -8,6 +9,8 @@ namespace SimplyMinecraftServerManager.Internals
     public partial class ServerProcess(string instanceId) : IDisposable
     {
         private Process? _process;
+        private RconClient? _rconClient;
+        private readonly SemaphoreSlim _rconLock = new(1, 1);
         private bool _disposed;
         private IntPtr _jobHandle = IntPtr.Zero;
         private int _processId;
@@ -145,6 +148,8 @@ namespace SimplyMinecraftServerManager.Internals
                 InstanceManager.AcceptEula(InstanceId);
             }
 
+            InstanceManager.EnsureRconConfiguration(InstanceId);
+
             string javaPath = InstanceManager.ResolveJdkPath(InstanceId);
             if (string.IsNullOrWhiteSpace(javaPath))
                 throw new InvalidOperationException("JDK path is not configured.");
@@ -176,7 +181,6 @@ namespace SimplyMinecraftServerManager.Internals
             args.Append($"-jar \"{info.ServerJar}\" nogui");
 
             CreateJobObject();
-
             _process = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -205,12 +209,7 @@ namespace SimplyMinecraftServerManager.Internals
                 if (e.Data != null) ErrorReceived?.Invoke(this, e.Data);
             };
 
-            _process.Exited += (_, _) =>
-            {
-                int code = -1;
-                try { code = _process.ExitCode; } catch { }
-                Exited?.Invoke(this, code);
-            };
+            _process.Exited += OnProcessExited;
 
             var started = await Task.Run(() => _process.Start(), cancellationToken);
             if (!started)
@@ -220,10 +219,11 @@ namespace SimplyMinecraftServerManager.Internals
 
             _processId = _process.Id;
 
-            IntPtr processHandle = _process.Handle;
+            var process = _process ?? throw new InvalidOperationException("Server process was not created.");
+            IntPtr processHandle = process.Handle;
             if (!AssignProcessToJobObject(_jobHandle, processHandle))
             {
-                _process.Kill(entireProcessTree: true);
+                process.Kill(entireProcessTree: true);
                 CloseHandle(_jobHandle);
                 _jobHandle = IntPtr.Zero;
                 _processId = 0;
@@ -257,6 +257,56 @@ namespace SimplyMinecraftServerManager.Internals
 
         public void Stop() => SendCommand("stop");
 
+        public async Task<string> ExecuteRconCommandAsync(string command, CancellationToken cancellationToken = default)
+        {
+            if (!IsRunning)
+                throw new InvalidOperationException("Server is not running.");
+
+            await _rconLock.WaitAsync(cancellationToken);
+            try
+            {
+                return await ExecuteRconCommandCoreAsync(command, cancellationToken);
+            }
+            finally
+            {
+                _rconLock.Release();
+            }
+        }
+
+        private async Task<string> ExecuteRconCommandCoreAsync(string command, CancellationToken cancellationToken)
+        {
+            _rconClient ??= new RconClient(InstanceManager.GetRconConnectionInfo(InstanceId));
+
+            try
+            {
+                return await _rconClient.ExecuteCommandAsync(command, cancellationToken);
+            }
+            catch (Exception ex) when (ex is IOException or SocketException or InvalidOperationException)
+            {
+                await ResetRconClientAsync();
+                _rconClient = new RconClient(InstanceManager.GetRconConnectionInfo(InstanceId));
+                return await _rconClient.ExecuteCommandAsync(command, cancellationToken);
+            }
+        }
+
+        private async ValueTask ResetRconClientAsync()
+        {
+            if (_rconClient == null)
+            {
+                return;
+            }
+
+            try
+            {
+                await _rconClient.DisposeAsync();
+            }
+            catch
+            {
+            }
+
+            _rconClient = null;
+        }
+
         public void Kill()
         {
             if (_process != null && !_process.HasExited)
@@ -281,6 +331,14 @@ namespace SimplyMinecraftServerManager.Internals
 
             try
             {
+                ResetRconClientAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch
+            {
+            }
+
+            try
+            {
                 if (_process != null && !_process.HasExited)
                 {
                     try { _process.Kill(entireProcessTree: true); } catch { }
@@ -302,7 +360,22 @@ namespace SimplyMinecraftServerManager.Internals
                 _jobHandle = IntPtr.Zero;
             }
 
+            try
+            {
+                _rconLock.Dispose();
+            }
+            catch
+            {
+            }
+
             GC.SuppressFinalize(this);
+        }
+
+        private void OnProcessExited(object? sender, EventArgs e)
+        {
+            int code = -1;
+            try { code = _process?.ExitCode ?? -1; } catch { }
+            Exited?.Invoke(this, code);
         }
     }
 }
