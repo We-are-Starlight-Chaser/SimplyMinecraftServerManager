@@ -38,7 +38,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     /// <summary>
     /// 表示一个下载任务。
     /// </summary>
-    public class DownloadTask
+    public record class DownloadTask
     {
         /// <summary>任务唯一 ID</summary>
         public string Id { get; } = Guid.NewGuid().ToString("N");

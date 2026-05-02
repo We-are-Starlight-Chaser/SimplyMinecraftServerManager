@@ -7,10 +7,10 @@ using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
-    public partial class JdkViewModel : ObservableObject, INavigationAware
+    public partial class JdkViewModel(IContentDialogService contentDialogService, AppNotificationService notificationService) : ObservableObject, INavigationAware
     {
-        private readonly IContentDialogService _contentDialogService;
-        private readonly AppNotificationService _notificationService;
+        private readonly IContentDialogService _contentDialogService = contentDialogService;
+        private readonly AppNotificationService _notificationService = notificationService;
 
         [ObservableProperty]
         private ObservableCollection<InstalledJdkDisplayItem> _installedJdks = [];
@@ -35,12 +35,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         [ObservableProperty]
         private string _installStatus = "";
-
-        public JdkViewModel(IContentDialogService contentDialogService, AppNotificationService notificationService)
-        {
-            _contentDialogService = contentDialogService;
-            _notificationService = notificationService;
-        }
 
         public async Task OnNavigatedToAsync()
         {
@@ -219,15 +213,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
-    public partial class InstalledJdkDisplayItem : ObservableObject
+    public partial class InstalledJdkDisplayItem(InstalledJdk jdk) : ObservableObject
     {
-        public JdkDistribution Distribution { get; }
-        public int MajorVersion { get; }
-        public string FullVersion { get; }
-        public JdkArchitecture Architecture { get; }
-        public string HomePath { get; }
-        public string JavaExecutable { get; }
-        public bool IsValid { get; }
+        public JdkDistribution Distribution { get; } = jdk.Distribution;
+        public int MajorVersion { get; } = jdk.MajorVersion;
+        public string FullVersion { get; } = jdk.FullVersion;
+        public JdkArchitecture Architecture { get; } = jdk.Architecture;
+        public string HomePath { get; } = jdk.HomePath;
+        public string JavaExecutable { get; } = jdk.JavaExecutable;
+        public bool IsValid { get; } = jdk.IsValid;
 
         public string DistributionName => Distribution.ToString();
 
@@ -246,17 +240,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 await Task.Delay(2000);
                 Application.Current.Dispatcher.Invoke(() => IsCopied = false);
             });
-        }
-
-        public InstalledJdkDisplayItem(InstalledJdk jdk)
-        {
-            Distribution = jdk.Distribution;
-            MajorVersion = jdk.MajorVersion;
-            FullVersion = jdk.FullVersion;
-            Architecture = jdk.Architecture;
-            HomePath = jdk.HomePath;
-            JavaExecutable = jdk.JavaExecutable;
-            IsValid = jdk.IsValid;
         }
     }
 }

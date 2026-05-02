@@ -8,17 +8,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     /// API 兼容 PaperMC v2 格式。
     /// https://api.leafmc.one/v2/projects/leaf
     /// </summary>
-    public class LeafProvider : IServerProvider
+    public class LeafProvider(HttpClient? httpClient = null) : IServerProvider
     {
         private const string BaseUrl = "https://api.leafmc.one/v2/projects/leaf";
-        private readonly HttpClient _http;
+        private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
 
         public ServerPlatform Platform => ServerPlatform.Leaf;
-
-        public LeafProvider(HttpClient? httpClient = null)
-        {
-            _http = httpClient ?? CreateDefaultClient();
-        }
 
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {
@@ -86,7 +81,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             string minecraftVersion, CancellationToken ct = default)
         {
             var builds = await GetBuildsAsync(minecraftVersion, ct);
-            return builds.FirstOrDefault();
+            return builds[0];
         }
 
         public async Task<DownloadTask> DownloadAsync(

@@ -7,10 +7,10 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
-    public partial class DashboardViewModel : ObservableObject, INavigationAware
+    public partial class DashboardViewModel(INavigationService navigationService, NavigationParameterService navigationParameterService) : ObservableObject, INavigationAware
     {
-        private readonly INavigationService _navigationService;
-        private readonly NavigationParameterService _navigationParameterService;
+        private readonly INavigationService _navigationService = navigationService;
+        private readonly NavigationParameterService _navigationParameterService = navigationParameterService;
 
         [ObservableProperty]
         private ObservableCollection<ServerDisplayItem> _servers = [];
@@ -32,12 +32,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         [ObservableProperty]
         private ObservableCollection<string> _announcements = [];
-
-        public DashboardViewModel(INavigationService navigationService, NavigationParameterService navigationParameterService)
-        {
-            _navigationService = navigationService;
-            _navigationParameterService = navigationParameterService;
-        }
 
         public async Task OnNavigatedToAsync()
         {

@@ -5,7 +5,7 @@ namespace SimplyMinecraftServerManager.Helpers
 {
     internal static class DispatcherHelper
     {
-        private static readonly Dispatcher _dispatcher = Application.Current?.Dispatcher;
+        private static readonly Dispatcher _dispatcher = Application.Current?.Dispatcher!;
 
         public static Dispatcher? Dispatcher => _dispatcher;
 
@@ -32,23 +32,16 @@ namespace SimplyMinecraftServerManager.Helpers
         }
     }
 
-    internal class ThrottledDispatcher
+    internal class ThrottledDispatcher(DispatcherPriority priority = DispatcherPriority.Background, int intervalMs = 16)
     {
-        private readonly Dispatcher _dispatcher;
-        private readonly DispatcherPriority _priority;
-        private readonly int _intervalMs;
+        private readonly Dispatcher _dispatcher = Application.Current?.Dispatcher ?? throw new InvalidOperationException("No dispatcher");
+        private readonly DispatcherPriority _priority = priority;
+        private readonly int _intervalMs = intervalMs;
         private DateTime _lastInvoke = DateTime.MinValue;
         private readonly Queue<Action> _pendingActions = new();
-        private readonly object _lock = new();
+        private readonly Lock _lock = new();
         private Timer? _timer;
         private bool _isPending;
-
-        public ThrottledDispatcher(DispatcherPriority priority = DispatcherPriority.Background, int intervalMs = 16)
-        {
-            _dispatcher = Application.Current?.Dispatcher ?? throw new InvalidOperationException("No dispatcher");
-            _priority = priority;
-            _intervalMs = intervalMs;
-        }
 
         public void Invoke(Action action)
         {
@@ -77,7 +70,7 @@ namespace SimplyMinecraftServerManager.Helpers
                     _isPending = false;
                     return;
                 }
-                actions = new List<Action>(_pendingActions);
+                actions = [.. _pendingActions];
                 _pendingActions.Clear();
                 _isPending = false;
             }

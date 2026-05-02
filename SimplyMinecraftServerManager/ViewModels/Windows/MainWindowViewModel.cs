@@ -27,7 +27,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         /// <summary>
         /// 下载任务导航项（用于显示角标）
         /// </summary>
-        private Wpf.Ui.Controls.NavigationViewItem? _downloadTasksNavItem;
+        private readonly Wpf.Ui.Controls.NavigationViewItem? _downloadTasksNavItem;
 
         private readonly DownloadsViewModel _downloadsViewModel;
         private readonly AppNotificationService _notificationService;

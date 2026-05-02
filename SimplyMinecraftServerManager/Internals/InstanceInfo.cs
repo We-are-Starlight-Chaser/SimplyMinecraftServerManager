@@ -3,7 +3,7 @@
     /// <summary>
     /// 单个服务器实例的元信息 POCO，持久化到 instances.toml。
     /// </summary>
-    public class InstanceInfo
+    public record class InstanceInfo
     {
         /// <summary>实例唯一标识 (UUID)</summary>
         public string Id { get; set; } = "";

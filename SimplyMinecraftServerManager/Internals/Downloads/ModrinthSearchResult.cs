@@ -3,7 +3,7 @@
     /// <summary>
     /// Modrinth 搜索结果中的单个项目。
     /// </summary>
-    public class ModrinthProject
+    public record class ModrinthProject
     {
         /// <summary>项目 ID (slug 或 hash)</summary>
         public string ProjectId { get; set; } = "";
@@ -55,7 +55,7 @@
     /// <summary>
     /// Modrinth 搜索返回的分页结果。
     /// </summary>
-    public class ModrinthSearchResponse
+    public record class ModrinthSearchResponse
     {
         public List<ModrinthProject> Hits { get; set; } = [];
         public int Offset { get; set; }

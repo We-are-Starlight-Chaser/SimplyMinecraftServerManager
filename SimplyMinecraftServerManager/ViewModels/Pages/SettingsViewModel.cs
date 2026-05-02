@@ -202,7 +202,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-        private string GetAssemblyVersion()
+        private static string GetAssemblyVersion()
         {
             return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString()
                 ?? String.Empty;

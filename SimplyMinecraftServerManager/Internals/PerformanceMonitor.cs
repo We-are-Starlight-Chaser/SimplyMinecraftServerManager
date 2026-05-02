@@ -38,7 +38,7 @@ public class PerformanceMonitor(string instanceId) : IDisposable
         private TimeSpan _lastTotalProcessorTime = TimeSpan.Zero;
 
         private long _cachedStorageMb;
-        private Dictionary<string, long> _cachedWorldSizes = new();
+        private Dictionary<string, long> _cachedWorldSizes = [];
         private DateTime _lastStorageCacheTime = DateTime.MinValue;
         private readonly int _storageCacheIntervalMs = 30000;
 

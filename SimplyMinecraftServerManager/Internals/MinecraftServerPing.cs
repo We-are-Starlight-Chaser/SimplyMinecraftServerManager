@@ -14,13 +14,17 @@ namespace SimplyMinecraftServerManager.Internals
     /// </summary>
     public class MinecraftServerPing
     {
+        static readonly JsonSerializerOptions options = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
         public class ServerStatus
         {
             public string VersionName { get; set; } = "";
             public int ProtocolVersion { get; set; }
             public int MaxPlayers { get; set; }
             public int OnlinePlayers { get; set; }
-            public List<Player> Players { get; set; } = new List<Player>();
+            public List<Player> Players { get; set; } = [];
             public string Motd { get; set; } = "";
             public string Icon { get; set; } = ""; // Base64 encoded icon
         }
@@ -42,84 +46,74 @@ namespace SimplyMinecraftServerManager.Internals
         {
             try
             {
-                using (var client = new TcpClient())
+                using var client = new TcpClient();
+                client.ReceiveTimeout = timeout;
+                client.SendTimeout = timeout;
+
+                var result = client.ConnectAsync(host, port).Wait(timeout);
+                if (!result)
                 {
-                    client.ReceiveTimeout = timeout;
-                    client.SendTimeout = timeout;
+                    return null;
+                }
 
-                    var result = client.ConnectAsync(host, port).Wait(timeout);
-                    if (!result)
+                using var stream = client.GetStream();
+                using var handshakePacket = new MemoryStream();
+                WriteVarInt(handshakePacket, 0); // Handshake packet id
+                WriteVarInt(handshakePacket, 754); // Modern protocol version placeholder
+                WriteString(handshakePacket, host);
+                WriteUnsignedShort(handshakePacket, (ushort)port);
+                WriteVarInt(handshakePacket, 1); // Status intent
+                WritePacket(stream, handshakePacket.ToArray());
+
+                using var requestPacket = new MemoryStream();
+                WriteVarInt(requestPacket, 0);
+                WritePacket(stream, requestPacket.ToArray());
+
+                _ = ReadVarInt(stream);
+                int packetId = ReadVarInt(stream);
+
+                if (packetId != 0)
+                {
+                    return null;
+                }
+
+                string json = ReadString(stream);
+                var status = JsonSerializer.Deserialize<StatusResponse>(json, options);
+
+                if (status?.Players?.Sample != null)
+                {
+                    foreach (var p in status.Players.Sample)
                     {
-                        return null;
+                        p.Id = p.Id.Replace("-", "");
                     }
+                }
 
-                    using (var stream = client.GetStream())
+                using var pingPacket = new MemoryStream();
+                WriteVarInt(pingPacket, 1);
+                WriteLong(pingPacket, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                WritePacket(stream, pingPacket.ToArray());
+
+                _ = ReadVarInt(stream);
+                int pongPacketId = ReadVarInt(stream);
+                _ = ReadLong(stream);
+
+                if (pongPacketId != 1)
+                {
+                    return null;
+                }
+
+                if (status != null)
+                {
+                    return new ServerStatus
                     {
-                        using var handshakePacket = new MemoryStream();
-                        WriteVarInt(handshakePacket, 0); // Handshake packet id
-                        WriteVarInt(handshakePacket, 754); // Modern protocol version placeholder
-                        WriteString(handshakePacket, host);
-                        WriteUnsignedShort(handshakePacket, (ushort)port);
-                        WriteVarInt(handshakePacket, 1); // Status intent
-                        WritePacket(stream, handshakePacket.ToArray());
-
-                        using var requestPacket = new MemoryStream();
-                        WriteVarInt(requestPacket, 0);
-                        WritePacket(stream, requestPacket.ToArray());
-
-                        _ = ReadVarInt(stream);
-                        int packetId = ReadVarInt(stream);
-
-                        if (packetId != 0)
-                        {
-                            return null;
-                        }
-
-                        string json = ReadString(stream);
-                        
-                        // 使用 System.Text.Json 反序列化
-                        var options = new JsonSerializerOptions
-                        {
-                            PropertyNameCaseInsensitive = true
-                        };
-                        var status = JsonSerializer.Deserialize<StatusResponse>(json, options);
-
-                        if (status?.Players?.Sample != null)
-                        {
-                            foreach (var p in status.Players.Sample)
-                            {
-                                p.Id = p.Id.Replace("-", "");
-                            }
-                        }
-
-                        using var pingPacket = new MemoryStream();
-                        WriteVarInt(pingPacket, 1);
-                        WriteLong(pingPacket, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                        WritePacket(stream, pingPacket.ToArray());
-
-                        _ = ReadVarInt(stream);
-                        int pongPacketId = ReadVarInt(stream);
-                        _ = ReadLong(stream);
-
-                        if (pongPacketId != 1)
-                        {
-                            return null;
-                        }
-
-                        if (status != null)
-                        {
-                            return new ServerStatus
-                            {
-                                VersionName = status.Version?.Name ?? "",
-                                ProtocolVersion = status.Version?.Protocol ?? 0,
-                                MaxPlayers = status.Players?.Max ?? 0,
-                                OnlinePlayers = status.Players?.Online ?? 0,
-                                Players = status.Players?.Sample?.ConvertAll(p => new Player { Name = p.Name, Id = p.Id }) ?? new List<Player>(),
-                                Motd = status.Description?.ToString() ?? "",
-                                Icon = status.Favicon ?? ""
-                            };
-                        }
-                    }
+                        VersionName = status.Version?.Name ?? "",
+                        ProtocolVersion = status.Version?.Protocol ?? 0,
+                        MaxPlayers = status.Players?.Max ?? 0,
+                        OnlinePlayers = status.Players?.Online ?? 0,
+                        Players = status.Players?.Sample?.ConvertAll(p => new Player { Name = p.Name, Id = p.Id }) ?? [],
+                        Motd = status.Description?.ToString() ?? "",
+                        Icon = status.Favicon ?? ""
+                    };
                 }
             }
             catch (Exception)

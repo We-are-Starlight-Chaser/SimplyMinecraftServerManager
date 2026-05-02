@@ -4,7 +4,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
     /// <summary>
     /// 可下载的 JDK 版本信息。
     /// </summary>
-    public class JdkInfo
+    public record class JdkInfo
     {
         /// <summary>发行版</summary>
         public JdkDistribution Distribution { get; init; }

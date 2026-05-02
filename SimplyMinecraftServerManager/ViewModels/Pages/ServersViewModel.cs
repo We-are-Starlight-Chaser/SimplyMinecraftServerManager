@@ -4,7 +4,6 @@ using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Views.Pages;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;

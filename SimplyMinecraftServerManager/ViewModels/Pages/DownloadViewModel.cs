@@ -260,7 +260,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var builds = await platform.GetBuildsAsync(v);
-                    var latestBuild = builds.FirstOrDefault();
+                    var latestBuild = builds[0];
 
                     if (latestBuild != null)
                     {

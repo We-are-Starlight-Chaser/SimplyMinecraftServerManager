@@ -119,7 +119,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             string minecraftVersion, CancellationToken ct = default)
         {
             var builds = await GetBuildsAsync(minecraftVersion, ct);
-            return builds.FirstOrDefault();
+            return builds[0];
         }
 
         // ────────── 下载 ──────────

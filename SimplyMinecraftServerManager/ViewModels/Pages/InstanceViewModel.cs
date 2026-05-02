@@ -1435,7 +1435,7 @@ private void AppendConsoleLine(string line)
         private static OnlinePlayersState ParseOnlinePlayersResponse(string response)
         {
             string normalized = (response ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Trim();
-            var numbers = Regex.Matches(normalized, @"\d+")
+            var numbers = ParseOnlinePlayersResponse().Matches(normalized)
                 .Select(match => int.TryParse(match.Value, out int value) ? value : 0)
                 .ToList();
 
@@ -1446,11 +1446,10 @@ private void AppendConsoleLine(string line)
             var playerNames = new List<string>();
             if (separatorIndex >= 0 && separatorIndex < normalized.Length - 1)
             {
-                playerNames = normalized[(separatorIndex + 1)..]
+                playerNames = [.. normalized[(separatorIndex + 1)..]
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
+                    .Distinct(StringComparer.OrdinalIgnoreCase)];
             }
 
             return new OnlinePlayersState(onlineCount, maxPlayers, playerNames);
@@ -1723,7 +1722,7 @@ private void AppendConsoleLine(string line)
 
             try
             {
-                string singleLineMessage = Regex.Replace(message, @"\s+", " ").Trim();
+                string singleLineMessage = SingleLineMessage().Replace(message, " ").Trim();
                 await ExecutePlayerRconCommandAsync($"msg {player.Name} {singleLineMessage}");
                 StatusMessage = $"已向 {player.Name} 发送消息";
             }
@@ -1757,6 +1756,11 @@ private void AppendConsoleLine(string line)
             LoadDashboardData();
             StatusMessage = "仪表盘数据已刷新";
         }
+
+        [GeneratedRegex(@"\s+")]
+        private static partial Regex SingleLineMessage();
+        [GeneratedRegex(@"\d+")]
+        private static partial Regex ParseOnlinePlayersResponse();
     }
 
     /// <summary>

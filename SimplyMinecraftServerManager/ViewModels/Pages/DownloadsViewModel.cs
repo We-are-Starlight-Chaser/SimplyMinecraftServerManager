@@ -110,10 +110,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                if (item != null)
-                {
-                    item.UpdateFromTask(task);
-                }
+                item?.UpdateFromTask(task);
 
                 if (task.InstallationStatus != InstallationStatus.Installed)
                 {
@@ -134,10 +131,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                if (item != null)
-                {
-                    item.UpdateFromTask(task);
-                }
+                item?.UpdateFromTask(task);
 
                 if (task.Status != DownloadStatus.Cancelled)
                 {
@@ -160,10 +154,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                if (item != null)
-                {
-                    item.UpdateFromTask(task);
-                }
+                item?.UpdateFromTask(task);
 
                 if (task.NotifyOnCompleted)
                 {

@@ -5,15 +5,10 @@ using Wpf.Ui;
 
 namespace SimplyMinecraftServerManager.Services
 {
-    public class ApplicationHostService : IHostedService
+    public class ApplicationHostService(IServiceProvider serviceProvider) : IHostedService
     {
-        private readonly IServiceProvider _serviceProvider;
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
         private INavigationWindow? _navigationWindow;
-
-        public ApplicationHostService(IServiceProvider serviceProvider)
-        {
-            _serviceProvider = serviceProvider;
-        }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {

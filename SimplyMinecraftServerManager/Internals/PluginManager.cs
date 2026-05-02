@@ -60,7 +60,7 @@ namespace SimplyMinecraftServerManager.Internals
                 }
             }
 
-            return result.OrderBy(p => p.Name).ToList();
+            return [.. result.OrderBy(p => p.Name)];
         }
 
         /// <summary>
@@ -220,7 +220,7 @@ namespace SimplyMinecraftServerManager.Internals
                 return [];
 
             if (value is IList<object> list)
-                return list.Select(o => o?.ToString() ?? "").Where(s => s.Length > 0).ToList();
+                return [.. list.Select(o => o?.ToString() ?? "").Where(s => s.Length > 0)];
 
             // 有时写成单个字符串
             string? s = value?.ToString();

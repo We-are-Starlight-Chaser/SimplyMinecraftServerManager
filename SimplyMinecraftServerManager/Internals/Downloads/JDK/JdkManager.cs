@@ -46,7 +46,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
         {
             string jdksRoot = PathHelper.JdksRoot;
             if (!Directory.Exists(jdksRoot))
-                return Array.Empty<InstalledJdk>();
+                return [];
 
             var results = new List<InstalledJdk>();
 
@@ -240,12 +240,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
                 return existing;
 
             var provider = JdkProviderFactory.Get(distribution);
-            var latest = await provider.GetLatestAsync(majorVersion, architecture, ct);
-
-            if (latest == null)
-                throw new InvalidOperationException(
+            var latest = await provider.GetLatestAsync(majorVersion, architecture, ct) ?? throw new InvalidOperationException(
                     $"No {distribution} JDK {majorVersion} build found.");
-
             return await DownloadAndInstallAsync(latest, downloadManager, progress, ct);
         }
 

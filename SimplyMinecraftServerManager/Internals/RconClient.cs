@@ -11,22 +11,15 @@ namespace SimplyMinecraftServerManager.Internals
         public string Password { get; init; } = "";
     }
 
-    internal sealed class RconClient : IAsyncDisposable
+    internal sealed class RconClient(RconConnectionInfo connectionInfo) : IAsyncDisposable
     {
-        private readonly string _host;
-        private readonly int _port;
-        private readonly string _password;
+        private readonly string _host = connectionInfo.Host;
+        private readonly int _port = connectionInfo.Port;
+        private readonly string _password = connectionInfo.Password;
 
         private TcpClient? _client;
         private NetworkStream? _stream;
         private int _requestId = 1;
-
-        public RconClient(RconConnectionInfo connectionInfo)
-        {
-            _host = connectionInfo.Host;
-            _port = connectionInfo.Port;
-            _password = connectionInfo.Password;
-        }
 
         public async Task<string> ExecuteCommandAsync(string command, CancellationToken cancellationToken = default)
         {

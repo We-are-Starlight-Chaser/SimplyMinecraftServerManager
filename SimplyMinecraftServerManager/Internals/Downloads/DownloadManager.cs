@@ -11,7 +11,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     public sealed class DownloadManager : IDisposable
     {
-        private static readonly object _defaultLock = new();
+        private static readonly Lock _defaultLock = new();
         private static DownloadManager? _default;
 
         public static DownloadManager Default
@@ -55,8 +55,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
         public int MaxConcurrentDownloads => _maxConcurrent;
 
-        private static readonly string[] AllowedHosts = new[]
-        {
+        private static readonly string[] AllowedHosts =
+        [
             "api.papermc.io",
             "papermc.io",
             "download.mojang.com",
@@ -70,7 +70,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             "adoptium.net",
             "azul.com",
             "zulu.org"
-        };
+        ];
 
         private static readonly ConcurrentDictionary<string, Func<HashAlgorithm>> HashAlgorithmFactories = new()
         {

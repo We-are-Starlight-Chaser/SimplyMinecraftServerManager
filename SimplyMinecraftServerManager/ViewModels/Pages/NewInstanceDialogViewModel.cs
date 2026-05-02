@@ -70,7 +70,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public ObservableCollection<string> AvailableVersions => _availableVersions;
         public ObservableCollection<JdkDisplayItem> AvailableJdks => _availableJdks;
 
-        public string[] ServerTypes => ["Paper", "Purpur", "Leaves", "Leaf", "Folia"];
+        public static string[] ServerTypes => ["Paper", "Purpur", "Leaves", "Leaf", "Folia"];
 
         [RelayCommand]
         private void BrowseCustomJar()

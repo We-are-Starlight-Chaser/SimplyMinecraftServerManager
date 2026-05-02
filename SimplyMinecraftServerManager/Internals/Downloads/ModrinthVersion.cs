@@ -3,7 +3,7 @@
     /// <summary>
     /// Modrinth 版本中的单个文件。
     /// </summary>
-    public class ModrinthFile
+    public record class ModrinthFile
     {
         public string Url { get; set; } = "";
         public string FileName { get; set; } = "";
@@ -17,7 +17,7 @@
     /// <summary>
     /// Modrinth 项目的一个版本。
     /// </summary>
-    public class ModrinthVersion
+    public record class ModrinthVersion
     {
         public string Id { get; set; } = "";
         public string ProjectId { get; set; } = "";

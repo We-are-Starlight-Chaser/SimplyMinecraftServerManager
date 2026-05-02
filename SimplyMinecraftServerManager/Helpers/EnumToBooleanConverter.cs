@@ -22,7 +22,7 @@ namespace SimplyMinecraftServerManager.Helpers
                 throw new ArgumentException("ExceptionThemeToBooleanConverterValueMustBeAnEnum");
             }
 
-            var enumValue = Enum.Parse(typeof(ApplicationTheme), enumString);
+            var enumValue = Enum.Parse<ApplicationTheme>(enumString);
 
             return enumValue.Equals(value);
         }
@@ -34,7 +34,7 @@ namespace SimplyMinecraftServerManager.Helpers
                 throw new ArgumentException("ExceptionThemeToBooleanConverterParameterMustBeAnEnumName");
             }
 
-            return Enum.Parse(typeof(ApplicationTheme), enumString);
+            return Enum.Parse<ApplicationTheme>(enumString);
         }
     }
 }
