@@ -148,8 +148,9 @@
         <StackPanel>
           <TextBlock FontSize="18" FontWeight="Medium" Text="关于" Margin="0,0,0,12"/>
           <TextBlock Text="{Binding ViewModel.AppVersion, Mode=OneWay}"/>
-          <TextBlock Text="一个简单易用的 Minecraft 服务器管理器" Margin="0,8,0,0"/>
-          <TextBlock Margin="0,4,0,0">
+          <TextBlock Text="一个简单易用的 Minecraft 服务器管理器，WASC团队倾情开发" Margin="0,8,0,0"/>
+                    <TextBlock Text="使用MIT许可证" Margin="0,8,0,0"/>
+                    <TextBlock Margin="0,4,0,0">
             <Run Text="数据目录: "/>
             <Run Text="{x:Static internals:PathHelper.Root}"/>
           </TextBlock>

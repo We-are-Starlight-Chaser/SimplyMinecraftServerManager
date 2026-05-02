@@ -362,7 +362,12 @@ private void AppendConsoleLine(string line)
             return Task.CompletedTask;
         }
 
-        public void LoadInstance(string instanceId)
+public void LoadInstance(string instanceId)
+        {
+            _ = LoadInstanceAsync(instanceId);
+        }
+
+        private async Task LoadInstanceAsync(string instanceId)
         {
             InstanceId = instanceId;
             var info = InstanceManager.GetById(instanceId);
@@ -385,32 +390,27 @@ private void AppendConsoleLine(string line)
             EditExtraJvmArgs = info.ExtraJvmArgs;
             LoadConsolePreferences();
 
-            // 加载已安装的JDK列表
             LoadInstalledJdks();
             InitializeJdkSelectionState(info.JdkPath);
 
-            // 从 ServerProcessManager 恢复运行状态
             IsRunning = ServerProcessManager.IsRunning(instanceId);
             StatusMessage = IsRunning ? "服务器运行中" : $"{ServerType} - Minecraft {MinecraftVersion}";
 
-            // 如果正在运行，订阅控制台输出和性能监控
             if (IsRunning)
             {
                 QueueRunningStateInitialization();
             }
             else
             {
-                // 未运行时加载静态存储信息
                 LoadStaticStorageInfo();
                 ResetOnlinePlayersState();
             }
 
-            LoadPlugins();
-            LoadServerProperties();
-            LoadPlayerManagementData();
-            
-            // 加载仪表盘数据
-            LoadDashboardData();
+            _ = Task.Run(() => LoadPlugins());
+            _ = Task.Run(() => LoadServerProperties());
+            _ = Task.Run(() => LoadPlayerManagementData());
+
+            _ = Task.Run(() => LoadDashboardData());
         }
 
         private void LoadInstalledJdks()
@@ -711,16 +711,15 @@ private void AppendConsoleLine(string line)
             }
         }
 
-        private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
+private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
         {
-            RunOnUiThread(() =>
+            DispatcherHelper.InvokeIfNeeded(() =>
             {
                 CpuUsage = data.CpuUsage;
                 MemoryUsage = data.MemoryUsageMb;
                 TotalStorageMb = data.TotalStorageMb;
                 TotalStorage = FormatBytes(data.TotalStorageMb * 1024 * 1024);
 
-                // 更新世界存储信息
                 WorldStorageInfo.Clear();
                 long maxSize = data.WorldStorageMb.Values.DefaultIfEmpty(1).Max();
 

@@ -76,7 +76,7 @@ namespace SimplyMinecraftServerManager
             get { return _host.Services; }
         }
 
-        private async void OnStartup(object sender, StartupEventArgs e)
+private async void OnStartup(object sender, StartupEventArgs e)
         {
             try
             {
@@ -84,9 +84,15 @@ namespace SimplyMinecraftServerManager
                 Log("Application starting...");
                 AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
                 TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-                ConfigManager.Load();
-                InstanceManager.Load();
+                
+                Task.Run(() => ConfigManager.Load());
+                
                 await _host.StartAsync();
+                
+                Task.Run(() => InstanceManager.Load());
+                
+                Task.Run(() => PreloadNonCriticalData());
+                
                 Log("Application started successfully");
             }
             catch (Exception ex)
@@ -95,6 +101,15 @@ namespace SimplyMinecraftServerManager
                 MessageBox.Show($"启动失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 Environment.Exit(1);
             }
+        }
+
+        private static void PreloadNonCriticalData()
+        {
+            try
+            {
+                var config = ConfigManager.Current;
+            }
+            catch { }
         }
 
         private async void OnExit(object sender, ExitEventArgs e)

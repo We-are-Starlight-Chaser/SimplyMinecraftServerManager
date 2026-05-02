@@ -903,6 +903,9 @@
                             <Button Margin="0,5,0,0" Command="{Binding ViewModel.OpenInstanceFolderCommand, ElementName=PageRoot}">
                                 打开实例目录
                             </Button>
+                            <Button Margin="0,5,0,0">
+                                备份
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>

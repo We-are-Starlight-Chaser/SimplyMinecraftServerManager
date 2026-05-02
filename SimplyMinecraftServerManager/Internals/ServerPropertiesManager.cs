@@ -1,21 +1,19 @@
-﻿using System.IO;
+using System.IO;
 using System.Text;
+using SimplyMinecraftServerManager.Helpers;
 
 namespace SimplyMinecraftServerManager.Internals
 {
-    /// <summary>
-    /// 读写 Minecraft server.properties（Java Properties 格式）。
-    /// 写入时保留原文件的注释与顺序。
-    /// </summary>
     public static class ServerPropertiesManager
     {
         private static readonly Lock FileLock = new();
+        private static readonly MemoryCache<Dictionary<string, string>> _propsCache = new(TimeSpan.FromSeconds(30), 50);
 
-        /// <summary>
-        /// 读取全部属性为字典。
-        /// </summary>
         public static Dictionary<string, string> Read(string instanceId)
         {
+            if (_propsCache.TryGet(instanceId, out var cached))
+                return cached;
+
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             if (!File.Exists(path))
                 return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -39,7 +37,13 @@ namespace SimplyMinecraftServerManager.Internals
                 }
             }
 
+            _propsCache.Set(instanceId, result);
             return result;
+        }
+
+        public static void InvalidateCache(string instanceId)
+        {
+            _propsCache.Remove(instanceId);
         }
 
         /// <summary>
@@ -80,7 +84,7 @@ namespace SimplyMinecraftServerManager.Internals
         /// <summary>
         /// 设置单个属性值（就地修改文件，保留注释和顺序）。
         /// </summary>
-        public static void SetValue(string instanceId, string key, string value)
+public static void SetValue(string instanceId, string key, string value)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             lock (FileLock)
@@ -116,11 +120,9 @@ namespace SimplyMinecraftServerManager.Internals
 
                 WriteAllLinesWithRetry(path, lines);
             }
+            InvalidateCache(instanceId);
         }
 
-        /// <summary>
-        /// 批量设置属性。
-        /// </summary>
         public static void SetValues(string instanceId, Dictionary<string, string> values)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
@@ -155,11 +157,9 @@ namespace SimplyMinecraftServerManager.Internals
 
                 WriteAllLinesWithRetry(path, lines);
             }
+            InvalidateCache(instanceId);
         }
 
-        /// <summary>
-        /// 用完整字典覆盖写入（会丢失原有注释）。
-        /// </summary>
         public static void WriteAll(string instanceId, Dictionary<string, string> properties)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
@@ -176,11 +176,9 @@ namespace SimplyMinecraftServerManager.Internals
             {
                 WriteAllLinesWithRetry(path, lines);
             }
+            InvalidateCache(instanceId);
         }
 
-        /// <summary>
-        /// 删除指定属性。
-        /// </summary>
         public static bool RemoveValue(string instanceId, string key)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
@@ -201,6 +199,7 @@ namespace SimplyMinecraftServerManager.Internals
                 if (removed > 0)
                     WriteAllLinesWithRetry(path, lines);
 
+                if (removed > 0) InvalidateCache(instanceId);
                 return removed > 0;
             }
         }

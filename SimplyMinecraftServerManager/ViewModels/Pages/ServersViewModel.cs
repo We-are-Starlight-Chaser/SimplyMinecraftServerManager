@@ -60,7 +60,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _ = dispatcher.InvokeAsync(action);
         }
 
-        [ObservableProperty]
+[ObservableProperty]
         private ObservableCollection<InstanceDisplayItem> _instances = [];
 
         [ObservableProperty]
@@ -69,7 +69,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private string _statusMessage = "";
 
-        // 新建实例表单
         [ObservableProperty]
         private string _newInstanceName = "";
 
@@ -291,7 +290,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-        [RelayCommand]
+[RelayCommand]
         private async Task LoadInstancesAsync()
         {
             IsLoading = true;
@@ -299,21 +298,26 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             try
             {
-                // 清理已停止的进程记录
                 ServerProcessManager.CleanupStoppedProcesses();
 
-                var instances = InstanceManager.GetAll();
+                var instances = await Task.Run(() => InstanceManager.GetAll().ToList());
+
+                var items = new List<InstanceDisplayItem>();
                 foreach (var inst in instances)
                 {
                     var item = new InstanceDisplayItem(inst);
-                    // 从 ServerProcessManager 恢复运行状态
                     var process = ServerProcessManager.GetProcess(inst.Id);
                     bool isRunning = process?.IsRunning ?? false;
-
                     item.ServerProcess = isRunning ? process : null;
                     item.IsRunning = isRunning;
+                    items.Add(item);
+                }
+
+                foreach (var item in items)
+                {
                     Instances.Add(item);
                 }
+
                 StatusMessage = $"共 {instances.Count} 个实例";
             }
             catch (Exception ex)
