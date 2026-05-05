@@ -14,18 +14,9 @@
   mc:Ignorable="d"
   x:Name="PageRoot"
 >
-    <Page.Resources>
+<Page.Resources>
         <Style x:Key="InstanceCardStyle" TargetType="Border">
             <Setter Property="Cursor" Value="Hand"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="RenderTransform">
-                        <Setter.Value>
-                            <ScaleTransform ScaleX="1.02" ScaleY="1.02"/>
-                        </Setter.Value>
-                    </Setter>
-                </Trigger>
-            </Style.Triggers>
         </Style>
     </Page.Resources>
 
@@ -80,7 +71,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Style="{StaticResource InstanceCardStyle}"
+<Border Style="{StaticResource InstanceCardStyle}"
                             Width="360"
                             Height="220"
                             Margin="6,6,6,0"
@@ -88,11 +79,7 @@
                             Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
-                            RenderTransformOrigin="0.5,0.5"
                             MouseLeftButtonDown="OnCardClick">
-                            <Border.RenderTransform>
-                                <ScaleTransform ScaleX="1" ScaleY="1"/>
-                            </Border.RenderTransform>
 
                             <Grid>
                                 <Grid.ColumnDefinitions>

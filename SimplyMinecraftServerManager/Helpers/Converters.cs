@@ -11,6 +11,8 @@ namespace SimplyMinecraftServerManager.Helpers
     /// </summary>
     internal class InverseBooleanConverter : IValueConverter
     {
+        public static readonly InverseBooleanConverter Instance = new();
+        
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is bool boolValue)
@@ -35,6 +37,8 @@ namespace SimplyMinecraftServerManager.Helpers
     /// </summary>
     internal class BooleanToVisibilityConverter : IValueConverter
     {
+        public static readonly BooleanToVisibilityConverter Instance = new();
+        
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is bool boolValue)
@@ -59,6 +63,8 @@ namespace SimplyMinecraftServerManager.Helpers
     /// </summary>
     internal class InverseBooleanToVisibilityConverter : IValueConverter
     {
+        public static readonly InverseBooleanToVisibilityConverter Instance = new();
+        
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is bool boolValue)

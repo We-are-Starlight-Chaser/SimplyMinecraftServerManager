@@ -202,7 +202,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             ServerProcessManager.InstanceStatusChanged += OnInstanceStatusChanged;
         }
 
-        readonly CancellationTokenSource source = new();
+        private CancellationTokenSource source = new();
 
         private static readonly int processerCount = Environment.ProcessorCount;
         [RelayCommand]
@@ -235,7 +235,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             finally
             {
                 BackupProgress = 100;
-                source.TryReset();
+                source = new();
             }
         }
         public static async Task CreateCompressedBackupAsync(
