@@ -214,17 +214,25 @@ namespace SimplyMinecraftServerManager.Internals
             return dict.TryGetValue(key, out object? value) ? value?.ToString() ?? "" : "";
         }
 
-        private static List<string> GetStringList(Dictionary<string, object> dict, string key)
+private static List<string> GetStringList(Dictionary<string, object> dict, string key)
         {
             if (!dict.TryGetValue(key, out object? value))
                 return [];
 
             if (value is IList<object> list)
-                return [.. list.Select(o => o?.ToString() ?? "").Where(s => s.Length > 0)];
+            {
+                var result = new List<string>(list.Count);
+                foreach (var item in list)
+                {
+                    var str = item?.ToString();
+                    if (!string.IsNullOrEmpty(str))
+                        result.Add(str);
+                }
+                return result;
+            }
 
-            // 有时写成单个字符串
-            string? s = value?.ToString();
-            return string.IsNullOrEmpty(s) ? [] : [s];
+            string? strVal = value?.ToString();
+            return string.IsNullOrEmpty(strVal) ? [] : [strVal];
         }
     }
 }

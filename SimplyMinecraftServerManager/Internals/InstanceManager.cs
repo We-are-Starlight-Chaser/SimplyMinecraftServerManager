@@ -305,14 +305,15 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        public static void SetJdkPath(string instanceId, string jdkPath)
+public static void SetJdkPath(string instanceId, string jdkPath)
         {
             lock (_lock)
             {
                 EnsureLoaded();
-
-                var info = _instances.FirstOrDefault(
-                    i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase)) ?? throw new KeyNotFoundException($"Instance '{instanceId}' not found.");
+                
+                if (!_idCache.TryGetValue(instanceId, out var info))
+                    throw new KeyNotFoundException($"Instance '{instanceId}' not found.");
+                
                 info.JdkPath = jdkPath;
                 _idCache[instanceId] = info;
                 DebouncedSave();
@@ -325,8 +326,9 @@ namespace SimplyMinecraftServerManager.Internals
             {
                 EnsureLoaded();
 
-                var info = _instances.FirstOrDefault(
-                    i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase)) ?? throw new KeyNotFoundException($"Instance '{instanceId}' not found.");
+                if (!_idCache.TryGetValue(instanceId, out var info))
+                    throw new KeyNotFoundException($"Instance '{instanceId}' not found.");
+                
                 info.MinMemoryMb = minMb;
                 info.MaxMemoryMb = maxMb;
                 _idCache[instanceId] = info;

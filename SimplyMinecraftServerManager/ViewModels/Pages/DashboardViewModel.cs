@@ -43,38 +43,40 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         public Task OnNavigatedFromAsync() => Task.CompletedTask;
 
-        [RelayCommand]
+[RelayCommand]
         private async Task LoadServersAsync()
         {
             try
             {
                 Servers.Clear();
+                
                 var instances = InstanceManager.GetAll();
-
-                // 统计运行中的服务器
                 var runningInstances = ServerProcessManager.GetRunningInstanceIds();
+                var runningSet = new HashSet<string>(runningInstances);
+                
                 RunningServersCount = runningInstances.Count;
                 TotalServersCount = instances.Count;
 
-                foreach (var inst in instances)
+                await Task.Run(() =>
                 {
-                    var isRunning = runningInstances.Contains(inst.Id);
-                    var metadata = ServerJarMetadataReader.Read(inst);
-                    var serverItem = new ServerDisplayItem
+                    foreach (var inst in instances)
                     {
-                        Name = inst.Name,
-                        ServerType = metadata.ServerType,
-                        MinecraftVersion = metadata.MinecraftVersion,
-                        IsRunning = isRunning,
-                        InstanceId = inst.Id
-                    };
-                    Servers.Add(serverItem);
-                }
-
+                        var isRunning = runningSet.Contains(inst.Id);
+                        var metadata = ServerJarMetadataReader.Read(inst);
+                        var serverItem = new ServerDisplayItem
+                        {
+                            Name = inst.Name,
+                            ServerType = metadata.ServerType,
+                            MinecraftVersion = metadata.MinecraftVersion,
+                            IsRunning = isRunning,
+                            InstanceId = inst.Id
+                        };
+                        Servers.Add(serverItem);
+                    }
+                });
             }
             catch
             {
-                // 忽略加载错误
             }
         }
 

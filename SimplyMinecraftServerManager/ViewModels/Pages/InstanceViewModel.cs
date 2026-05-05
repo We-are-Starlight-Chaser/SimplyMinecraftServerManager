@@ -1,16 +1,19 @@
+using Microsoft.Win32;
+using SimplyMinecraftServerManager.Helpers;
 using SimplyMinecraftServerManager.Internals;
+using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
-using SimplyMinecraftServerManager.Internals.Downloads.JDK;
-using SimplyMinecraftServerManager.Helpers;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using Microsoft.Win32;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 
@@ -174,6 +177,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private long _networkReceivedBytes = 0;
 
+        [ObservableProperty]
+        private double _backupProgress;
         public int MaxMemoryMb => InstanceInfo?.MaxMemoryMb ?? 2048;
 
         private Timer? _serverStatusTimer;
@@ -195,6 +200,113 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             // 订阅全局状态变化事件
             ServerProcessManager.InstanceStatusChanged += OnInstanceStatusChanged;
+        }
+
+        readonly CancellationTokenSource source = new();
+
+        private static readonly int processerCount = Environment.ProcessorCount;
+        [RelayCommand]
+        private async Task CancelBackup()
+        {
+            await source.CancelAsync();
+        }
+        [RelayCommand]
+        private async Task BackupAsync()
+        {
+            BackupProgress = 0;
+            string path = PathHelper.GetInstanceDir(InstanceId);
+            string destPath = Path.Combine(PathHelper.Root, "backups");
+            if (!Directory.Exists(destPath)) Directory.CreateDirectory(destPath);
+            try
+            {
+                await Task.Run(async () =>
+                {
+                    var progress = new Progress<double>(p => BackupProgress = p);
+
+                    await CreateCompressedBackupAsync(
+                        path,
+                        destPath + $"\\{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.zip",
+                        processerCount * 2,
+                        progress,
+                        source.Token
+                    );
+                });
+            }
+            finally
+            {
+                BackupProgress = 100;
+                source.TryReset();
+            }
+        }
+        public static async Task CreateCompressedBackupAsync(
+            string sourceDirectory,
+            string destinationArchivePath,
+            int maxConcurrency,
+            IProgress<double> progress = null, 
+            CancellationToken cancellationToken = default)
+        {
+            if (!Directory.Exists(sourceDirectory)) throw new DirectoryNotFoundException($"Source not found: {sourceDirectory}");
+            var allFiles = Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories);
+            Console.WriteLine($"Found {allFiles.Length} files. Starting pipeline...");
+
+            string parentDir = Path.GetDirectoryName(sourceDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+            var channel = Channel.CreateBounded<(string AbsolutePath, string RelativePath)>(
+                new BoundedChannelOptions(maxConcurrency * 2)
+                { FullMode = BoundedChannelFullMode.Wait });
+            var writeTask = Task.Run(async () =>
+            {
+                using var archiveStream = new FileStream(destinationArchivePath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, useAsync: true);
+                using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Create, leaveOpen: false);
+                int processedCount = 0;
+
+                try
+                {
+                    await foreach (var (AbsolutePath, RelativePath) in channel.Reader.ReadAllAsync(cancellationToken))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var entry = archive.CreateEntry(RelativePath);
+                        using var fileStream = new FileStream(AbsolutePath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, useAsync: true);
+                        using var entryStream = entry.Open();
+                        await fileStream.CopyToAsync(entryStream, 65536, cancellationToken);
+
+                        int j = Interlocked.Increment(ref processedCount);
+                        progress.Report((double)j/allFiles.Length * 100);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Write task failed: {ex.Message}");
+                    throw;
+                }
+            }, cancellationToken);
+            try
+            {
+                var producerTasks = new List<Task>();
+                for (int i = 0; i < maxConcurrency; i++)
+                {
+                    int threadIndex = i;
+                    producerTasks.Add(Task.Run(async () =>
+                    {
+                        for (int j = threadIndex; j < allFiles.Length; j += maxConcurrency)
+                        {
+                            string filePath = allFiles[j];
+                            string relativePath = Path.GetRelativePath(parentDir, filePath).Replace('/', '_');
+                            await channel.Writer.WriteAsync((filePath, relativePath), cancellationToken);
+                        }
+                    }, cancellationToken));
+                }
+                await Task.WhenAll(producerTasks);
+            }
+            catch (OperationCanceledException)
+            {
+                channel.Writer.Complete();
+                throw;
+            }
+            channel.Writer.Complete();
+            await writeTask;
+
+            Console.WriteLine("Backup completed successfully!");
         }
 
         private void OnInstanceStatusChanged(object? sender, (string InstanceId, bool IsRunning) e)
@@ -311,25 +423,41 @@ private void AppendConsoleLine(string line)
             ConsoleCleared?.Invoke(this, EventArgs.Empty);
         }
 
-        [RelayCommand]
+[RelayCommand]
         private void CopyConsole()
         {
             lock (_consoleLock)
             {
-                var text = string.Join(Environment.NewLine, _consoleLines);
-                System.Windows.Clipboard.SetText(text);
+                if (_consoleLines.Count == 0) return;
+                
+                var sb = new System.Text.StringBuilder(_consoleLines.Count * 50);
+                for (int i = 0; i < _consoleLines.Count; i++)
+                {
+                    sb.Append(_consoleLines[i]);
+                    sb.AppendLine();
+                }
+                
+                System.Windows.Clipboard.SetText(sb.ToString());
                 StatusMessage = "控制台内容已复制到剪贴板";
             }
         }
 
-        /// <summary>
-        /// 获取所有控制台文本（用于初始化 FlowDocument）
-        /// </summary>
         public string GetConsoleText()
         {
             lock (_consoleLock)
             {
-                return string.Join(Environment.NewLine, _consoleLines);
+                if (_consoleLines.Count == 0) return string.Empty;
+                
+                if (_consoleLines.Count == 1)
+                    return _consoleLines[0];
+                
+                var sb = new System.Text.StringBuilder(_consoleLines.Count * 50);
+                for (int i = 0; i < _consoleLines.Count; i++)
+                {
+                    if (i > 0) sb.AppendLine();
+                    sb.Append(_consoleLines[i]);
+                }
+                return sb.ToString();
             }
         }
 
@@ -413,7 +541,7 @@ public void LoadInstance(string instanceId)
             _ = Task.Run(() => LoadDashboardData());
         }
 
-        private void LoadInstalledJdks()
+private void LoadInstalledJdks()
         {
             try
             {
@@ -426,7 +554,6 @@ public void LoadInstance(string instanceId)
             }
             catch (Exception ex)
             {
-                // 静默失败，不影响主功能
                 System.Diagnostics.Debug.WriteLine($"加载已安装JDK失败: {ex.Message}");
             }
         }

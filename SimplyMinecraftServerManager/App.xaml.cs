@@ -85,13 +85,13 @@ private async void OnStartup(object sender, StartupEventArgs e)
                 AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
                 TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
                 
-                Task.Run(() => ConfigManager.Load());
+                await Task.Run(() => ConfigManager.Load());
                 
                 await _host.StartAsync();
                 
-                Task.Run(() => InstanceManager.Load());
+                await Task.Run(() => InstanceManager.Load());
                 
-                Task.Run(() => PreloadNonCriticalData());
+                await Task.Run(() => PreloadNonCriticalData());
                 
                 Log("Application started successfully");
             }
