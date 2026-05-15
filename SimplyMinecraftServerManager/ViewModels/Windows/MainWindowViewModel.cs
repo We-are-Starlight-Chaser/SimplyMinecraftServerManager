@@ -80,6 +80,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
                 },
                 new NavigationViewItem()
                 {
+                    Content = "工具",
+                    Icon = new SymbolIcon { Symbol = SymbolRegular.Toolbox24 },
+                    TargetPageType = typeof(Views.Pages.ToolsPage)
+                },
+                new NavigationViewItem()
+                {
                     Content = "设置",
                     Icon = new SymbolIcon { Symbol = SymbolRegular.Settings24 },
                     TargetPageType = typeof(Views.Pages.SettingsPage)
