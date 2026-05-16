@@ -32,7 +32,7 @@ namespace SimplyMinecraftServerManager.Helpers
         }
     }
 
-    internal class ThrottledDispatcher(DispatcherPriority priority = DispatcherPriority.Background, int intervalMs = 16)
+internal class ThrottledDispatcher(DispatcherPriority priority = DispatcherPriority.Background, int intervalMs = 16)
     {
         private readonly Dispatcher _dispatcher = Application.Current?.Dispatcher ?? throw new InvalidOperationException("No dispatcher");
         private readonly DispatcherPriority _priority = priority;
@@ -42,6 +42,7 @@ namespace SimplyMinecraftServerManager.Helpers
         private readonly Lock _lock = new();
         private Timer? _timer;
         private bool _isPending;
+        private int _pendingDelay;
 
         public void Invoke(Action action)
         {
@@ -54,10 +55,16 @@ namespace SimplyMinecraftServerManager.Helpers
 
             var now = DateTime.Now;
             var delay = _intervalMs - (int)(now - _lastInvoke).TotalMilliseconds;
-            delay = Math.Max(1, delay);
-
-            _timer?.Dispose();
-            _timer = new Timer(OnTimerTick, null, delay, Timeout.Infinite);
+            _pendingDelay = Math.Max(1, delay);
+            
+            if (_timer == null)
+            {
+                _timer = new Timer(OnTimerTick, null, _pendingDelay, Timeout.Infinite);
+            }
+            else
+            {
+                _timer.Change(_pendingDelay, Timeout.Infinite);
+            }
         }
 
         private void OnTimerTick(object? state)
@@ -88,6 +95,7 @@ namespace SimplyMinecraftServerManager.Helpers
         public void Dispose()
         {
             _timer?.Dispose();
+            _timer = null;
         }
     }
 }

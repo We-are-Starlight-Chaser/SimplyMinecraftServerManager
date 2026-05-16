@@ -106,7 +106,7 @@ public class PerformanceMonitor(string instanceId) : IDisposable
             _targetProcess = null;
         }
 
-        private void CollectData()
+private void CollectData()
         {
             var process = _targetProcess;
             if (process == null) return;
@@ -121,13 +121,8 @@ public class PerformanceMonitor(string instanceId) : IDisposable
                     return;
                 }
 
-                // 刷新进程信息
-                process.Refresh();
+                var memoryMb = process.WorkingSet64 / (1024.0 * 1024.0);
 
-                // 获取内存使用（MB）
-                double memoryMb = process.WorkingSet64 / (1024.0 * 1024.0);
-
-                // 获取 CPU 使用率
                 double cpuUsage = 0;
                 try
                 {
@@ -137,7 +132,6 @@ public class PerformanceMonitor(string instanceId) : IDisposable
                     }
                     else
                     {
-                        // 备用方法：计算 CPU 使用率
                         var now = DateTime.Now;
                         var totalProcessorTime = process.TotalProcessorTime;
                         var timeDiff = (now - _lastCpuTime).TotalMilliseconds;
@@ -145,7 +139,6 @@ public class PerformanceMonitor(string instanceId) : IDisposable
 
                         if (timeDiff > 0)
                         {
-                            // 除以处理器数量得到单核百分比
                             cpuUsage = (cpuDiff / timeDiff / Environment.ProcessorCount) * 100;
                         }
 
@@ -155,10 +148,8 @@ public class PerformanceMonitor(string instanceId) : IDisposable
                 }
                 catch { }
 
-// 限制 CPU 显示范围
                 cpuUsage = Math.Clamp(cpuUsage, 0, 100 * Environment.ProcessorCount);
 
-                // 获取存储空间使用（使用缓存，减少频繁计算）
                 var (TotalMb, WorldSizes) = GetStorageUsageCached();
 
                 var data = new PerformanceData
@@ -174,7 +165,6 @@ public class PerformanceMonitor(string instanceId) : IDisposable
             }
             catch (Exception)
             {
-                // 忽略监控过程中的错误
             }
         }
 

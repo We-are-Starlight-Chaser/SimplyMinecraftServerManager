@@ -3,11 +3,37 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-      xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages" xmlns:pages="clr-namespace:SimplyMinecraftServerManager.ViewModels.Pages" d:DataContext="{d:DesignInstance Type=pages:ToolsViewModel}"
+      xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Pages" xmlns:pages="clr-namespace:SimplyMinecraftServerManager.ViewModels.Pages" d:DataContext="{d:DesignInstance Type=local:ToolsPage,IsDesignTimeCreatable=False}"
       mc:Ignorable="d" 
-      d:DesignHeight="450" d:DesignWidth="800">
+      d:DesignHeight="450" d:DesignWidth="800"
+      ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
+      ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
     <Grid>
-        
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal" Grid.Row="0">
+            <ui:SymbolIcon Symbol="Toolbox24" FontSize="28" 
+                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+            <TextBlock Text="工具" FontSize="24" FontWeight="Medium" 
+                    VerticalAlignment="Center" Margin="12,0,0,0"/>
+        </StackPanel>
+        <WrapPanel Grid.Row="1" Margin="5">
+            <Button Margin="5" Command="{Binding ViewModel.CleanMemoryCommand}">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="Memory16"/>
+                    <TextBlock Text="内存优化" Margin="5,0,0,0"/>
+                </StackPanel>
+            </Button>
+            <Button Margin="5">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="Memory16"/>
+                    <TextBlock Text="内存优化" Margin="5,0,0,0"/>
+                </StackPanel>
+            </Button>
+        </WrapPanel>
     </Grid>
 </Page>

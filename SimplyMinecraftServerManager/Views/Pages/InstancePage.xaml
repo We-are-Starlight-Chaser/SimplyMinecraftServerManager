@@ -220,11 +220,11 @@
                                 </StackPanel>
 
                                 <Grid Grid.Row="1" MinHeight="96">
-                                    <ListView
+                                    <ui:ListView
                                         ItemsSource="{Binding ViewModel.OnlinePlayers, ElementName=PageRoot, IsAsync=True}"
                                         BorderThickness="0"
                                         MaxHeight="200">
-                                        <ListView.ItemTemplate>
+                                        <ui:ListView.ItemTemplate>
                                             <DataTemplate>
                                                 <Border BorderThickness="0" Padding="8,6" CornerRadius="4">
                                                     <StackPanel Orientation="Horizontal">
@@ -241,8 +241,8 @@
                                                     </StackPanel>
                                                 </Border>
                                             </DataTemplate>
-                                        </ListView.ItemTemplate>
-                                    </ListView>
+                                        </ui:ListView.ItemTemplate>
+                                    </ui:ListView>
 
                                     <StackPanel
                                         HorizontalAlignment="Center"

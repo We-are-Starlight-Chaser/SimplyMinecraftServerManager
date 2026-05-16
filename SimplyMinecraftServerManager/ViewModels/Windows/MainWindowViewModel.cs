@@ -4,6 +4,7 @@ using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.ViewModels.Pages;
 using System.Collections.ObjectModel;
 using Wpf.Ui.Controls;
+using Wpf.Ui.Tray;
 
 namespace SimplyMinecraftServerManager.ViewModels.Windows
 {
@@ -27,7 +28,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         /// <summary>
         /// 下载任务导航项（用于显示角标）
         /// </summary>
-        private readonly Wpf.Ui.Controls.NavigationViewItem? _downloadTasksNavItem;
+        private readonly NavigationViewItem? _downloadTasksNavItem;
 
         private readonly DownloadsViewModel _downloadsViewModel;
         private readonly AppNotificationService _notificationService;

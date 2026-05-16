@@ -67,6 +67,9 @@ namespace SimplyMinecraftServerManager
                 services.AddSingleton<DownloadsPage>();
                 services.AddSingleton<DownloadsViewModel>();
 
+                services.AddSingleton<ToolsPage>();
+                services.AddSingleton<ToolsViewModel>();
+
                 services.AddSingleton<SettingsPage>();
                 services.AddSingleton<SettingsViewModel>();
             }).Build();

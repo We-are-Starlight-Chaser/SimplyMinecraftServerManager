@@ -43,7 +43,7 @@ namespace SimplyMinecraftServerManager.Controls
             ['e'] = Color.FromRgb(0xFF, 0xFF, 0x55),
             ['f'] = Color.FromRgb(0xFF, 0xFF, 0xFF)
         };
-        private static readonly IReadOnlyDictionary<int, Color> AnsiBaseColors = new Dictionary<int, Color>
+private static readonly IReadOnlyDictionary<int, Color> AnsiBaseColors = new Dictionary<int, Color>
         {
             [0] = Color.FromRgb(0x00, 0x00, 0x00),
             [1] = Color.FromRgb(0xCD, 0x31, 0x31),
@@ -62,6 +62,26 @@ namespace SimplyMinecraftServerManager.Controls
             [14] = Color.FromRgb(0x29, 0xB8, 0xDB),
             [15] = Color.FromRgb(0xFF, 0xFF, 0xFF)
         };
+
+        private static readonly Dictionary<Color, SolidColorBrush> _brushCache = new();
+        private static SolidColorBrush? _timestampBrush;
+        private static SolidColorBrush? _searchHighlightBrush;
+        private static SolidColorBrush? _defaultForegroundBrush;
+        private static SolidColorBrush? _defaultBackgroundBrush;
+        private static SolidColorBrush? _whiteBrush;
+        private static SolidColorBrush? _errorBrush;
+        private static SolidColorBrush? _warningBrush;
+        private static SolidColorBrush? _successBrush;
+        private static SolidColorBrush? _infoBrush;
+        private static SolidColorBrush? _debugBrush;
+        private static SolidColorBrush? _startupBrush;
+        private static SolidColorBrush? _chatNameBrush;
+        private static SolidColorBrush? _commandBrush;
+        private static SolidColorBrush? _joinBrush;
+        private static SolidColorBrush? _leaveBrush;
+        private static SolidColorBrush? _secureBrush;
+        private static SolidColorBrush? _secondaryTextBrush;
+        private static SolidColorBrush? _messageBrush;
 
         private InstanceViewModel? _subscribedViewModel;
         private readonly List<Run> _searchMatches = [];
@@ -383,31 +403,75 @@ namespace SimplyMinecraftServerManager.Controls
             return false;
         }
 
-        private Brush CreateTimestampBrush()
+private Brush CreateTimestampBrush()
         {
+            if (_timestampBrush != null) return _timestampBrush;
+            
             var baseBrush = TryFindResource("TextFillColorSecondaryBrush") as Brush ?? Brushes.Gray;
             var brush = baseBrush.CloneCurrentValue();
             brush.Opacity = 0.65;
-            return brush;
+            brush.Freeze();
+            _timestampBrush = (SolidColorBrush)brush;
+            return _timestampBrush;
         }
 
         private Brush CreateSearchHighlightBrush()
         {
+            if (_searchHighlightBrush != null) return _searchHighlightBrush;
+            
             var baseBrush = TryFindResource("AccentFillColorDefaultBrush") as Brush ?? Brushes.DodgerBlue;
-            return baseBrush.CloneCurrentValue();
+            var brush = baseBrush.CloneCurrentValue();
+            brush.Freeze();
+            _searchHighlightBrush = (SolidColorBrush)brush;
+            return _searchHighlightBrush;
         }
 
         private Brush CreateDefaultConsoleForegroundBrush()
         {
+            if (_defaultForegroundBrush != null) return _defaultForegroundBrush;
+            
             var baseBrush = TryFindResource("TextFillColorPrimaryBrush") as Brush ?? Brushes.WhiteSmoke;
-            return baseBrush.CloneCurrentValue();
+            var brush = baseBrush.CloneCurrentValue();
+            brush.Freeze();
+            _defaultForegroundBrush = (SolidColorBrush)brush;
+            return _defaultForegroundBrush;
         }
 
         private Brush CreateDefaultConsoleBackgroundBrush()
         {
+            if (_defaultBackgroundBrush != null) return _defaultBackgroundBrush;
+            
             var baseBrush = TryFindResource("ControlFillColorDefaultBrush") as Brush ?? Brushes.Black;
-            return baseBrush.CloneCurrentValue();
+            var brush = baseBrush.CloneCurrentValue();
+            brush.Freeze();
+            _defaultBackgroundBrush = (SolidColorBrush)brush;
+            return _defaultBackgroundBrush;
         }
+
+        private static SolidColorBrush GetCachedBrush(Color color)
+        {
+            if (!_brushCache.TryGetValue(color, out var brush))
+            {
+                brush = new SolidColorBrush(color);
+                brush.Freeze();
+                _brushCache[color] = brush;
+            }
+            return brush;
+        }
+
+        private static SolidColorBrush WhiteBrush => _whiteBrush ??= GetCachedBrush(Colors.White);
+        private static SolidColorBrush ErrorBrush => _errorBrush ??= GetCachedBrush(Color.FromRgb(0xFF, 0x66, 0x66));
+        private static SolidColorBrush WarningBrush => _warningBrush ??= GetCachedBrush(Color.FromRgb(0xFF, 0xC1, 0x5A));
+        private static SolidColorBrush SuccessBrush => _successBrush ??= GetCachedBrush(Color.FromRgb(0x67, 0xE0, 0x7C));
+        private static SolidColorBrush DebugBrush => _debugBrush ??= GetCachedBrush(Color.FromRgb(0x79, 0xC9, 0xFF));
+        private static SolidColorBrush StartupBrush => _startupBrush ??= GetCachedBrush(Color.FromRgb(0x6F, 0xE3, 0xC1));
+        private static SolidColorBrush ChatNameBrush => _chatNameBrush ??= GetCachedBrush(Color.FromRgb(0x63, 0xD2, 0xFF));
+        private static SolidColorBrush CommandBrush => _commandBrush ??= GetCachedBrush(Color.FromRgb(0x6F, 0xE3, 0xC1));
+        private static SolidColorBrush JoinBrush => _joinBrush ??= GetCachedBrush(Color.FromRgb(0x67, 0xE0, 0x7C));
+        private static SolidColorBrush LeaveBrush => _leaveBrush ??= GetCachedBrush(Color.FromRgb(0xFF, 0xC1, 0x5A));
+        private static SolidColorBrush SecureBrush => _secureBrush ??= GetCachedBrush(Color.FromRgb(0xFF, 0xC1, 0x5A));
+        private static SolidColorBrush SecondaryTextBrush => _secondaryTextBrush ??= GetCachedBrush(Color.FromRgb(0xB7, 0xB7, 0xB7));
+private static SolidColorBrush MessageBrush => _messageBrush ??= GetCachedBrush(Color.FromRgb(0xF5, 0xF5, 0xF5));
 
         private Run CreateRun(string text, StyledSegment segment, bool isSearchHit)
         {
@@ -459,10 +523,10 @@ namespace SimplyMinecraftServerManager.Controls
                 run.TextDecorations = textDecorations;
             }
 
-            if (isSearchHit)
+if (isSearchHit)
             {
                 run.Background = CreateSearchHighlightBrush();
-                run.Foreground = Brushes.White;
+                run.Foreground = WhiteBrush;
             }
 
             return run;
@@ -574,9 +638,9 @@ namespace SimplyMinecraftServerManager.Controls
 
             if (fullLine.StartsWith("[ERR] ", StringComparison.Ordinal))
             {
-                return
+return
                 [
-                    CreateStyledSegment(content, foreground: CreateBrush(Color.FromRgb(0xFF, 0x66, 0x66)), isBold: true)
+                    CreateStyledSegment(content, foreground: ErrorBrush, isBold: true)
                 ];
             }
 
@@ -587,12 +651,12 @@ namespace SimplyMinecraftServerManager.Controls
                 var secure = chatMatch.Groups["secure"].Value;
                 if (!string.IsNullOrEmpty(secure))
                 {
-                    segments.Add(CreateStyledSegment(secure, foreground: CreateBrush(Color.FromRgb(0xFF, 0xC1, 0x5A))));
+                    segments.Add(CreateStyledSegment(secure, foreground: SecureBrush));
                 }
 
-                segments.Add(CreateStyledSegment($"<{chatMatch.Groups["name"].Value}>", foreground: CreateBrush(Color.FromRgb(0x63, 0xD2, 0xFF)), isBold: true));
+                segments.Add(CreateStyledSegment($"<{chatMatch.Groups["name"].Value}>", foreground: ChatNameBrush, isBold: true));
                 segments.Add(CreateStyledSegment(" ", foreground: null));
-                segments.Add(CreateStyledSegment(chatMatch.Groups["message"].Value, foreground: CreateBrush(Color.FromRgb(0xF5, 0xF5, 0xF5))));
+                segments.Add(CreateStyledSegment(chatMatch.Groups["message"].Value, foreground: MessageBrush));
                 return segments;
             }
 
@@ -601,9 +665,9 @@ namespace SimplyMinecraftServerManager.Controls
             {
                 return
                 [
-                    CreateStyledSegment(commandMatch.Groups["name"].Value, foreground: CreateBrush(Color.FromRgb(0x63, 0xD2, 0xFF)), isBold: true),
-                    CreateStyledSegment(" issued server command: ", foreground: CreateBrush(Color.FromRgb(0xB7, 0xB7, 0xB7))),
-                    CreateStyledSegment(commandMatch.Groups["command"].Value, foreground: CreateBrush(Color.FromRgb(0x6F, 0xE3, 0xC1)))
+                    CreateStyledSegment(commandMatch.Groups["name"].Value, foreground: ChatNameBrush, isBold: true),
+                    CreateStyledSegment(" issued server command: ", foreground: SecondaryTextBrush),
+                    CreateStyledSegment(commandMatch.Groups["command"].Value, foreground: CommandBrush)
                 ];
             }
 
@@ -611,13 +675,11 @@ namespace SimplyMinecraftServerManager.Controls
             if (joinLeaveMatch.Success)
             {
                 var action = joinLeaveMatch.Groups["action"].Value.ToLowerInvariant();
-                var actionBrush = action == "joined"
-                    ? CreateBrush(Color.FromRgb(0x67, 0xE0, 0x7C))
-                    : CreateBrush(Color.FromRgb(0xFF, 0xC1, 0x5A));
+                var actionBrush = action == "joined" ? JoinBrush : LeaveBrush;
 
                 return
                 [
-                    CreateStyledSegment(joinLeaveMatch.Groups["name"].Value, foreground: CreateBrush(Color.FromRgb(0x63, 0xD2, 0xFF)), isBold: true),
+                    CreateStyledSegment(joinLeaveMatch.Groups["name"].Value, foreground: ChatNameBrush, isBold: true),
                     CreateStyledSegment($" {joinLeaveMatch.Groups["action"].Value} the game", foreground: actionBrush, isBold: true),
                     CreateStyledSegment(joinLeaveMatch.Groups["rest"].Value, foreground: actionBrush)
                 ];
@@ -640,11 +702,11 @@ namespace SimplyMinecraftServerManager.Controls
 
             var severityBrush = severity switch
             {
-                ConsoleSemanticSeverity.Debug => CreateBrush(Color.FromRgb(0x79, 0xC9, 0xFF)),
-                ConsoleSemanticSeverity.Warning => CreateBrush(Color.FromRgb(0xFF, 0xC1, 0x5A)),
-                ConsoleSemanticSeverity.Error => CreateBrush(Color.FromRgb(0xFF, 0x66, 0x66)),
-                ConsoleSemanticSeverity.Success => CreateBrush(Color.FromRgb(0x67, 0xE0, 0x7C)),
-                ConsoleSemanticSeverity.Startup => CreateBrush(Color.FromRgb(0x6F, 0xE3, 0xC1)),
+                ConsoleSemanticSeverity.Debug => DebugBrush,
+                ConsoleSemanticSeverity.Warning => WarningBrush,
+                ConsoleSemanticSeverity.Error => ErrorBrush,
+                ConsoleSemanticSeverity.Success => SuccessBrush,
+                ConsoleSemanticSeverity.Startup => StartupBrush,
                 _ => null
             };
 
@@ -916,15 +978,22 @@ namespace SimplyMinecraftServerManager.Controls
             }
 
             if (!string.IsNullOrWhiteSpace(GetActiveSearchText()))
-            {
+{
                 RebuildDocument();
                 return;
             }
 
-            ConsoleTextBox.Document.Blocks.Add(CreateParagraph(line, string.Empty));
-            while (ConsoleTextBox.Document.Blocks.Count > InstanceViewModel.MaxConsoleLines)
+            var document = ConsoleTextBox.Document;
+            document.Blocks.Add(CreateParagraph(line, string.Empty));
+            
+            var maxBlocks = InstanceViewModel.MaxConsoleLines;
+            if (document.Blocks.Count > maxBlocks)
             {
-                ConsoleTextBox.Document.Blocks.Remove(ConsoleTextBox.Document.Blocks.FirstBlock);
+                var toRemove = document.Blocks.Count - maxBlocks;
+                for (int i = 0; i < toRemove; i++)
+                {
+                    document.Blocks.Remove(document.Blocks.FirstBlock);
+                }
             }
 
             UpdateEmptyHintVisibility(true);

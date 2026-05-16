@@ -45,9 +45,9 @@ namespace SimplyMinecraftServerManager.Internals
         [return: MarshalAs(UnmanagedType.Bool)]
         private static partial bool OpenProcessToken(IntPtr ProcessHandle, TokenAccessLevels DesiredAccess, out IntPtr TokenHandle);
 
-        [LibraryImport("advapi32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+        [DllImport("advapi32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        private static partial bool LookupPrivilegeValue(string lpSystemName, string lpName, out LUID lpLuid);
+        private static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, out LUID lpLuid);
 
         [LibraryImport("advapi32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -163,20 +163,6 @@ namespace SimplyMinecraftServerManager.Internals
 
         #endregion
 
-        #region Events
-
-        /// <summary>
-        /// 内存清理进度事件
-        /// </summary>
-        public event EventHandler<MemoryCleanProgressEventArgs> ProgressChanged;
-
-        /// <summary>
-        /// 内存清理完成事件
-        /// </summary>
-        public event EventHandler<MemoryCleanCompleteEventArgs> CleanCompleted;
-
-        #endregion
-
         #region Properties
 
         /// <summary>
@@ -208,17 +194,11 @@ namespace SimplyMinecraftServerManager.Internals
             bool debugPrivilegeResult = AdjustTokenPrivilegesForNT();
             bool quotaPrivilegeResult = EnableSpecificPrivilege(SE_INCREASE_QUOTA_NAME);
 
-            OnProgressChanged(new MemoryCleanProgressEventArgs("开始清理工作集"));
-
             int cleanedProcesses = GetEmptyAllSet();
 
-            OnProgressChanged(new MemoryCleanProgressEventArgs($"成功清理 {cleanedProcesses} 个进程的工作集"));
 
             bool cacheCleanupResult = SetSystemFileCacheSize(-1, -1, 0);
 
-            OnProgressChanged(new MemoryCleanProgressEventArgs("清理内存文件缓存完成"));
-
-            OnCleanCompleted(new MemoryCleanCompleteEventArgs(cleanedProcesses, debugPrivilegeResult, quotaPrivilegeResult, cacheCleanupResult));
 
             return cleanedProcesses;
         }
@@ -247,25 +227,15 @@ namespace SimplyMinecraftServerManager.Internals
 
                 while (!cancellationToken.IsCancellationRequested && IsRunning)
                 {
-                    OnProgressChanged(new MemoryCleanProgressEventArgs($"延迟 {intervalSeconds} 秒执行下一次清理"));
 
-                    await System.Threading.Tasks.Task.Delay(intervalSeconds * 1000, cancellationToken);
+                    await Task.Delay(intervalSeconds * 1000, cancellationToken);
 
                     if (cancellationToken.IsCancellationRequested || !IsRunning)
                         break;
 
-                    OnProgressChanged(new MemoryCleanProgressEventArgs("开始清理工作集"));
-
                     int cleanedProcesses = GetEmptyAllSet();
 
-                    OnProgressChanged(new MemoryCleanProgressEventArgs($"成功清理 {cleanedProcesses} 个进程的工作集"));
-
                     bool cacheCleanupResult = SetSystemFileCacheSize(-1, -1, 0);
-
-                    OnProgressChanged(new MemoryCleanProgressEventArgs("清理内存文件缓存完成"));
-
-                    OnCleanCompleted(new MemoryCleanCompleteEventArgs(cleanedProcesses, debugPrivilegeResult,
-                        quotaPrivilegeResult, cacheCleanupResult));
                 }
             }
             finally
@@ -435,16 +405,6 @@ namespace SimplyMinecraftServerManager.Internals
 
                 return fIsElevated;
             }
-        }
-
-        private void OnProgressChanged(MemoryCleanProgressEventArgs e)
-        {
-            ProgressChanged?.Invoke(this, e);
-        }
-
-        private void OnCleanCompleted(MemoryCleanCompleteEventArgs e)
-        {
-            CleanCompleted?.Invoke(this, e);
         }
 
         #endregion

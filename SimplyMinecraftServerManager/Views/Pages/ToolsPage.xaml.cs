@@ -15,15 +15,15 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.Views.Pages
 {
-    public partial class ToolsPage : INavigableView<ServersViewModel>
+    public partial class ToolsPage : INavigableView<ToolsViewModel>
     {
-        public ToolsPage(ServersViewModel viewModel)
+        public ToolsPage(ToolsViewModel viewModel)
         {
             ViewModel = viewModel;
             DataContext = this;
             InitializeComponent();
         }
 
-        public ServersViewModel ViewModel { get; }
+        public ToolsViewModel ViewModel { get; }
     }
 }

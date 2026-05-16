@@ -5,6 +5,7 @@
   xmlns:controls="clr-namespace:SimplyMinecraftServerManager.Controls"
   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
   xmlns:local="clr-namespace:SimplyMinecraftServerManager.Views.Windows"
+  xmlns:tray="http://schemas.lepo.co/wpfui/2022/xaml/tray"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
   Title="{Binding ViewModel.ApplicationTitle, Mode=OneWay}"
@@ -71,5 +72,15 @@
     </ui:NavigationView>
 
     <ui:ContentDialogHost x:Name="RootContentDialogPresenter" Grid.Row="0" />
-  </Grid>
+        <tray:NotifyIcon
+    Grid.Row="0"
+    FocusOnLeftClick="True"
+    Icon="pack://application:,,,/Assets/Pictures/SMSM-icon-256.jpg"
+    MenuOnRightClick="True"
+    TooltipText="SMSM Beta v1.0">
+            <tray:NotifyIcon.Menu>
+                <ContextMenu ItemsSource = "{Binding ViewModel.TrayMenuItems, Mode=OneWay}" />
+            </tray:NotifyIcon.Menu>
+        </tray:NotifyIcon>
+    </Grid>
 </ui:FluentWindow>

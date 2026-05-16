@@ -38,11 +38,14 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             }
         }
 
-        private readonly HttpClient _httpClient;
+private readonly HttpClient _httpClient;
         private readonly bool _ownsHttpClient;
         private readonly ConcurrentDictionary<string, DownloadTask> _tasks = new();
         private readonly ConcurrentDictionary<string, bool> _pausedTasks = new();
-        private const int BufferSize = 81920;
+        private const int BufferSize = 262144;
+        private static readonly byte[] _sharedBuffer = new byte[BufferSize];
+        
+        private const int ProgressReportIntervalMs = 150;
 
         private volatile SemaphoreSlim _semaphore;
         private volatile int _maxConcurrent;
@@ -425,13 +428,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                     await response.Content.ReadAsStreamAsync(task.Cts.Token);
 
                 {
-                    // 如果支持断点续传且有暂停位置，则追加写入；否则创建新文件
+// 如果支持断点续传且有暂停位置，则追加写入；否则创建新文件
                     var fileMode = (supportsResume && task.PausedPosition > 0) ? FileMode.Append : FileMode.Create;
                     await using var fileStream = new FileStream(
                         tempPath, fileMode, FileAccess.Write, FileShare.None,
                         BufferSize, useAsync: true);
 
-                    var buffer = new byte[BufferSize];
                     var sw = Stopwatch.StartNew();
                     long lastReportedBytes = task.PausedPosition;
                     long lastReportTime = 0;
@@ -439,7 +441,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
                     int bytesRead;
                     while ((bytesRead = await contentStream.ReadAsync(
-                        buffer.AsMemory(0, BufferSize), task.Cts.Token)) > 0)
+                        _sharedBuffer.AsMemory(0, BufferSize), task.Cts.Token)) > 0)
                     {
                         // 检查是否被暂停
                         if (_pausedTasks.ContainsKey(task.Id))
@@ -452,11 +454,11 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                         }
 
                         await fileStream.WriteAsync(
-                            buffer.AsMemory(0, bytesRead), task.Cts.Token);
+                            _sharedBuffer.AsMemory(0, bytesRead), task.Cts.Token);
                         task.BytesDownloaded += bytesRead;
 
                         long elapsed = sw.ElapsedMilliseconds;
-                        if (elapsed - lastReportTime >= 200)
+                        if (elapsed - lastReportTime >= ProgressReportIntervalMs)
                         {
                             long deltaBytes = task.BytesDownloaded - lastReportedBytes;
                             double deltaSec = (elapsed - lastReportTime) / 1000.0;
