@@ -30,8 +30,8 @@
             </Button>
             <Button Margin="5">
                 <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="Memory16"/>
-                    <TextBlock Text="内存优化" Margin="5,0,0,0"/>
+                    <ui:SymbolIcon Symbol="Subtitles16"/>
+                    <TextBlock Text="创建MOTD" Margin="5,0,0,0"/>
                 </StackPanel>
             </Button>
         </WrapPanel>

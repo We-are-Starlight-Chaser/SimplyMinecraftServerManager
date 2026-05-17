@@ -905,12 +905,21 @@
                             </Button>
                             <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                 <ui:Button Command="{Binding ViewModel.BackupCommand}" Appearance="Primary" x:Name="BackupButton">
-                                    备份
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Backpack24"/>
+                                        <TextBlock Margin="5,0,0,0">备份</TextBlock>
+                                    </StackPanel>
                                 </ui:Button>
                                 <Button Margin="5,0,0,0" Command="{Binding ViewModel.CancelBackupCommand}" Visibility="{Binding Path=IsEnabled,ElementName=BackupButton,Converter={StaticResource InverseBooleanToVisibilityConverter}}">取消</Button>
                                 <ProgressBar  Visibility="{Binding Path=IsEnabled,ElementName=BackupButton,Converter={StaticResource InverseBooleanToVisibilityConverter}}" Maximum="100" Value="{Binding ViewModel.BackupProgress}" Width="100" Height="4" Margin="5,0,0,0"/>
                             </StackPanel>
-                            
+                            <Button Margin="0,5,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Timer24"/>
+                                    <TextBlock Margin="5,0,0,0">定时任务</TextBlock>
+                                </StackPanel>
+                            </Button>
+
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>

@@ -247,7 +247,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             if (!Directory.Exists(sourceDirectory)) throw new DirectoryNotFoundException($"Source not found: {sourceDirectory}");
             var allFiles = Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories);
-            Console.WriteLine($"Found {allFiles.Length} files. Starting pipeline...");
 
             string parentDir = Path.GetDirectoryName(sourceDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
@@ -305,8 +304,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
             channel.Writer.Complete();
             await writeTask;
-
-            Console.WriteLine("Backup completed successfully!");
+            RunOnUiThread(async () => await new Wpf.Ui.Controls.MessageBox()
+            {
+                Title = "备份",
+                Content = $"文件已保存至{destinationArchivePath}!"
+            }.ShowDialogAsync());
         }
 
         private void OnInstanceStatusChanged(object? sender, (string InstanceId, bool IsRunning) e)
