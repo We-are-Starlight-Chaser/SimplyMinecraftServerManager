@@ -7,61 +7,76 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:converters="clr-namespace:SimplyMinecraftServerManager.Helpers"
       mc:Ignorable="d" 
-      MaxWidth="380"
-      MinWidth="180"
-      d:DesignHeight="180"
-      d:DesignWidth="380"
+    MaxWidth="500"
+      MinWidth="300"
+      d:DesignHeight="300"
+      d:DesignWidth="500"
+      
       Background="{DynamicResource ApplicationBackgroundBrush}"
       BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
       BorderThickness="1"
-      Title="定时任务" VerticalAlignment="Center" HorizontalAlignment="Center">
+      Title="定时任务" 
+      VerticalAlignment="Center" 
+      HorizontalAlignment="Center">
+
     <ui:ContentDialog.Resources>
         <converters:ScheduledTaskIndexToVisibilityConverter x:Key="ScheduledTaskIndexToVisibilityConverter"/>
     </ui:ContentDialog.Resources>
+
+    <!-- 2. 调整外层Border的Padding，增加呼吸感 -->
     <Border
-  Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-  CornerRadius="8"
-  Padding="24"
-  BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-  BorderThickness="1"
->
-        <Grid MinWidth="132">
+        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+        CornerRadius="8"
+        Padding="30"
+        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+        BorderThickness="1">
+
+        <Grid MinWidth="250">
+            <!-- 增加最小宽度 -->
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
+
             <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <ComboBox Grid.Column="0" SelectedIndex="0" x:Name="CBox">
-                <ComboBoxItem>
-                    执行命令
-                </ComboBoxItem>
-                <ComboBoxItem>
-                    备份
-                </ComboBoxItem>
-                <ComboBoxItem>
-                    定时重启
-                </ComboBoxItem>
-            </ComboBox>
-            <StackPanel Grid.Column="1" Margin="5,0,0,0" VerticalAlignment="Center" >
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <ComboBox Grid.Column="0" SelectedIndex="0" x:Name="CBox" VerticalAlignment="Center" Margin="0,10,10,10">
+                    <ComboBoxItem>执行命令</ComboBoxItem>
+                    <ComboBoxItem>备份</ComboBoxItem>
+                    <ComboBoxItem>重启</ComboBoxItem>
+                </ComboBox>
+
+                <StackPanel Grid.Column="1" Margin="0,10,0,10" VerticalAlignment="Center" Name="ExecuteCommand">
                     <StackPanel.Visibility>
                         <MultiBinding Converter="{StaticResource ScheduledTaskIndexToVisibilityConverter}">
                             <Binding Path="SelectedIndex" ElementName="CBox"/>
+                            <Binding Path="Name" ElementName="ExecuteCommand" />
                         </MultiBinding>
                     </StackPanel.Visibility>
-                <TextBlock FontSize="16">请输入命令：</TextBlock>
-                <TextBox Margin="0,5,0,0"/>
-            </StackPanel>
+
+                    <TextBlock FontSize="16" Margin="0,0,0,8">请输入命令：</TextBlock>
+                    <TextBox Height="60" Margin="0,5,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
             </Grid>
-            <Button Grid.Row="2" HorizontalAlignment="Center">
-                <StackPanel Orientation="Horizontal">
+
+            <StackPanel Grid.Row="2" Margin="0,20,0,0" Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Padding="20,10">
+                <StackPanel Orientation="Horizontal" >
                     <ui:SymbolIcon Symbol="CheckMark24"/>
                     <TextBlock>确定</TextBlock>
                 </StackPanel>
-            </Button>
+                </Button>
+                <Button Padding="20,10" Margin="5,0,0,0" Click="Button_Click">
+                <StackPanel Orientation="Horizontal" >
+                    <ui:SymbolIcon Symbol="Dismiss24"/>
+                        <TextBlock>取消</TextBlock>
+                </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
     </Border>
 </ui:ContentDialog>

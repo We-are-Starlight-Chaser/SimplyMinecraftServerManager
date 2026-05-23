@@ -1,9 +1,12 @@
 using Microsoft.Win32;
+using SharpSevenZip;
+using SharpSevenZip.EventArguments;
 using SimplyMinecraftServerManager.Helpers;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
+using SimplyMinecraftServerManager.Views.Pages;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -206,6 +209,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private static readonly int processerCount = Environment.ProcessorCount;
         [RelayCommand]
+        private async Task ShowScheduledTaskDialogAsync()
+        {
+            CancellationTokenSource source = new();
+            await _contentDialogService.ShowAsync(new ScheduledTaskDialog(),source.Token);
+        }
+        [RelayCommand]
         private async Task CancelBackup()
         {
             await source.CancelAsync();
@@ -219,18 +228,26 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             if (!Directory.Exists(destPath)) Directory.CreateDirectory(destPath);
             try
             {
-                await Task.Run(async () =>
-                {
-                    var progress = new Progress<double>(p => BackupProgress = p);
+                //由于xiaomu18的要求，将采用压缩率更高的7z，无视内存占用问题
+                    //var progress = new Progress<double>(p => BackupProgress = p);
 
-                    await CreateCompressedBackupAsync(
+                    /*await CreateCompressedBackupAsync(
                         path,
                         destPath + $"\\{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.zip",
                         processerCount * 2,
                         progress,
                         source.Token
-                    );
-                });
+                    );*/
+                    var c = new SharpSevenZipCompressor
+                    {
+                        CompressionLevel = SharpSevenZip.CompressionLevel.Normal
+                    };
+                    c.Compressing += (sender, e) =>
+                    {
+                        BackupProgress = e.PercentDone;
+                    };
+                    c.CustomParameters.Add("mt", "on");
+                await c.CompressDirectoryAsync(path, destPath + $"\\{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.7z");
             }
             finally
             {

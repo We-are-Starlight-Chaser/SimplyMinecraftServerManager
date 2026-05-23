@@ -391,10 +391,10 @@
                                             FontWeight="SemiBold"
                                             Margin="0,0,0,12"/>
 
-                                        <ListView Grid.Row="1"
+                                        <ui:ListView Grid.Row="1"
                                             ItemsSource="{Binding ViewModel.WorldStorageInfo, ElementName=PageRoot}"
                                             BorderThickness="0">
-                                            <ListView.ItemTemplate>
+                                            <ui:ListView.ItemTemplate>
                                                 <DataTemplate>
                                                     <Grid Margin="0,4">
                                                         <Grid.ColumnDefinitions>
@@ -422,8 +422,8 @@
                                                             Foreground="{DynamicResource AccentFillColorDefaultBrush}"/>
                                                     </Grid>
                                                 </DataTemplate>
-                                            </ListView.ItemTemplate>
-                                        </ListView>
+                                            </ui:ListView.ItemTemplate>
+                                        </ui:ListView>
                                     </Grid>
                                 </ui:Card>
                             </Grid>
@@ -913,7 +913,7 @@
                                 <Button Margin="5,0,0,0" Command="{Binding ViewModel.CancelBackupCommand}" Visibility="{Binding Path=IsEnabled,ElementName=BackupButton,Converter={StaticResource InverseBooleanToVisibilityConverter}}">取消</Button>
                                 <ProgressBar  Visibility="{Binding Path=IsEnabled,ElementName=BackupButton,Converter={StaticResource InverseBooleanToVisibilityConverter}}" Maximum="100" Value="{Binding ViewModel.BackupProgress}" Width="100" Height="4" Margin="5,0,0,0"/>
                             </StackPanel>
-                            <Button Margin="0,5,0,0">
+                            <Button Margin="0,5,0,0" Command="{Binding ViewModel.ShowScheduledTaskDialogCommand}">
                                 <StackPanel Orientation="Horizontal">
                                     <ui:SymbolIcon Symbol="Timer24"/>
                                     <TextBlock Margin="5,0,0,0">定时任务</TextBlock>

@@ -24,7 +24,7 @@ namespace SimplyMinecraftServerManager.Controls
         private static readonly Regex ChatMessageRegex = new(@"^(?<secure>\[Not Secure\]\s+)?<(?<name>[^>]+)>\s(?<message>.*)$", RegexOptions.Compiled);
         private static readonly Regex CommandMessageRegex = new(@"^(?<name>.+?)\sissued server command:\s*(?<command>/?.*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex JoinLeaveRegex = new(@"^(?<name>.+?)\s(?<action>joined|left)\sthe game\b(?<rest>.*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private static readonly IReadOnlyDictionary<char, Color> MinecraftLegacyColors = new Dictionary<char, Color>
+        private static readonly Dictionary<char, Color> MinecraftLegacyColors = new()
         {
             ['0'] = Color.FromRgb(0x00, 0x00, 0x00),
             ['1'] = Color.FromRgb(0x00, 0x00, 0xAA),
@@ -43,8 +43,8 @@ namespace SimplyMinecraftServerManager.Controls
             ['e'] = Color.FromRgb(0xFF, 0xFF, 0x55),
             ['f'] = Color.FromRgb(0xFF, 0xFF, 0xFF)
         };
-private static readonly IReadOnlyDictionary<int, Color> AnsiBaseColors = new Dictionary<int, Color>
-        {
+private static readonly Dictionary<int, Color> AnsiBaseColors = new()
+{
             [0] = Color.FromRgb(0x00, 0x00, 0x00),
             [1] = Color.FromRgb(0xCD, 0x31, 0x31),
             [2] = Color.FromRgb(0x0D, 0xBC, 0x79),
@@ -63,7 +63,7 @@ private static readonly IReadOnlyDictionary<int, Color> AnsiBaseColors = new Dic
             [15] = Color.FromRgb(0xFF, 0xFF, 0xFF)
         };
 
-        private static readonly Dictionary<Color, SolidColorBrush> _brushCache = new();
+        private static readonly Dictionary<Color, SolidColorBrush> _brushCache = [];
         private static SolidColorBrush? _timestampBrush;
         private static SolidColorBrush? _searchHighlightBrush;
         private static SolidColorBrush? _defaultForegroundBrush;
@@ -72,7 +72,6 @@ private static readonly IReadOnlyDictionary<int, Color> AnsiBaseColors = new Dic
         private static SolidColorBrush? _errorBrush;
         private static SolidColorBrush? _warningBrush;
         private static SolidColorBrush? _successBrush;
-        private static SolidColorBrush? _infoBrush;
         private static SolidColorBrush? _debugBrush;
         private static SolidColorBrush? _startupBrush;
         private static SolidColorBrush? _chatNameBrush;
@@ -290,7 +289,7 @@ private static readonly IReadOnlyDictionary<int, Color> AnsiBaseColors = new Dic
             return paragraph;
         }
 
-        private IReadOnlyList<StyledSegment> GetStyledSegments(string fullLine, string prefix, string content)
+        private List<StyledSegment> GetStyledSegments(string fullLine, string prefix, string content)
         {
             var segments = ParseStyledSegments(content);
             if (segments.Count == 0 || HasExplicitStyling(segments))
@@ -403,7 +402,7 @@ private static readonly IReadOnlyDictionary<int, Color> AnsiBaseColors = new Dic
             return false;
         }
 
-private Brush CreateTimestampBrush()
+private SolidColorBrush CreateTimestampBrush()
         {
             if (_timestampBrush != null) return _timestampBrush;
             
@@ -415,7 +414,7 @@ private Brush CreateTimestampBrush()
             return _timestampBrush;
         }
 
-        private Brush CreateSearchHighlightBrush()
+        private SolidColorBrush CreateSearchHighlightBrush()
         {
             if (_searchHighlightBrush != null) return _searchHighlightBrush;
             
@@ -426,7 +425,7 @@ private Brush CreateTimestampBrush()
             return _searchHighlightBrush;
         }
 
-        private Brush CreateDefaultConsoleForegroundBrush()
+        private SolidColorBrush CreateDefaultConsoleForegroundBrush()
         {
             if (_defaultForegroundBrush != null) return _defaultForegroundBrush;
             
@@ -437,7 +436,7 @@ private Brush CreateTimestampBrush()
             return _defaultForegroundBrush;
         }
 
-        private Brush CreateDefaultConsoleBackgroundBrush()
+        private SolidColorBrush CreateDefaultConsoleBackgroundBrush()
         {
             if (_defaultBackgroundBrush != null) return _defaultBackgroundBrush;
             
@@ -552,7 +551,7 @@ if (isSearchHit)
             return ranges;
         }
 
-        private IReadOnlyList<StyledSegment> ParseStyledSegments(string text)
+        private List<StyledSegment> ParseStyledSegments(string text)
         {
             if (string.IsNullOrEmpty(text))
             {
@@ -629,7 +628,7 @@ if (isSearchHit)
                 || segment.Inverse);
         }
 
-        private IReadOnlyList<StyledSegment> BuildSemanticSegments(string fullLine, string prefix, string content)
+        private List<StyledSegment> BuildSemanticSegments(string fullLine, string prefix, string content)
         {
             if (string.IsNullOrWhiteSpace(content))
             {
@@ -938,7 +937,7 @@ return
             return true;
         }
 
-        private static Brush CreateBrush(Color color)
+        private static SolidColorBrush CreateBrush(Color color)
         {
             var brush = new SolidColorBrush(color);
             brush.Freeze();
