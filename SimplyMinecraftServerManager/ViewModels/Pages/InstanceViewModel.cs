@@ -1,6 +1,6 @@
 using Microsoft.Win32;
-using SharpSevenZip;
-using SharpSevenZip.EventArguments;
+using SharpCompress.Common;
+using SharpCompress.Writers.Tar;
 using SimplyMinecraftServerManager.Helpers;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
@@ -8,17 +8,14 @@ using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Views.Pages;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using System.Threading.Channels;
-using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
+using ZstdNet;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
@@ -212,7 +209,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private async Task ShowScheduledTaskDialogAsync()
         {
             CancellationTokenSource source = new();
-            await _contentDialogService.ShowAsync(new ScheduledTaskDialog(),source.Token);
+            await _contentDialogService.ShowAsync(new ScheduledTaskDialog(), source.Token);
         }
         [RelayCommand]
         private async Task CancelBackup()
@@ -222,32 +219,14 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private async Task BackupAsync()
         {
+            Environment.SetEnvironmentVariable("ZSTD_NBTHREADS", (processerCount*2).ToString());
             BackupProgress = 0;
             string path = PathHelper.GetInstanceDir(InstanceId);
             string destPath = Path.Combine(PathHelper.Root, "backups");
             if (!Directory.Exists(destPath)) Directory.CreateDirectory(destPath);
             try
             {
-                //由于xiaomu18的要求，将采用压缩率更高的7z，无视内存占用问题
-                    //var progress = new Progress<double>(p => BackupProgress = p);
-
-                    /*await CreateCompressedBackupAsync(
-                        path,
-                        destPath + $"\\{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.zip",
-                        processerCount * 2,
-                        progress,
-                        source.Token
-                    );*/
-                    var c = new SharpSevenZipCompressor
-                    {
-                        CompressionLevel = SharpSevenZip.CompressionLevel.Normal
-                    };
-                    c.Compressing += (sender, e) =>
-                    {
-                        BackupProgress = e.PercentDone;
-                    };
-                    c.CustomParameters.Add("mt", "on");
-                await c.CompressDirectoryAsync(path, destPath + $"\\{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.7z");
+                await CreateTarZstdWithProgress(path, destPath + $"\\{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.zst");
             }
             finally
             {
@@ -255,79 +234,40 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 source = new();
             }
         }
-        public static async Task CreateCompressedBackupAsync(
-            string sourceDirectory,
-            string destinationArchivePath,
-            int maxConcurrency,
-            IProgress<double> progress = null, 
-            CancellationToken cancellationToken = default)
+    public async Task CreateTarZstdWithProgress(string sourceFolder, string outputFilePath)
         {
-            if (!Directory.Exists(sourceDirectory)) throw new DirectoryNotFoundException($"Source not found: {sourceDirectory}");
-            var allFiles = Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories);
+            Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath));
 
-            string parentDir = Path.GetDirectoryName(sourceDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            // 1. 提前计算文件夹内所有文件的原始总大小（用于计算进度）
+            var allFiles = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories);
+            long totalSize = allFiles.Sum(f => new FileInfo(f).Length);
+            long processedSize = 0;
 
-            var channel = Channel.CreateBounded<(string AbsolutePath, string RelativePath)>(
-                new BoundedChannelOptions(maxConcurrency * 2)
-                { FullMode = BoundedChannelFullMode.Wait });
-            var writeTask = Task.Run(async () =>
+            using var fileStream = File.Create(outputFilePath);
+            using var zstdStream = new CompressionStream(fileStream, new CompressionOptions(9));
+            var writerOptions = new TarWriterOptions(CompressionType.None)
             {
-                using var archiveStream = new FileStream(destinationArchivePath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, useAsync: true);
-                using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Create, leaveOpen: false);
-                int processedCount = 0;
+                ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 },
+            };
 
-                try
-                {
-                    await foreach (var (AbsolutePath, RelativePath) in channel.Reader.ReadAllAsync(cancellationToken))
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        var entry = archive.CreateEntry(RelativePath);
-                        using var fileStream = new FileStream(AbsolutePath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, useAsync: true);
-                        using var entryStream = entry.Open();
-                        await fileStream.CopyToAsync(entryStream, 65536, cancellationToken);
-
-                        int j = Interlocked.Increment(ref processedCount);
-                        progress.Report((double)j/allFiles.Length * 100);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Write task failed: {ex.Message}");
-                    throw;
-                }
-            }, cancellationToken);
-            try
+            using var tarWriter = new TarWriter(zstdStream, writerOptions);
+            foreach (var filePath in allFiles)
             {
-                var producerTasks = new List<Task>();
-                for (int i = 0; i < maxConcurrency; i++)
+                var relativePath = Path.GetRelativePath(sourceFolder, filePath).Replace('\\', '/');
+                long currentFileSize = new FileInfo(filePath).Length;
+                var fileInput = File.OpenRead(filePath);
+                using var progressStream = new ProgressStream(fileInput, currentFileSize, (bytesRead) =>
                 {
-                    int threadIndex = i;
-                    producerTasks.Add(Task.Run(async () =>
-                    {
-                        for (int j = threadIndex; j < allFiles.Length; j += maxConcurrency)
-                        {
-                            string filePath = allFiles[j];
-                            string relativePath = Path.GetRelativePath(parentDir, filePath).Replace('/', '_');
-                            await channel.Writer.WriteAsync((filePath, relativePath), cancellationToken);
-                        }
-                    }, cancellationToken));
-                }
-                await Task.WhenAll(producerTasks);
+                    processedSize += bytesRead;
+                    double percent = (double)processedSize / totalSize * 100;
+                    BackupProgress = percent;
+                });
+                await tarWriter.WriteAsync(relativePath, progressStream, DateTime.Now,cancellationToken:source.Token);
             }
-            catch (OperationCanceledException)
-            {
-                channel.Writer.Complete();
-                throw;
-            }
-            channel.Writer.Complete();
-            await writeTask;
-            RunOnUiThread(async () => await new Wpf.Ui.Controls.MessageBox()
-            {
-                Title = "备份",
-                Content = $"文件已保存至{destinationArchivePath}!"
-            }.ShowDialogAsync());
+
+            tarWriter.Dispose();
+            zstdStream.Flush();
         }
-
         private void OnInstanceStatusChanged(object? sender, (string InstanceId, bool IsRunning) e)
         {
             if (e.InstanceId != InstanceId) return;
@@ -365,7 +305,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             process.ErrorReceived += OnProcessErrorReceived;
         }
 
-private ThrottledDispatcher? _consoleThrottler;
+        private ThrottledDispatcher? _consoleThrottler;
         private readonly List<string> _pendingConsoleLines = [];
         private readonly Lock _pendingConsoleLock = new();
 
@@ -422,7 +362,7 @@ private ThrottledDispatcher? _consoleThrottler;
             ConsoleLineAdded?.Invoke(this, line);
         }
 
-private void AppendConsoleLine(string line)
+        private void AppendConsoleLine(string line)
         {
             AppendConsoleLineInternal(line);
         }
@@ -442,20 +382,20 @@ private void AppendConsoleLine(string line)
             ConsoleCleared?.Invoke(this, EventArgs.Empty);
         }
 
-[RelayCommand]
+        [RelayCommand]
         private void CopyConsole()
         {
             lock (_consoleLock)
             {
                 if (_consoleLines.Count == 0) return;
-                
+
                 var sb = new System.Text.StringBuilder(_consoleLines.Count * 50);
                 for (int i = 0; i < _consoleLines.Count; i++)
                 {
                     sb.Append(_consoleLines[i]);
                     sb.AppendLine();
                 }
-                
+
                 System.Windows.Clipboard.SetText(sb.ToString());
                 StatusMessage = "控制台内容已复制到剪贴板";
             }
@@ -466,10 +406,10 @@ private void AppendConsoleLine(string line)
             lock (_consoleLock)
             {
                 if (_consoleLines.Count == 0) return string.Empty;
-                
+
                 if (_consoleLines.Count == 1)
                     return _consoleLines[0];
-                
+
                 var sb = new System.Text.StringBuilder(_consoleLines.Count * 50);
                 for (int i = 0; i < _consoleLines.Count; i++)
                 {
@@ -509,7 +449,7 @@ private void AppendConsoleLine(string line)
             return Task.CompletedTask;
         }
 
-public void LoadInstance(string instanceId)
+        public void LoadInstance(string instanceId)
         {
             _ = LoadInstanceAsync(instanceId);
         }
@@ -560,7 +500,7 @@ public void LoadInstance(string instanceId)
             _ = Task.Run(() => LoadDashboardData());
         }
 
-private void LoadInstalledJdks()
+        private void LoadInstalledJdks()
         {
             try
             {
@@ -857,7 +797,7 @@ private void LoadInstalledJdks()
             }
         }
 
-private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
+        private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
         {
             DispatcherHelper.InvokeIfNeeded(() =>
             {
@@ -1365,7 +1305,7 @@ private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
             try
             {
                 string pluginsDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "plugins");
-                
+
                 // 根据插件当前状态决定操作
                 if (plugin.IsEnabled)
                 {
@@ -1394,10 +1334,10 @@ private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
                 else
                 {
                     // 当前是禁用状态，需要启用
-                    string pluginFileNameWithoutDis = plugin.FileName.EndsWith(".dis") 
+                    string pluginFileNameWithoutDis = plugin.FileName.EndsWith(".dis")
                         ? plugin.FileName[..^4] // 移除 .dis
                         : plugin.FileName;
-                    
+
                     string disabledFilePath = Path.Combine(pluginsDir, plugin.FileName);
                     string enabledFilePath = Path.Combine(pluginsDir, pluginFileNameWithoutDis);
 
@@ -1406,7 +1346,7 @@ private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
                         // 需要重命名为启用状态的文件名
                         string targetFileName = Path.GetFileNameWithoutExtension(pluginFileNameWithoutDis) + ".jar";
                         string targetPath = Path.Combine(pluginsDir, targetFileName);
-                        
+
                         if (!File.Exists(targetPath))
                         {
                             File.Move(disabledFilePath, targetPath);
@@ -1440,10 +1380,10 @@ private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
 
             // 读取 server.properties
             LoadServerPropertiesForDashboard();
-            
+
             // 设置服务器地址
             UpdateServerAddress();
-            
+
             // 如果服务器正在运行，启动状态轮询
             if (IsRunning)
             {
@@ -1461,7 +1401,7 @@ private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
             try
             {
                 var props = ServerPropertiesManager.Read(InstanceId);
-                
+
                 // 读取游戏模式
                 var gameModeValue = props.GetValueOrDefault("gamemode", "survival");
                 GameMode = gameModeValue switch
@@ -1495,7 +1435,7 @@ private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
                 var props = ServerPropertiesManager.Read(InstanceId);
                 var ip = props.GetValueOrDefault("server-ip", "");
                 var port = props.GetValueOrDefault("server-port", "25565");
-                
+
                 if (string.IsNullOrWhiteSpace(ip))
                 {
                     ServerAddress = $"localhost:{port}";
@@ -1993,7 +1933,7 @@ private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
         public string Description { get; } = info.Description;
         public string FileName { get; } = info.FileName;
         public string Authors { get; } = string.Join(", ", info.Authors);
-        public string FolderPath { get; } = string.IsNullOrEmpty(info.FilePath) ? "" : 
+        public string FolderPath { get; } = string.IsNullOrEmpty(info.FilePath) ? "" :
             Path.Combine(Path.GetDirectoryName(info.FilePath) ?? "", info.Name); // 指向插件数据目录
         public bool IsEnabled { get; set; } = !info.IsDisabled; // 根据插件信息设置启用状态
     }
@@ -2008,4 +1948,35 @@ private void OnPerformanceDataUpdated(object? sender, PerformanceData data)
         public string SizeFormatted { get; set; } = "";
         public double SizePercent { get; set; }
     }
+    public class ProgressStream(Stream innerStream, long totalBytes, Action<long> reportProgress) : Stream
+    {
+        private readonly Stream _innerStream = innerStream;
+        private readonly Action<long> _reportProgress = reportProgress;
+
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            int bytesRead = await _innerStream.ReadAsync(buffer.AsMemory(offset, count), cancellationToken);
+            if (bytesRead > 0) _reportProgress?.Invoke(bytesRead);
+            return bytesRead;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            int bytesRead = _innerStream.Read(buffer, offset, count);
+            if (bytesRead > 0) _reportProgress?.Invoke(bytesRead);
+            return bytesRead;
+        }
+
+        // 其他 Stream 必须重写的成员，直接转发即可
+        public override bool CanRead => _innerStream.CanRead;
+        public override bool CanSeek => _innerStream.CanSeek;
+        public override bool CanWrite => _innerStream.CanWrite;
+        public override long Length => _innerStream.Length;
+        public override long Position { get => _innerStream.Position; set => _innerStream.Position = value; }
+        public override void Flush() => _innerStream.Flush();
+        public override void Write(byte[] buffer, int offset, int count) => _innerStream.Write(buffer, offset, count);
+        public override long Seek(long offset, SeekOrigin origin) => _innerStream.Seek(offset, origin);
+        public override void SetLength(long value) => _innerStream.SetLength(value);
+    }
 }
+

@@ -27,12 +27,20 @@
     <SatelliteResourceLanguages>zh-CN;en-US</SatelliteResourceLanguages>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <Content Include="SMSM-icon.ico" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="SharpSevenZip" Version="2.0.45" />
+    <PackageReference Include="SharpCompress" Version="0.48.1" />
     <PackageReference Include="Tomlyn" Version="0.17.0" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="WPF-UI.DependencyInjection" Version="4.3.0" />
@@ -40,6 +48,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 	<PackageReference Include="WPF-UI.Tray" Version="4.3.0" />
 	<PackageReference Include="YamlDotNet" Version="18.0.0" />
+	<PackageReference Include="ZstdNet" Version="1.5.7" />
   </ItemGroup>
 
   <ItemGroup>
