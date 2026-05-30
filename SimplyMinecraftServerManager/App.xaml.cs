@@ -8,6 +8,7 @@ using SimplyMinecraftServerManager.ViewModels.Windows;
 using SimplyMinecraftServerManager.Views.Pages;
 using SimplyMinecraftServerManager.Views.Windows;
 using System.IO;
+using System.Net;
 using System.Windows.Threading;
 using Wpf.Ui;
 using Wpf.Ui.DependencyInjection;
@@ -87,7 +88,15 @@ private async void OnStartup(object sender, StartupEventArgs e)
                 Log("Application starting...");
                 AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
                 TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-                
+                var version = Environment.OSVersion.Version;
+                int major = version.Major;
+                int minor = version.Minor;
+                bool isTargetSystem = (major == 6 && minor >= 0 && minor <= 3);
+                if (isTargetSystem)
+                {
+                    MessageBox.Show("本程序不支持旧版的TLS协议，请升级系统或安装补丁！", "SMSM");
+                }
+
                 await Task.Run(() => ConfigManager.Load());
                 
                 await _host.StartAsync();

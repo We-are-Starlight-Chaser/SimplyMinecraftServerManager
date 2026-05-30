@@ -1,5 +1,7 @@
-﻿using System;
+﻿using SimplyMinecraftServerManager.ViewModels.Pages;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,15 +19,31 @@ namespace SimplyMinecraftServerManager.Views.Pages
     /// <summary>
     /// ScheduledTaskDialog.xaml 的交互逻辑
     /// </summary>
-    public partial class ScheduledTaskDialog : ContentDialog
+    public partial class ScheduledTaskDialog : ContentDialog, INotifyPropertyChanged
     {
-        public ScheduledTaskDialog()
+        public event PropertyChangedEventHandler PropertyChanged;
+        private string _commands;
+        public string Commands
+        {
+            get { return _commands; }
+            set
+            {
+                _commands = value;
+                // 触发属性变更通知，界面收到通知后会自动刷新
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Commands)));
+            }
+        }
+        public ScheduledTaskDialog(string commands)
         {
             InitializeComponent();
+            Commands = commands;
+            commands = Commands;
+            DataContext = this;
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)
         {
+            
             Hide();
         }
     }

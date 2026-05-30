@@ -28,6 +28,9 @@
 
         /// <summary>创建时间 ISO-8601</summary>
         public string CreatedAt { get; set; } = "";
+
+        /// <summary>创建时间 ISO-8601</summary>
+        public string[] ScheduledTaskList { get; set; } = [];
     }
 
     /// <summary>

@@ -8,6 +8,7 @@ using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Views.Pages;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -186,6 +187,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private DateTime _serverStartTime = DateTime.MinValue;
         private PerformanceMonitor? _dashboardPerformanceMonitor;
 
+        private string _scheduledCommands = "";
+
         public InstanceViewModel(
             IContentDialogService contentDialogService,
             INavigationService navigationService,
@@ -209,7 +212,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private async Task ShowScheduledTaskDialogAsync()
         {
             CancellationTokenSource source = new();
-            await _contentDialogService.ShowAsync(new ScheduledTaskDialog(), source.Token);
+            var dialog = new ScheduledTaskDialog(_scheduledCommands);
+            await _contentDialogService.ShowAsync(dialog,source.Token);
+            _scheduledCommands = dialog.Commands;
+            
         }
         [RelayCommand]
         private async Task CancelBackup()
@@ -244,7 +250,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             long processedSize = 0;
 
             using var fileStream = File.Create(outputFilePath);
-            using var zstdStream = new CompressionStream(fileStream, new CompressionOptions(9));
+            using var zstdStream = new CompressionStream(fileStream, new CompressionOptions(12));
             var writerOptions = new TarWriterOptions(CompressionType.None)
             {
                 ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 },
@@ -1139,6 +1145,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 InstanceInfo.ExtraJvmArgs = EditExtraJvmArgs;
 
+                InstanceInfo.ScheduledTaskList = _scheduledCommands.Split('\n',StringSplitOptions.TrimEntries);
                 InstanceManager.UpdateInstance(InstanceInfo);
                 SaveServerPropertiesInternal();
                 InstanceManager.EnsureRconConfiguration(InstanceId);
@@ -1953,13 +1960,31 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private readonly Stream _innerStream = innerStream;
         private readonly Action<long> _reportProgress = reportProgress;
 
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        // ✅ 新增：重写基于 Memory 的 ReadAsync（现代 .NET 的核心路径）
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            int bytesRead = await _innerStream.ReadAsync(buffer.AsMemory(offset, count), cancellationToken);
+            int bytesRead = await _innerStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
             if (bytesRead > 0) _reportProgress?.Invoke(bytesRead);
             return bytesRead;
         }
 
+        // 保留旧版数组重载以兼容老代码
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            int bytesRead = await _innerStream.ReadAsync(buffer.AsMemory(offset, count), cancellationToken).ConfigureAwait(false);
+            if (bytesRead > 0) _reportProgress?.Invoke(bytesRead);
+            return bytesRead;
+        }
+
+        // ✅ 新增：同步的 Span 版本也应一并重写
+        public override int Read(Span<byte> buffer)
+        {
+            int bytesRead = _innerStream.Read(buffer);
+            if (bytesRead > 0) _reportProgress?.Invoke(bytesRead);
+            return bytesRead;
+        }
+
+        // 保留旧版同步数组重载
         public override int Read(byte[] buffer, int offset, int count)
         {
             int bytesRead = _innerStream.Read(buffer, offset, count);
@@ -1967,7 +1992,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return bytesRead;
         }
 
-        // 其他 Stream 必须重写的成员，直接转发即可
+        // 其他 Stream 必须重写的成员，直接转发
         public override bool CanRead => _innerStream.CanRead;
         public override bool CanSeek => _innerStream.CanSeek;
         public override bool CanWrite => _innerStream.CanWrite;

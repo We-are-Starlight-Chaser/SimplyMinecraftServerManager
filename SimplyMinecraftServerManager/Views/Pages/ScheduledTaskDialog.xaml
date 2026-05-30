@@ -7,8 +7,10 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:converters="clr-namespace:SimplyMinecraftServerManager.Helpers"
       mc:Ignorable="d" 
-    MaxWidth="500"
-      MinWidth="300"
+      MaxWidth="700"
+      MinWidth="450"
+      MinHeight="350"
+      MaxHeight="600"
       d:DesignHeight="300"
       d:DesignWidth="500"
       
@@ -31,7 +33,7 @@
         BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
         BorderThickness="1">
 
-        <Grid MinWidth="250">
+        <Grid MinWidth="380" MinHeight="200">
             <!-- 增加最小宽度 -->
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
@@ -58,13 +60,18 @@
                         </MultiBinding>
                     </StackPanel.Visibility>
 
-                    <TextBlock FontSize="16" Margin="0,0,0,8">请输入命令：</TextBlock>
-                    <TextBox Height="60" Margin="0,5,0,0" VerticalAlignment="Center"/>
+                    <TextBlock FontSize="16" Margin="0,0,0,8">请输入命令（每条用回车分割）：</TextBlock>
+                    <TextBox MinHeight="100" 
+                             Margin="0,5,0,0" 
+                             VerticalAlignment="Stretch"
+                             TextWrapping="Wrap"
+                             AcceptsReturn="True"
+                             Text="{Binding Commands}"/>
                 </StackPanel>
             </Grid>
 
             <StackPanel Grid.Row="2" Margin="0,20,0,0" Orientation="Horizontal" HorizontalAlignment="Center">
-                <Button Padding="20,10">
+                <Button Padding="20,10" Click="Button_Click">
                 <StackPanel Orientation="Horizontal" >
                     <ui:SymbolIcon Symbol="CheckMark24"/>
                     <TextBlock>确定</TextBlock>
