@@ -29,7 +29,6 @@ namespace SimplyMinecraftServerManager.Views.Pages
             set
             {
                 _commands = value;
-                // 触发属性变更通知，界面收到通知后会自动刷新
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Commands)));
             }
         }
@@ -37,7 +36,6 @@ namespace SimplyMinecraftServerManager.Views.Pages
         {
             InitializeComponent();
             Commands = commands;
-            commands = Commands;
             DataContext = this;
         }
 

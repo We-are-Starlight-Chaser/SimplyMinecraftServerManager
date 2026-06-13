@@ -91,7 +91,7 @@ private async void OnStartup(object sender, StartupEventArgs e)
                 var version = Environment.OSVersion.Version;
                 int major = version.Major;
                 int minor = version.Minor;
-                bool isTargetSystem = (major == 6 && minor >= 0 && minor <= 3);
+                bool isTargetSystem = !OperatingSystem.IsWindowsVersionAtLeast(10);//(major == 6 && minor >= 0 && minor <= 3);
                 if (isTargetSystem)
                 {
                     MessageBox.Show("本程序不支持旧版的TLS协议，请升级系统或安装补丁！", "SMSM");

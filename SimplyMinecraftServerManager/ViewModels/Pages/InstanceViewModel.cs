@@ -16,6 +16,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
+using Wpf.Ui.Controls;
 using ZstdNet;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
@@ -205,9 +206,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             ServerProcessManager.InstanceStatusChanged += OnInstanceStatusChanged;
         }
 
-        private CancellationTokenSource source = new();
-
-        private static readonly int processerCount = Environment.ProcessorCount;
         [RelayCommand]
         private async Task ShowScheduledTaskDialogAsync()
         {
@@ -217,39 +215,92 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _scheduledCommands = dialog.Commands;
             
         }
+        private CancellationTokenSource source = new();
+
+        private static readonly int processerCount = Environment.ProcessorCount;
         [RelayCommand]
         private async Task CancelBackup()
         {
-            await source.CancelAsync();
+            if (source != null && !source.IsCancellationRequested)
+            {
+                await source.CancelAsync();
+            }
         }
         [RelayCommand]
         private async Task BackupAsync()
         {
+            try
+            {
+                if (ServerProcessManager.IsRunning(InstanceId) )
+                {
+                    await ExecutePlayerRconCommandAsync("save-off");
+                    await ExecutePlayerRconCommandAsync("save-all flush");
+                }
+            }
+            catch{
+                var res = await _contentDialogService.ShowAsync(new ContentDialog()
+                {
+                    Title = "SMSM",
+                    Content = "无法强制保存服务器文件！您是否要继续？（可能会损坏文件）",
+                    PrimaryButtonAppearance = ControlAppearance.Danger,
+                    PrimaryButtonText = "确定",
+                    CloseButtonText = "取消",
+                   CloseButtonAppearance = ControlAppearance.Secondary,
+                   
+                }, CancellationToken.None);
+                if (res != ContentDialogResult.Primary) {
+                    return;
+                }
+            }
             Environment.SetEnvironmentVariable("ZSTD_NBTHREADS", (processerCount*2).ToString());
             BackupProgress = 0;
+            var currentCts = new CancellationTokenSource();
+            source = currentCts;
             string path = PathHelper.GetInstanceDir(InstanceId);
             string destPath = Path.Combine(PathHelper.Root, "backups");
             if (!Directory.Exists(destPath)) Directory.CreateDirectory(destPath);
             try
             {
-                await CreateTarZstdWithProgress(path, destPath + $"\\{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.zst");
+                await CreateTarZstdWithProgress(path, Path.Combine(destPath,$"{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.zst"),source.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                await _contentDialogService.ShowAsync(new ContentDialog()
+                {
+                    Title = "SMSM",
+                    Content = "备份操作已取消！",
+                    CloseButtonAppearance = ControlAppearance.Primary,
+                    CloseButtonText = "确定"
+                }, CancellationToken.None);
+            }
+            catch
+            {
+                await _contentDialogService.ShowAsync(new Wpf.Ui.Controls.ContentDialog()
+                {
+                    Title = "SMSM",
+                    Content = "备份出现异常！",
+                    CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary,
+                    CloseButtonText = "确定"
+                }, CancellationToken.None);
+                
             }
             finally
             {
                 BackupProgress = 100;
-                source = new();
+                if (ServerProcessManager.IsRunning(InstanceId))
+                    await ExecutePlayerRconCommandAsync("save-on");
             }
         }
-    public async Task CreateTarZstdWithProgress(string sourceFolder, string outputFilePath)
+    public async Task CreateTarZstdWithProgress(string sourceFolder, string outputFilePath, CancellationToken cancellationToken)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath));
 
-            // 1. 提前计算文件夹内所有文件的原始总大小（用于计算进度）
-            var allFiles = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories);
+            var allFiles = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories).Where(file => !file.Contains("\\logs\\") && !file.EndsWith(".log"))
+                       .ToArray(); ;
             long totalSize = allFiles.Sum(f => new FileInfo(f).Length);
             long processedSize = 0;
 
-            using var fileStream = File.Create(outputFilePath);
+            using var fileStream = new FileStream(outputFilePath,FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan);
             using var zstdStream = new CompressionStream(fileStream, new CompressionOptions(12));
             var writerOptions = new TarWriterOptions(CompressionType.None)
             {
@@ -259,16 +310,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             using var tarWriter = new TarWriter(zstdStream, writerOptions);
             foreach (var filePath in allFiles)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var relativePath = Path.GetRelativePath(sourceFolder, filePath).Replace('\\', '/');
                 long currentFileSize = new FileInfo(filePath).Length;
-                var fileInput = File.OpenRead(filePath);
+                var fileInput = new FileStream(filePath,FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 81920, FileOptions.SequentialScan);
                 using var progressStream = new ProgressStream(fileInput, currentFileSize, (bytesRead) =>
                 {
                     processedSize += bytesRead;
                     double percent = (double)processedSize / totalSize * 100;
                     BackupProgress = percent;
                 });
-                await tarWriter.WriteAsync(relativePath, progressStream, DateTime.Now,cancellationToken:source.Token);
+                await tarWriter.WriteAsync(relativePath, progressStream, DateTime.Now,cancellationToken:cancellationToken);
             }
 
             tarWriter.Dispose();
@@ -1787,7 +1839,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 Children =
                 {
-                    new TextBlock
+                    new System.Windows.Controls.TextBlock
                     {
                         Text = $"发送给 {player.Name}",
                         Margin = new Thickness(0, 0, 0, 8)

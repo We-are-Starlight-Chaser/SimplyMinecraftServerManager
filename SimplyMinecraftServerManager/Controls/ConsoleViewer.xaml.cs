@@ -13,6 +13,8 @@ namespace SimplyMinecraftServerManager.Controls
 {
     public partial class ConsoleViewer : UserControl
     {
+        private CancellationTokenSource? _searchCts;
+        private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
         private static readonly Regex[] TimestampPatterns =
         [
             new(@"^(?<prefix>\[\d{2}:\d{2}:\d{2}(?:\s+[^\]]+)?\]:?)(?<rest>\s*.*)$", RegexOptions.Compiled),
@@ -147,6 +149,7 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             SubscribeToViewModel(null);
+            _searchCts?.Cancel();
         }
 
         private void OnViewerSizeChanged(object sender, SizeChangedEventArgs e)
@@ -722,33 +725,30 @@ return
 
         private ConsoleSemanticSeverity DetectSeverity(string fullLine, string prefix, string content)
         {
-            var text = string.Concat(prefix, " ", content);
 
-            if (text.Contains("FATAL", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("SEVERE", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("ERROR", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("Exception", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("Caused by:", StringComparison.OrdinalIgnoreCase))
+            static bool ContainsAny(string source, params string[] targets)
             {
+                foreach (var target in targets)
+                {
+                    if (source.Contains(target, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                return false;
+            }
+
+            if (ContainsAny(content, "FATAL", "SEVERE", "ERROR", "Exception", "Caused by:") ||
+                ContainsAny(prefix, "FATAL", "SEVERE", "ERROR"))
                 return ConsoleSemanticSeverity.Error;
-            }
 
-            if (text.Contains("WARN", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("WARNING", StringComparison.OrdinalIgnoreCase))
-            {
+            if (ContainsAny(content, "WARN", "WARNING") || ContainsAny(prefix, "WARN"))
                 return ConsoleSemanticSeverity.Warning;
-            }
 
-            if (text.Contains("DEBUG", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("TRACE", StringComparison.OrdinalIgnoreCase))
-            {
+            if (ContainsAny(content, "DEBUG", "TRACE") || ContainsAny(prefix, "DEBUG"))
                 return ConsoleSemanticSeverity.Debug;
-            }
 
-            if (text.Contains("INFO", StringComparison.OrdinalIgnoreCase))
-            {
+            if (content.Contains("INFO", StringComparison.OrdinalIgnoreCase) ||
+                prefix.Contains("INFO", StringComparison.OrdinalIgnoreCase))
                 return ConsoleSemanticSeverity.Info;
-            }
 
             return ConsoleSemanticSeverity.None;
         }
@@ -975,14 +975,19 @@ return
                 _ = Dispatcher.InvokeAsync(() => OnConsoleLineAdded(sender, line));
                 return;
             }
-
+            var document = ConsoleTextBox.Document;
             if (!string.IsNullOrWhiteSpace(GetActiveSearchText()))
-{
-                RebuildDocument();
+            {
+                var searchText = GetActiveSearchText();
+                var paragraph = CreateParagraph(line, searchText);
+                document.Blocks.Add(paragraph);
+
+                // 同样需要限制最大行数
+                TrimExcessBlocks(document);
+                QueueAutoScrollIfNeeded();
+                UpdateSearchResultText(); 
                 return;
             }
-
-            var document = ConsoleTextBox.Document;
             document.Blocks.Add(CreateParagraph(line, string.Empty));
             
             var maxBlocks = InstanceViewModel.MaxConsoleLines;
@@ -998,7 +1003,24 @@ return
             UpdateEmptyHintVisibility(true);
             QueueAutoScrollIfNeeded();
         }
+        private static void TrimExcessBlocks(FlowDocument document)
+        {
+            var maxBlocks = InstanceViewModel.MaxConsoleLines;
+            if (document.Blocks.Count <= maxBlocks) return;
 
+            var toRemove = document.Blocks.Count - maxBlocks;
+            var blocksToRemove = new List<Block>(toRemove);
+
+            var current = document.Blocks.FirstBlock;
+            for (int i = 0; i < toRemove && current != null; i++)
+            {
+                blocksToRemove.Add(current);
+                current = current.NextBlock;
+            }
+
+            foreach (var block in blocksToRemove)
+                document.Blocks.Remove(block);
+        }
         private void OnConsoleCleared(object? sender, EventArgs e)
         {
             if (!Dispatcher.CheckAccess())
@@ -1033,7 +1055,6 @@ return
             {
                 ConsoleTextBox.CaretPosition = ConsoleTextBox.Document.ContentEnd;
                 ConsoleTextBox.ScrollToEnd();
-                ConsoleTextBox.UpdateLayout();
                 _scrollViewer ??= FindDescendant<ScrollViewer>(ConsoleTextBox);
                 _scrollViewer?.ScrollToBottom();
             }, DispatcherPriority.Background);
@@ -1183,14 +1204,22 @@ return
             SetSearchPanelVisibility(false);
         }
 
-        private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+        private async void OnSearchTextChanged(object sender, TextChangedEventArgs e)
         {
-            if (!_isSearchOpen)
-            {
-                return;
-            }
+            if (!_isSearchOpen) return;
+            _searchCts?.Cancel();
+            _searchCts = new CancellationTokenSource();
+            var token = _searchCts.Token;
 
-            RebuildDocument();
+            try
+            {
+                await Task.Delay(250, token); // 250ms 防抖
+                if (!token.IsCancellationRequested && Dispatcher.CheckAccess())
+                {
+                    RebuildDocument();
+                }
+            }
+            catch (OperationCanceledException) { /* 正常取消 */ }
         }
 
         private void OnSearchTextBoxKeyDown(object sender, KeyEventArgs e)
