@@ -12,16 +12,27 @@
     
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     
-<TieredCompilation>true</TieredCompilation>
+    <TieredCompilation>true</TieredCompilation>
     <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
     
     <WpfDisableXamlLineInfo>true</WpfDisableXamlLineInfo>
     <WpfEnableNullableReferenceTypes>true</WpfEnableNullableReferenceTypes>
     <Optimize>true</Optimize>
     <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     
     <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishReadyToRunUseCrossgen2>true</PublishReadyToRunUseCrossgen2>
+    
+    <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+    <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+    <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <RetainVM>false</RetainVM>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
     
     <InvariantGlobalization>false</InvariantGlobalization>
     <SatelliteResourceLanguages>zh-CN;en-US</SatelliteResourceLanguages>

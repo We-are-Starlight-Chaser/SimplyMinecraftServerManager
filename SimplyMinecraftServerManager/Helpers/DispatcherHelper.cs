@@ -4,34 +4,38 @@ namespace SimplyMinecraftServerManager.Helpers
 {
     internal static class DispatcherHelper
     {
-        private static readonly Dispatcher _dispatcher = Application.Current?.Dispatcher!;
+        private static Dispatcher? _dispatcher;
 
-        public static Dispatcher? Dispatcher => _dispatcher;
+        public static void Initialize() => _dispatcher = Application.Current?.Dispatcher;
+
+        public static Dispatcher? Dispatcher => _dispatcher ??= Application.Current?.Dispatcher;
 
         public static bool CheckAccess() => _dispatcher?.CheckAccess() ?? true;
 
         public static void InvokeIfNeeded(Action action)
         {
-            if (_dispatcher == null || _dispatcher.CheckAccess())
+            var d = _dispatcher;
+            if (d == null || d.CheckAccess())
             {
                 action();
                 return;
             }
-            _dispatcher.BeginInvoke(action, DispatcherPriority.Background);
+            d.BeginInvoke(action, DispatcherPriority.Background);
         }
 
         public static void InvokeIfNeededSync(Action action)
         {
-            if (_dispatcher == null || _dispatcher.CheckAccess())
+            var d = _dispatcher;
+            if (d == null || d.CheckAccess())
             {
                 action();
                 return;
             }
-            _dispatcher.Invoke(action, DispatcherPriority.Background);
+            d.Invoke(action, DispatcherPriority.Background);
         }
     }
 
-internal class ThrottledDispatcher(DispatcherPriority priority = DispatcherPriority.Background, int intervalMs = 16)
+    internal class ThrottledDispatcher(DispatcherPriority priority = DispatcherPriority.Background, int intervalMs = 16) : IDisposable
     {
         private readonly Dispatcher _dispatcher = Application.Current?.Dispatcher ?? throw new InvalidOperationException("No dispatcher");
         private readonly DispatcherPriority _priority = priority;
@@ -55,20 +59,16 @@ internal class ThrottledDispatcher(DispatcherPriority priority = DispatcherPrior
             var now = DateTime.Now;
             var delay = _intervalMs - (int)(now - _lastInvoke).TotalMilliseconds;
             _pendingDelay = Math.Max(1, delay);
-            
+
             if (_timer == null)
-            {
                 _timer = new Timer(OnTimerTick, null, _pendingDelay, Timeout.Infinite);
-            }
             else
-            {
                 _timer.Change(_pendingDelay, Timeout.Infinite);
-            }
         }
 
         private void OnTimerTick(object? state)
         {
-            List<Action> actions;
+            Action[] actions;
             lock (_lock)
             {
                 if (_pendingActions.Count == 0)

@@ -59,8 +59,13 @@
             </Grid.ColumnDefinitions>
 
             <!-- 已安装的 JDK 列表 -->
-            <ScrollViewer Grid.Column="0" Margin="0,0,16,0">
+            <ScrollViewer Grid.Column="0" Margin="0,0,16,0" CanContentScroll="True">
                 <ItemsControl ItemsSource="{Binding ViewModel.InstalledJdks}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel VirtualizingStackPanel.VirtualizationMode="Recycling"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <ui:Card Margin="0,0,0,12" Padding="0">

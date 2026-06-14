@@ -170,7 +170,7 @@ private void CollectData()
 
         private (long TotalMb, Dictionary<string, long> WorldSizes) GetStorageUsage()
         {
-            var worldSizes = new Dictionary<string, long>();
+            var worldSizes = new Dictionary<string, long>(3);
             long totalBytes = 0;
 
             try
@@ -179,18 +179,14 @@ private void CollectData()
 
                 if (Directory.Exists(instanceDir))
                 {
-                    // 计算总大小
-                    totalBytes = GetDirectorySize(instanceDir);
+                    totalBytes = GetDirectorySizeFast(instanceDir);
 
-                    // 获取各个世界的大小
-                    string[] worldFolders = ["world", "world_nether", "world_the_end"];
-
-                    foreach (var worldName in worldFolders)
+                    foreach (var worldName in s_worldFolders)
                     {
                         string worldPath = Path.Combine(instanceDir, worldName);
                         if (Directory.Exists(worldPath))
                         {
-                            long sizeBytes = GetDirectorySize(worldPath);
+                            long sizeBytes = GetDirectorySizeFast(worldPath);
                             worldSizes[worldName] = sizeBytes / (1024 * 1024);
                         }
                     }
@@ -198,8 +194,10 @@ private void CollectData()
             }
             catch { }
 
-return (totalBytes / (1024 * 1024), worldSizes);
+            return (totalBytes / (1024 * 1024), worldSizes);
         }
+
+        private static readonly string[] s_worldFolders = ["world", "world_nether", "world_the_end"];
 
         private (long TotalMb, Dictionary<string, long> WorldSizes) GetStorageUsageCached()
         {
@@ -215,23 +213,34 @@ return (totalBytes / (1024 * 1024), worldSizes);
         private static long GetDirectorySize(string path)
         {
             long size = 0;
-
             try
             {
-                // 获取文件大小
                 foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
                 {
                     try
                     {
-                        var fi = new FileInfo(file);
-                        if (fi.Exists)
-                            size += fi.Length;
+                        size += new FileInfo(file).Length;
                     }
                     catch { }
                 }
             }
             catch { }
+            return size;
+        }
 
+        private static long GetDirectorySizeFast(string path)
+        {
+            long size = 0;
+            try
+            {
+                var dir = new DirectoryInfo(path);
+                foreach (var file in dir.EnumerateFiles("*", SearchOption.AllDirectories))
+                {
+                    try { size += file.Length; }
+                    catch { }
+                }
+            }
+            catch { }
             return size;
         }
 

@@ -7,7 +7,9 @@ namespace SimplyMinecraftServerManager.Controls
 {
     public class VirtualizedConsoleTextBox : RichTextBox
     {
-        private readonly Queue<Paragraph> _paragraphPool = new();
+        private readonly Stack<Paragraph> _paragraphPool = new(64);
+        private readonly Stack<Run> _runPool = new(256);
+        private readonly Stack<LineBreak> _lineBreakPool = new(256);
         private readonly Lock _lock = new();
         private int _maxVisibleParagraphs = 1000;
         private Paragraph? _currentParagraph;
@@ -41,17 +43,18 @@ namespace SimplyMinecraftServerManager.Controls
             Document.Blocks.Add(_currentParagraph);
 
             for (int i = 0; i < 50; i++)
+                _paragraphPool.Push(new Paragraph());
+            for (int i = 0; i < 128; i++)
             {
-                _paragraphPool.Enqueue(new Paragraph());
+                _runPool.Push(new Run());
+                _lineBreakPool.Push(new LineBreak());
             }
         }
 
         private static void OnMaxLinesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is VirtualizedConsoleTextBox box)
-            {
                 box._maxVisibleParagraphs = (int)e.NewValue;
-            }
         }
 
         public void AppendLine(string text)
@@ -59,13 +62,9 @@ namespace SimplyMinecraftServerManager.Controls
             lock (_lock)
             {
                 if (_isUpdating) return;
-
                 Application.Current?.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
                 {
-                    try
-                    {
-                        DoAppendLine(text);
-                    }
+                    try { DoAppendLine(text); }
                     catch { }
                 });
             }
@@ -76,47 +75,56 @@ namespace SimplyMinecraftServerManager.Controls
             lock (_lock)
             {
                 if (_isUpdating) return;
-
                 Application.Current?.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
                 {
                     try
                     {
                         _isUpdating = true;
                         foreach (var line in lines)
-                        {
                             DoAppendLine(line);
-                        }
                     }
-                    finally
-                    {
-                        _isUpdating = false;
-                    }
+                    finally { _isUpdating = false; }
                 });
             }
         }
+
+        private Run GetRun() => _runPool.Count > 0 ? _runPool.Pop() : new Run();
+        private LineBreak GetLineBreak() => _lineBreakPool.Count > 0 ? _lineBreakPool.Pop() : new LineBreak();
+        private Paragraph GetParagraph() => _paragraphPool.Count > 0 ? _paragraphPool.Pop() : new Paragraph();
 
         private void DoAppendLine(string text)
         {
             if (_currentParagraph == null)
             {
-                _currentParagraph = new Paragraph();
+                _currentParagraph = GetParagraph();
                 Document.Blocks.Add(_currentParagraph);
             }
 
-            _currentParagraph.Inlines.Add(new Run(text));
-            _currentParagraph.Inlines.Add(new LineBreak());
+            var run = GetRun();
+            run.Text = text;
+            _currentParagraph.Inlines.Add(run);
+
+            var lb = GetLineBreak();
+            _currentParagraph.Inlines.Add(lb);
 
             var blockCount = Document.Blocks.Count;
             if (blockCount > _maxVisibleParagraphs)
             {
-                var toRemove = blockCount - _maxVisibleParagraphs;
+                int toRemove = blockCount - _maxVisibleParagraphs;
                 for (int i = 0; i < toRemove; i++)
                 {
                     var first = Document.Blocks.FirstBlock;
-                    if (first != null)
+                    if (first is Paragraph p)
                     {
-                        Document.Blocks.Remove(first);
+                        foreach (var inline in p.Inlines)
+                        {
+                            if (inline is Run r) { r.Text = ""; _runPool.Push(r); }
+                            else if (inline is LineBreak br) _lineBreakPool.Push(br);
+                        }
+                        p.Inlines.Clear();
+                        _paragraphPool.Push(p);
                     }
+                    Document.Blocks.Remove(first);
                 }
             }
 
@@ -130,8 +138,21 @@ namespace SimplyMinecraftServerManager.Controls
             {
                 Application.Current?.Dispatcher.Invoke(() =>
                 {
+                    foreach (var block in Document.Blocks)
+                    {
+                        if (block is Paragraph p)
+                        {
+                            foreach (var inline in p.Inlines)
+                            {
+                                if (inline is Run r) { r.Text = ""; _runPool.Push(r); }
+                                else if (inline is LineBreak br) _lineBreakPool.Push(br);
+                            }
+                            p.Inlines.Clear();
+                            _paragraphPool.Push(p);
+                        }
+                    }
                     Document.Blocks.Clear();
-                    _currentParagraph = new Paragraph();
+                    _currentParagraph = GetParagraph();
                     Document.Blocks.Add(_currentParagraph);
                 });
             }

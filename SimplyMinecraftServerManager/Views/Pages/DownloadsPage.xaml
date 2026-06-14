@@ -71,8 +71,13 @@
         </Grid>
 
         <!-- 任务列表 -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
             <ItemsControl ItemsSource="{Binding ViewModel.DownloadTasks}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel VirtualizingStackPanel.VirtualizationMode="Recycling"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <ui:Card Margin="0,0,0,8" Padding="16">

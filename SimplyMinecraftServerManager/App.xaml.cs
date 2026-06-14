@@ -80,7 +80,7 @@ namespace SimplyMinecraftServerManager
             get { return _host.Services; }
         }
 
-private async void OnStartup(object sender, StartupEventArgs e)
+    private async void OnStartup(object sender, StartupEventArgs e)
         {
             try
             {
@@ -171,12 +171,33 @@ private async void OnStartup(object sender, StartupEventArgs e)
                 Directory.CreateDirectory(dir);
         }
 
+        private static readonly object _logLock = new();
+        private static System.IO.StreamWriter? _logWriter;
+
         private static void Log(string message)
         {
             try
             {
-                var logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}";
-                File.AppendAllText(LogPath, logEntry);
+                var writer = _logWriter;
+                if (writer == null)
+                {
+                    lock (_logLock)
+                    {
+                        writer = _logWriter;
+                        if (writer == null)
+                        {
+                            EnsureLogDirectory();
+                            writer = new System.IO.StreamWriter(LogPath, append: true) { AutoFlush = false };
+                            _logWriter = writer;
+                        }
+                    }
+                }
+                writer.Write('[');
+                writer.Write(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                writer.Write("] ");
+                writer.Write(message);
+                writer.WriteLine();
+                writer.Flush();
             }
             catch
             {

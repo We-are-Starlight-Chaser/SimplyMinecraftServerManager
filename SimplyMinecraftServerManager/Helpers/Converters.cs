@@ -6,114 +6,53 @@ using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.Helpers
 {
-    /// <summary>
-    /// 布尔值反转转换器
-    /// </summary>
     internal class InverseBooleanConverter : IValueConverter
     {
         public static readonly InverseBooleanConverter Instance = new();
         
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is bool boolValue)
-            {
-                return !boolValue;
-            }
-            return true;
-        }
+            => value is bool boolValue ? !boolValue : true;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is bool boolValue)
-            {
-                return !boolValue;
-            }
-            return false;
-        }
+            => value is bool boolValue ? !boolValue : false;
     }
 
-    /// <summary>
-    /// 布尔值转可见性转换器
-    /// </summary>
     internal class BooleanToVisibilityConverter : IValueConverter
     {
         public static readonly BooleanToVisibilityConverter Instance = new();
         
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is bool boolValue)
-            {
-                return boolValue ? Visibility.Visible : Visibility.Collapsed;
-            }
-            return Visibility.Collapsed;
-        }
+            => value is bool boolValue && boolValue ? Visibility.Visible : Visibility.Collapsed;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is Visibility visibility)
-            {
-                return visibility == Visibility.Visible;
-            }
-            return false;
-        }
+            => value is Visibility visibility && visibility == Visibility.Visible;
     }
 
-    /// <summary>
-    /// 布尔值反转转可见性转换器 (true 时隐藏，false 时显示)
-    /// </summary>
     internal class InverseBooleanToVisibilityConverter : IValueConverter
     {
         public static readonly InverseBooleanToVisibilityConverter Instance = new();
         
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is bool boolValue)
-            {
-                return boolValue ? Visibility.Collapsed : Visibility.Visible;
-            }
-            return Visibility.Visible;
-        }
+            => value is bool boolValue && boolValue ? Visibility.Collapsed : Visibility.Visible;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is Visibility visibility)
-            {
-                return visibility != Visibility.Visible;
-            }
-            return true;
-        }
+            => value is not Visibility visibility || visibility != Visibility.Visible;
     }
 
-    /// <summary>
-    /// 字符串转可见性转换器 (非空字符串显示)
-    /// </summary>
     internal class StringToVisibilityConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is string str)
-            {
-                return !string.IsNullOrEmpty(str) ? Visibility.Visible : Visibility.Collapsed;
-            }
-            return Visibility.Collapsed;
-        }
+            => value is string str && !string.IsNullOrEmpty(str) ? Visibility.Visible : Visibility.Collapsed;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 整数转可见性转换器 (大于0显示，等于0隐藏)
-    /// 参数为 "inverse" 时反转逻辑
-    /// </summary>
     internal class IntToVisibilityConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            bool inverse = parameter?.ToString() == "inverse";
-
+            bool inverse = parameter as string == "inverse";
             if (value is int count)
             {
                 bool hasItems = count > 0;
@@ -124,112 +63,105 @@ namespace SimplyMinecraftServerManager.Helpers
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 文件大小格式化转换器
-    /// </summary>
     internal class FileSizeConverter : IValueConverter
     {
+        private static readonly string[] Suffixes = ["B", "KB", "MB", "GB", "TB"];
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is long bytes)
             {
-                string[] suffixes = ["B", "KB", "MB", "GB", "TB"];
                 int i = 0;
                 double size = bytes;
-                while (size >= 1024 && i < suffixes.Length - 1)
+                while (size >= 1024 && i < Suffixes.Length - 1)
                 {
                     size /= 1024;
                     i++;
                 }
-                return $"{size:F2} {suffixes[i]}";
+                return $"{size:F2} {Suffixes[i]}";
             }
             return "0 B";
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 平台名称到颜色转换器
-    /// </summary>
     internal class PlatformNameToColorConverter : IValueConverter
     {
+        private static readonly SolidColorBrush PaperLight = new(Color.FromRgb(0xC9, 0xA2, 0x27));
+        private static readonly SolidColorBrush PaperDark = new(Color.FromRgb(0xE8, 0xC5, 0x47));
+        private static readonly SolidColorBrush FoliaLight = new(Color.FromRgb(0x3D, 0x8B, 0x40));
+        private static readonly SolidColorBrush FoliaDark = new(Color.FromRgb(0x5C, 0xB8, 0x5C));
+        private static readonly SolidColorBrush PurpurLight = new(Color.FromRgb(0x7B, 0x1F, 0xA2));
+        private static readonly SolidColorBrush PurpurDark = new(Color.FromRgb(0x9C, 0x27, 0xB0));
+        private static readonly SolidColorBrush LeavesLight = new(Color.FromRgb(0x55, 0x8B, 0x2F));
+        private static readonly SolidColorBrush LeavesDark = new(Color.FromRgb(0x7C, 0xB3, 0x42));
+        private static readonly SolidColorBrush LeafLight = new(Color.FromRgb(0x00, 0x97, 0xA7));
+        private static readonly SolidColorBrush LeafDark = new(Color.FromRgb(0x00, 0xBC, 0xD4));
+        private static readonly SolidColorBrush DefaultLight = new(Color.FromRgb(0x60, 0x7D, 0x8B));
+        private static readonly SolidColorBrush DefaultDark = new(Color.FromRgb(0x78, 0x90, 0x9C));
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            // 检测当前主题
-            var isDark = Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark;
-
-            var (lightColor, darkColor) = value switch
+            bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+            return (value as string, isDark) switch
             {
-                "Paper" => (Color.FromRgb(0xC9, 0xA2, 0x27), Color.FromRgb(0xE8, 0xC5, 0x47)),
-                "Folia" => (Color.FromRgb(0x3D, 0x8B, 0x40), Color.FromRgb(0x5C, 0xB8, 0x5C)),
-                "Purpur" => (Color.FromRgb(0x7B, 0x1F, 0xA2), Color.FromRgb(0x9C, 0x27, 0xB0)),
-                "Leaves" => (Color.FromRgb(0x55, 0x8B, 0x2F), Color.FromRgb(0x7C, 0xB3, 0x42)),
-                "Leaf" => (Color.FromRgb(0x00, 0x97, 0xA7), Color.FromRgb(0x00, 0xBC, 0xD4)),
-                _ => (Color.FromRgb(0x60, 0x7D, 0x8B), Color.FromRgb(0x78, 0x90, 0x9C))
+                ("Paper", false) => PaperLight, ("Paper", true) => PaperDark,
+                ("Folia", false) => FoliaLight, ("Folia", true) => FoliaDark,
+                ("Purpur", false) => PurpurLight, ("Purpur", true) => PurpurDark,
+                ("Leaves", false) => LeavesLight, ("Leaves", true) => LeavesDark,
+                ("Leaf", false) => LeafLight, ("Leaf", true) => LeafDark,
+                (_, false) => DefaultLight, (_, true) => DefaultDark
             };
-
-            return new SolidColorBrush(isDark ? darkColor : lightColor);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 多值转换器：根据主题选择颜色
-    /// </summary>
     internal class ThemeAwareColorConverter : IMultiValueConverter
     {
+        private static readonly SolidColorBrush GrayBrush = new(Colors.Gray);
+        private static readonly Dictionary<string, SolidColorBrush> _brushCache = [];
+
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
             if (values.Length >= 2 && values[0] is string lightColor && values[1] is string darkColor)
             {
-                var isDark = Wpf.Ui.Appearance.ApplicationThemeManager.GetAppTheme() == Wpf.Ui.Appearance.ApplicationTheme.Dark;
-
-                var colorHex = isDark ? darkColor : lightColor;
+                bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+                string colorHex = isDark ? darkColor : lightColor;
                 if (colorHex.StartsWith('#') && colorHex.Length == 7)
                 {
-                    var color = (Color)ColorConverter.ConvertFromString(colorHex);
-                    return new SolidColorBrush(color);
+                    if (!_brushCache.TryGetValue(colorHex, out var brush))
+                    {
+                        brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex)!);
+                        _brushCache[colorHex] = brush;
+                    }
+                    return brush;
                 }
             }
-            return new SolidColorBrush(Colors.Gray);
+            return GrayBrush;
         }
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 平台名称到首字母转换器
-    /// </summary>
     internal class PlatformNameToInitialConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is string name && !string.IsNullOrEmpty(name))
             {
-                // 特殊表情
-                return name switch
+                return name[0] switch
                 {
-                    "Paper" => "P",
-                    "Folia" => "F",
-                    "Purpur" => "P",
-                    "Leaves" => "L",
-                    "Leaf" => "L",
+                    'P' when name.Length > 4 => "P",
+                    'F' => "F",
+                    'L' when name is "Leaves" or "Leaf" => "L",
                     _ => name[0].ToString()
                 };
             }
@@ -237,373 +169,280 @@ namespace SimplyMinecraftServerManager.Helpers
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 数量为0时显示转换器
-    /// </summary>
     internal class CountToVisibilityConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is int count)
-            {
-                return count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            }
-            return Visibility.Collapsed;
-        }
+            => value is int count && count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// JDK 状态到背景色转换器
-    /// </summary>
     internal class JdkStatusToBackgroundConverter : IValueConverter
     {
+        private static readonly SolidColorBrush ValidLight = new(Color.FromRgb(0xE8, 0xF5, 0xE9));
+        private static readonly SolidColorBrush ValidDark = new(Color.FromRgb(0x2E, 0x7D, 0x32));
+        private static readonly SolidColorBrush InvalidLight = new(Color.FromRgb(0xFF, 0xEB, 0xEE));
+        private static readonly SolidColorBrush InvalidDark = new(Color.FromRgb(0xC6, 0x28, 0x28));
+        private static readonly SolidColorBrush DefaultLight = new(Color.FromRgb(0xF5, 0xF5, 0xF5));
+        private static readonly SolidColorBrush DefaultDark = new(Color.FromRgb(0x42, 0x42, 0x42));
+        private static readonly SolidColorBrush Transparent = new(Colors.Transparent);
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            var isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
-
+            bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
             if (value is string status)
             {
-                return status switch
+                return (status, isDark) switch
                 {
-                    "Valid" => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0x2E, 0x7D, 0x32)   // 深色模式：绿色
-                        : Color.FromRgb(0xE8, 0xF5, 0xE9)), // 浅色模式：很浅的绿
-                    "Invalid" => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0xC6, 0x28, 0x28)   // 深色模式：红色
-                        : Color.FromRgb(0xFF, 0xEB, 0xEE)), // 浅色模式：很浅的红
-                    _ => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0x42, 0x42, 0x42)
-                        : Color.FromRgb(0xF5, 0xF5, 0xF5))
+                    ("Valid", false) => ValidLight, ("Valid", true) => ValidDark,
+                    ("Invalid", false) => InvalidLight, ("Invalid", true) => InvalidDark,
+                    (_, false) => DefaultLight, (_, true) => DefaultDark
                 };
             }
-            return new SolidColorBrush(Colors.Transparent);
+            return Transparent;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// JDK 状态到前景色转换器
-    /// </summary>
     internal class JdkStatusToForegroundConverter : IValueConverter
     {
+        private static readonly SolidColorBrush ValidLight = new(Color.FromRgb(0x1B, 0x5E, 0x20));
+        private static readonly SolidColorBrush ValidDark = new(Color.FromRgb(0x81, 0xC7, 0x84));
+        private static readonly SolidColorBrush InvalidLight = new(Color.FromRgb(0xB7, 0x1C, 0x1C));
+        private static readonly SolidColorBrush InvalidDark = new(Color.FromRgb(0xEF, 0x9A, 0x9A));
+        private static readonly SolidColorBrush DefaultLight = new(Color.FromRgb(0x61, 0x61, 0x61));
+        private static readonly SolidColorBrush DefaultDark = new(Color.FromRgb(0xBD, 0xBD, 0xBD));
+        private static readonly SolidColorBrush GrayBrush = new(Colors.Gray);
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            var isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
-
+            bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
             if (value is string status)
             {
-                return status switch
+                return (status, isDark) switch
                 {
-                    "Valid" => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0x81, 0xC7, 0x84)   // 深色模式：亮绿
-                        : Color.FromRgb(0x1B, 0x5E, 0x20)), // 浅色模式：深绿
-                    "Invalid" => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0xEF, 0x9A, 0x9A)   // 深色模式：亮红
-                        : Color.FromRgb(0xB7, 0x1C, 0x1C)), // 浅色模式：深红
-                    _ => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0xBD, 0xBD, 0xBD)
-                        : Color.FromRgb(0x61, 0x61, 0x61))
+                    ("Valid", false) => ValidLight, ("Valid", true) => ValidDark,
+                    ("Invalid", false) => InvalidLight, ("Invalid", true) => InvalidDark,
+                    (_, false) => DefaultLight, (_, true) => DefaultDark
                 };
             }
-            return new SolidColorBrush(Colors.Gray);
+            return GrayBrush;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 运行状态到图标转换器
-    /// </summary>
     internal class RunningToIconConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is bool isRunning)
-            {
-                // 返回 Symbol 枚举值
-                return isRunning ? Wpf.Ui.Controls.SymbolRegular.PlayCircle24 : Wpf.Ui.Controls.SymbolRegular.CircleSmall24;
-            }
-            return Wpf.Ui.Controls.SymbolRegular.CircleSmall24;
-        }
+            => value is bool isRunning && isRunning
+                ? SymbolRegular.PlayCircle24
+                : SymbolRegular.CircleSmall24;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
     internal class NotificationAppearanceToBadgeBrushConverter : IValueConverter
     {
+        private static readonly SolidColorBrush SuccessLight = new(Color.FromRgb(0xE5, 0xF6, 0xEA));
+        private static readonly SolidColorBrush SuccessDark = new(Color.FromRgb(0x1E, 0x5E, 0x38));
+        private static readonly SolidColorBrush DangerLight = new(Color.FromRgb(0xFD, 0xEA, 0xEA));
+        private static readonly SolidColorBrush DangerDark = new(Color.FromRgb(0x7A, 0x22, 0x22));
+        private static readonly SolidColorBrush CautionLight = new(Color.FromRgb(0xFD, 0xF2, 0xD9));
+        private static readonly SolidColorBrush CautionDark = new(Color.FromRgb(0x74, 0x54, 0x10));
+        private static readonly SolidColorBrush InfoLight = new(Color.FromRgb(0xE4, 0xF1, 0xFB));
+        private static readonly SolidColorBrush InfoDark = new(Color.FromRgb(0x18, 0x4E, 0x77));
+        private static readonly SolidColorBrush Transparent = new(Colors.Transparent);
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            var isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
-
+            bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
             if (value is ControlAppearance appearance)
             {
-                return appearance switch
+                return (appearance, isDark) switch
                 {
-                    ControlAppearance.Success => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0x1E, 0x5E, 0x38)
-                        : Color.FromRgb(0xE5, 0xF6, 0xEA)),
-                    ControlAppearance.Danger => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0x7A, 0x22, 0x22)
-                        : Color.FromRgb(0xFD, 0xEA, 0xEA)),
-                    ControlAppearance.Caution => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0x74, 0x54, 0x10)
-                        : Color.FromRgb(0xFD, 0xF2, 0xD9)),
-                    _ => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0x18, 0x4E, 0x77)
-                        : Color.FromRgb(0xE4, 0xF1, 0xFB))
+                    (ControlAppearance.Success, false) => SuccessLight, (ControlAppearance.Success, true) => SuccessDark,
+                    (ControlAppearance.Danger, false) => DangerLight, (ControlAppearance.Danger, true) => DangerDark,
+                    (ControlAppearance.Caution, false) => CautionLight, (ControlAppearance.Caution, true) => CautionDark,
+                    (_, false) => InfoLight, (_, true) => InfoDark
                 };
             }
-
-            return new SolidColorBrush(Colors.Transparent);
+            return Transparent;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
     internal class NotificationAppearanceToForegroundBrushConverter : IValueConverter
     {
+        private static readonly SolidColorBrush SuccessLight = new(Color.FromRgb(0x1D, 0x6F, 0x42));
+        private static readonly SolidColorBrush SuccessDark = new(Color.FromRgb(0x8B, 0xE2, 0xA8));
+        private static readonly SolidColorBrush DangerLight = new(Color.FromRgb(0xB4, 0x23, 0x18));
+        private static readonly SolidColorBrush DangerDark = new(Color.FromRgb(0xFF, 0xB3, 0xB3));
+        private static readonly SolidColorBrush CautionLight = new(Color.FromRgb(0x8F, 0x61, 0x00));
+        private static readonly SolidColorBrush CautionDark = new(Color.FromRgb(0xFF, 0xD8, 0x75));
+        private static readonly SolidColorBrush InfoLight = new(Color.FromRgb(0x0E, 0x63, 0xA9));
+        private static readonly SolidColorBrush InfoDark = new(Color.FromRgb(0x9A, 0xD3, 0xFF));
+        private static readonly SolidColorBrush GrayBrush = new(Colors.Gray);
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            var isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
-
+            bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
             if (value is ControlAppearance appearance)
             {
-                return appearance switch
+                return (appearance, isDark) switch
                 {
-                    ControlAppearance.Success => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0x8B, 0xE2, 0xA8)
-                        : Color.FromRgb(0x1D, 0x6F, 0x42)),
-                    ControlAppearance.Danger => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0xFF, 0xB3, 0xB3)
-                        : Color.FromRgb(0xB4, 0x23, 0x18)),
-                    ControlAppearance.Caution => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0xFF, 0xD8, 0x75)
-                        : Color.FromRgb(0x8F, 0x61, 0x00)),
-                    _ => new SolidColorBrush(isDark
-                        ? Color.FromRgb(0x9A, 0xD3, 0xFF)
-                        : Color.FromRgb(0x0E, 0x63, 0xA9))
+                    (ControlAppearance.Success, false) => SuccessLight, (ControlAppearance.Success, true) => SuccessDark,
+                    (ControlAppearance.Danger, false) => DangerLight, (ControlAppearance.Danger, true) => DangerDark,
+                    (ControlAppearance.Caution, false) => CautionLight, (ControlAppearance.Caution, true) => CautionDark,
+                    (_, false) => InfoLight, (_, true) => InfoDark
                 };
             }
-
-            return new SolidColorBrush(Colors.Gray);
+            return GrayBrush;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
     internal class NotificationAppearanceToBorderBrushConverter : IValueConverter
     {
+        private static readonly SolidColorBrush DefaultBorder = new(Color.FromArgb(0x22, 0x7F, 0x7F, 0x7F));
+        private static readonly SolidColorBrush SuccessBorder = new(Color.FromArgb(0x66, 0x1D, 0x6F, 0x42));
+        private static readonly SolidColorBrush DangerBorder = new(Color.FromArgb(0x66, 0xB4, 0x23, 0x18));
+        private static readonly SolidColorBrush CautionBorder = new(Color.FromArgb(0x66, 0x8F, 0x61, 0x00));
+        private static readonly SolidColorBrush InfoBorder = new(Color.FromArgb(0x66, 0x0E, 0x63, 0xA9));
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is ControlAppearance appearance)
-            {
-                var foreground = new NotificationAppearanceToForegroundBrushConverter()
-                    .Convert(appearance, targetType, parameter, culture);
-
-                if (foreground is SolidColorBrush brush)
+            => value is ControlAppearance appearance
+                ? appearance switch
                 {
-                    var color = brush.Color;
-                    return new SolidColorBrush(Color.FromArgb(0x66, color.R, color.G, color.B));
+                    ControlAppearance.Success => SuccessBorder,
+                    ControlAppearance.Danger => DangerBorder,
+                    ControlAppearance.Caution => CautionBorder,
+                    _ => InfoBorder
                 }
-            }
-
-            return new SolidColorBrush(Color.FromArgb(0x22, 0x7F, 0x7F, 0x7F));
-        }
+                : DefaultBorder;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
     internal class NotificationAppearanceToSymbolConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is ControlAppearance appearance)
-            {
-                return appearance switch
+            => value is ControlAppearance appearance
+                ? appearance switch
                 {
                     ControlAppearance.Success => SymbolRegular.CheckmarkCircle24,
                     ControlAppearance.Danger => SymbolRegular.ErrorCircle24,
                     ControlAppearance.Caution => SymbolRegular.Warning24,
                     _ => SymbolRegular.Info24
-                };
-            }
-
-            return SymbolRegular.Info24;
-        }
+                }
+                : SymbolRegular.Info24;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 布尔值到启用/禁用文本转换器
-    /// </summary>
     internal class BooleanToEnableTextConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is bool isEnabled)
-            {
-                return isEnabled ? "禁用" : "启用";
-            }
-            return "启用";
-        }
+            => value is bool isEnabled && isEnabled ? "禁用" : "启用";
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 布尔值到外观转换器
-    /// </summary>
     internal class BooleanToAppearanceConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is bool isEnabled)
-            {
-                // 如果插件是启用的（isEnabled为true），则按钮显示为Caution（橙色），表示可以禁用
-                // 如果插件是禁用的（isEnabled为false），则按钮显示为Success（绿色），表示可以启用
-                return isEnabled ? Wpf.Ui.Controls.ControlAppearance.Caution : Wpf.Ui.Controls.ControlAppearance.Success;
-            }
-            return Wpf.Ui.Controls.ControlAppearance.Caution;
-        }
+            => value is bool isEnabled && isEnabled
+                ? ControlAppearance.Caution
+                : ControlAppearance.Success;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 字符串转大写转换器
-    /// </summary>
     internal class StringToUpperConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is string str)
-            {
-                return str.ToUpperInvariant();
-            }
-            return string.Empty;
-        }
+            => value is string str ? str.ToUpperInvariant() : string.Empty;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 列表转字符串转换器（逗号分隔）
-    /// </summary>
     internal class ListToStringConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is List<string> list && list.Count > 0)
+            if (value is IReadOnlyList<string> list && list.Count > 0)
             {
-                return string.Join(", ", list.Take(5)); // 只显示前5个
+                int take = Math.Min(list.Count, 5);
+                return string.Join(", ", list.Take(take));
             }
             return "无";
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// 游戏版本列表转范围转换器（显示最小和最大版本）
-    /// </summary>
     internal class GameVersionsToRangeConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is List<string> list && list.Count > 0)
+            if (value is IReadOnlyList<string> list && list.Count > 0)
             {
-                // 尝试解析版本号，但保持字符串格式
-                // 简单按字符串排序（Minecraft版本号如"1.20.1"可以按字符串排序）
-                var sorted = list.OrderBy(v => v).ToList();
-                var min = sorted.First();
-                var max = sorted.Last();
-                
-                if (min == max)
-                    return min;
-                else
-                    return $"{min}-{max}";
+                string min = list[0], max = list[0];
+                for (int i = 1; i < list.Count; i++)
+                {
+                    if (string.Compare(list[i], min, StringComparison.Ordinal) < 0) min = list[i];
+                    if (string.Compare(list[i], max, StringComparison.Ordinal) > 0) max = list[i];
+                }
+                return min == max ? min : $"{min}-{max}";
             }
             return "无";
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
+
     internal class MultiBooleanConverter : IMultiValueConverter
     {
-
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
-        {
-            if ((bool)values[0] == true || (bool)values[1] == true) return false;
-            return true;
-        }
+            => values.Length < 2 || (!(bool)values[0] && !(bool)values[1]);
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
+
     internal class ScheduledTaskIndexToVisibilityConverter : IMultiValueConverter
     {
-
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
-            if ((int)values[0] == 0 && (string)values[1] == "ExecuteCommand") return Visibility.Visible;
-            if ((int)values[0] == 1 && (string)values[1] == "Backup") return Visibility.Visible;
-            if ((int)values[0] == 2 && (string)values[1] == "Restart") return Visibility.Visible;
+            if (values.Length >= 2 && values[0] is int idx && values[1] is string name)
+            {
+                if (idx == 0 && name == "ExecuteCommand") return Visibility.Visible;
+                if (idx == 1 && name == "Backup") return Visibility.Visible;
+                if (idx == 2 && name == "Restart") return Visibility.Visible;
+            }
             return Visibility.Collapsed;
         }
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
+            => throw new NotSupportedException();
     }
 }

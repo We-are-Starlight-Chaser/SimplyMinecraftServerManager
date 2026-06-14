@@ -7,6 +7,7 @@ namespace SimplyMinecraftServerManager.Helpers
         private readonly ConcurrentDictionary<string, CacheEntry<T>> _cache = new();
         private readonly TimeSpan _defaultExpiration = defaultExpiration;
         private readonly int _maxEntries = maxEntries;
+        private int _evictCount;
 
         public T? Get(string key) => TryGet(key, out var value) ? value : default;
 
@@ -30,7 +31,7 @@ namespace SimplyMinecraftServerManager.Helpers
         {
             if (_cache.Count >= _maxEntries)
             {
-                EvictOldest();
+                EvictStale();
             }
 
             _cache[key] = new CacheEntry<T>
@@ -48,12 +49,32 @@ namespace SimplyMinecraftServerManager.Helpers
 
         public int Count => _cache.Count;
 
-        private void EvictOldest()
+        private void EvictStale()
         {
-            var oldest = _cache.OrderBy(x => x.Value.LastAccessed).Take(_maxEntries / 10).Select(x => x.Key).ToList();
-            foreach (var key in oldest)
+            int targetRemoval = Math.Max(1, _maxEntries / 10);
+            int removed = 0;
+
+            foreach (var kvp in _cache)
             {
-                _cache.TryRemove(key, out _);
+                if (kvp.Value.ExpiresAt <= DateTime.UtcNow)
+                {
+                    if (_cache.TryRemove(kvp.Key, out _)) removed++;
+                }
+            }
+
+            if (removed >= targetRemoval) return;
+
+            int skip = _evictCount % Math.Max(1, _cache.Count);
+            _evictCount++;
+            int i = 0;
+            foreach (var kvp in _cache)
+            {
+                if (i++ < skip) continue;
+                if (_cache.TryRemove(kvp.Key, out _))
+                {
+                    removed++;
+                    if (removed >= targetRemoval) break;
+                }
             }
         }
 

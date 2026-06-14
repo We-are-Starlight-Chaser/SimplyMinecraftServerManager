@@ -132,13 +132,10 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        /// <summary>
-        /// 获取所有运行中的实例 ID。
-        /// </summary>
         public static IReadOnlyList<string> GetRunningInstanceIds()
         {
             var runningIds = new List<string>();
-            foreach (var kvp in _processes)
+            foreach (var kvp in _processes.ToArray())
             {
                 if (kvp.Value.IsRunning)
                 {
@@ -146,7 +143,6 @@ namespace SimplyMinecraftServerManager.Internals
                 }
                 else
                 {
-                    // 清理已停止的进程
                     _processes.TryRemove(kvp.Key, out _);
                     _startTimeCache.TryRemove(kvp.Key, out _);
                 }
