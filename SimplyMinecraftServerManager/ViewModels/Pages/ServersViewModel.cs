@@ -5,6 +5,7 @@ using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Views.Pages;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
@@ -193,7 +194,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     "Purpur" => ServerPlatform.Purpur,
                     "Leaves" => ServerPlatform.Leaves,
                     "Leaf" => ServerPlatform.Leaf,
-                    "Foila" => ServerPlatform.Folia,
+                    "Folia" => ServerPlatform.Folia,
                     _ => ServerPlatform.Paper
                 };
 
@@ -416,7 +417,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 }
 
                 // 清理控制台输出
-                item.ConsoleOutput = "";
+                item.ClearConsole();
                 StatusMessage = "正在启动服务器...";
 
                 // 在后台线程执行启动操作，避免阻塞 UI
@@ -431,7 +432,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         {
                             RunOnUiThread(() =>
                             {
-                                item.ConsoleOutput += line + "\n";
+                                item.AppendToConsole(line);
                             });
                         };
 
@@ -588,8 +589,18 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private bool _isRunning;
 
-        [ObservableProperty]
-        private string _consoleOutput = "";
+        private readonly StringBuilder _consoleBuffer = new(4096);
+
+        public string ConsoleOutput => _consoleBuffer.ToString();
+
+        public void ClearConsole() => _consoleBuffer.Clear();
+
+        public void AppendToConsole(string line)
+        {
+            _consoleBuffer.Append(line);
+            _consoleBuffer.Append('\n');
+            OnPropertyChanged(nameof(ConsoleOutput));
+        }
 
         public ServerProcess? ServerProcess { get; set; }
 

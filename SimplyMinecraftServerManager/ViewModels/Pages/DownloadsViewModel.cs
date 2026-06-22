@@ -88,8 +88,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private void OnDownloadProgress(object? sender, DownloadProgressInfo e)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            var app = Application.Current;
+            if (app == null) return;
+            Application.Current.Dispatcher.BeginInvoke(() =>
             {
+                if (Application.Current == null) return;
                 var item = DownloadTasks.FirstOrDefault(t => t.TaskId == e.TaskId);
                 if (item != null)
                 {

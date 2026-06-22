@@ -25,15 +25,10 @@ namespace SimplyMinecraftServerManager.Internals
             get
             {
                 if (_disposed) return false;
-                if (_process == null) return false;
-                try
-                {
-                    return !_process.HasExited;
-                }
-                catch
-                {
-                    return false;
-                }
+                var p = _process;
+                if (p == null) return false;
+                try { return !p.HasExited; }
+                catch { return false; }
             }
         }
 

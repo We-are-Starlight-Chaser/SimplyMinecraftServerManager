@@ -4,24 +4,23 @@ namespace SimplyMinecraftServerManager.Helpers
 {
     internal class MemoryCache<T>(TimeSpan defaultExpiration, int maxEntries = 1000)
     {
-        private readonly ConcurrentDictionary<string, CacheEntry<T>> _cache = new();
-        private readonly TimeSpan _defaultExpiration = defaultExpiration;
-        private readonly int _maxEntries = maxEntries;
-        private int _evictCount;
+        private readonly ConcurrentDictionary<string, LinkedListNode<CacheEntry<T>>> _cache = new();
+        private readonly LinkedList<CacheEntry<T>> _accessOrder = new();
+        private readonly Lock _evictLock = new();
 
         public T? Get(string key) => TryGet(key, out var value) ? value : default;
 
         public bool TryGet(string key, out T? value)
         {
-            if (_cache.TryGetValue(key, out var entry))
+            if (_cache.TryGetValue(key, out var node))
             {
-                if (entry.ExpiresAt > DateTime.UtcNow)
+                if (node.Value.ExpiresAt > DateTime.UtcNow)
                 {
-                    entry.LastAccessed = DateTime.UtcNow;
-                    value = entry.Value;
+                    Touch(node);
+                    value = node.Value.Value;
                     return true;
                 }
-                _cache.TryRemove(key, out _);
+                RemoveFromList(key, node);
             }
             value = default;
             return false;
@@ -29,91 +28,97 @@ namespace SimplyMinecraftServerManager.Helpers
 
         public void Set(string key, T value, TimeSpan? expiration = null)
         {
-            if (_cache.Count >= _maxEntries)
-            {
-                EvictStale();
-            }
+            if (_cache.Count >= maxEntries)
+                EvictOne();
 
-            _cache[key] = new CacheEntry<T>
+            var entry = new CacheEntry<T>
             {
+                Key = key,
                 Value = value,
-                ExpiresAt = DateTime.UtcNow + (expiration ?? _defaultExpiration),
-                CreatedAt = DateTime.UtcNow,
-                LastAccessed = DateTime.UtcNow
+                ExpiresAt = DateTime.UtcNow + (expiration ?? defaultExpiration),
             };
+
+            lock (_evictLock)
+            {
+                var node = _accessOrder.AddLast(entry);
+                if (_cache.TryAdd(key, node))
+                    return;
+                _accessOrder.RemoveLast();
+            }
         }
 
-        public void Remove(string key) => _cache.TryRemove(key, out _);
+        public void Remove(string key)
+        {
+            if (_cache.TryRemove(key, out var node))
+            {
+                lock (_evictLock)
+                    _accessOrder.Remove(node);
+            }
+        }
 
-        public void Clear() => _cache.Clear();
+        public void Clear()
+        {
+            _cache.Clear();
+            lock (_evictLock)
+                _accessOrder.Clear();
+        }
 
         public int Count => _cache.Count;
 
-        private void EvictStale()
+        private void Touch(LinkedListNode<CacheEntry<T>> node)
         {
-            int targetRemoval = Math.Max(1, _maxEntries / 10);
-            int removed = 0;
-
-            foreach (var kvp in _cache)
+            if (node.Next == null)
+                return;
+            lock (_evictLock)
             {
-                if (kvp.Value.ExpiresAt <= DateTime.UtcNow)
-                {
-                    if (_cache.TryRemove(kvp.Key, out _)) removed++;
-                }
+                if (node.List == null)
+                    return;
+                _accessOrder.Remove(node);
+                _accessOrder.AddLast(node);
             }
+        }
 
-            if (removed >= targetRemoval) return;
-
-            int skip = _evictCount % Math.Max(1, _cache.Count);
-            _evictCount++;
-            int i = 0;
-            foreach (var kvp in _cache)
+        private void RemoveFromList(string key, LinkedListNode<CacheEntry<T>> node)
+        {
+            _cache.TryRemove(key, out _);
+            lock (_evictLock)
             {
-                if (i++ < skip) continue;
-                if (_cache.TryRemove(kvp.Key, out _))
+                if (node.List != null)
+                    _accessOrder.Remove(node);
+            }
+        }
+
+        private void EvictOne()
+        {
+            lock (_evictLock)
+            {
+                var node = _accessOrder.First;
+                while (node != null)
                 {
-                    removed++;
-                    if (removed >= targetRemoval) break;
+                    var next = node.Next;
+                    if (node.Value.ExpiresAt <= DateTime.UtcNow)
+                    {
+                        _cache.TryRemove(node.Value.Key, out _);
+                        _accessOrder.Remove(node);
+                        return;
+                    }
+                    node = next;
+                }
+
+                node = _accessOrder.First;
+                if (node != null)
+                {
+                    _cache.TryRemove(node.Value.Key, out _);
+                    _accessOrder.Remove(node);
                 }
             }
         }
 
-        private class CacheEntry<TValue>
+        private sealed class CacheEntry<TValue>
         {
+            public required string Key { get; init; }
             public required TValue Value { get; init; }
             public DateTime ExpiresAt { get; init; }
-            public DateTime CreatedAt { get; init; }
-            public DateTime LastAccessed { get; set; }
-        }
-    }
-
-    internal static class CacheExtensions
-    {
-        private static readonly MemoryCache<string> _stringCache = new(TimeSpan.FromMinutes(30), 500);
-        private static readonly MemoryCache<byte[]> _bytesCache = new(TimeSpan.FromMinutes(10), 100);
-        private static readonly MemoryCache<object> _objectCache = new(TimeSpan.FromMinutes(5), 200);
-
-        public static string? GetCachedString(string key) => _stringCache.Get(key);
-
-        public static void CacheString(string key, string value, TimeSpan? expiration = null)
-            => _stringCache.Set(key, value, expiration);
-
-        public static byte[]? GetCachedBytes(string key) => _bytesCache.Get(key);
-
-        public static void CacheBytes(string key, byte[] value, TimeSpan? expiration = null)
-            => _bytesCache.Set(key, value, expiration);
-
-        public static T? GetCachedObject<T>(string key) where T : class
-            => _objectCache.Get(key) as T;
-
-        public static void CacheObject<T>(string key, T value, TimeSpan? expiration = null) where T : class
-            => _objectCache.Set(key, value, expiration);
-
-        public static void ClearAllCaches()
-        {
-            _stringCache.Clear();
-            _bytesCache.Clear();
-            _objectCache.Clear();
         }
     }
 }

@@ -35,17 +35,15 @@ namespace SimplyMinecraftServerManager.Helpers
         }
     }
 
-    internal class ThrottledDispatcher(DispatcherPriority priority = DispatcherPriority.Background, int intervalMs = 16) : IDisposable
+    internal class ThrottledDispatcher(DispatcherPriority priority = DispatcherPriority.Background, int intervalMs = 50) : IDisposable
     {
         private readonly Dispatcher _dispatcher = Application.Current?.Dispatcher ?? throw new InvalidOperationException("No dispatcher");
         private readonly DispatcherPriority _priority = priority;
         private readonly int _intervalMs = intervalMs;
-        private DateTime _lastInvoke = DateTime.MinValue;
-        private readonly Queue<Action> _pendingActions = new();
         private readonly Lock _lock = new();
+        private readonly Queue<Action> _pendingActions = new();
         private Timer? _timer;
-        private bool _isPending;
-        private int _pendingDelay;
+        private volatile bool _isPending;
 
         public void Invoke(Action action)
         {
@@ -56,19 +54,15 @@ namespace SimplyMinecraftServerManager.Helpers
                 _isPending = true;
             }
 
-            var now = DateTime.Now;
-            var delay = _intervalMs - (int)(now - _lastInvoke).TotalMilliseconds;
-            _pendingDelay = Math.Max(1, delay);
-
             if (_timer == null)
-                _timer = new Timer(OnTimerTick, null, _pendingDelay, Timeout.Infinite);
+                _timer = new Timer(OnTimerTick, null, _intervalMs, Timeout.Infinite);
             else
-                _timer.Change(_pendingDelay, Timeout.Infinite);
+                _timer.Change(_intervalMs, Timeout.Infinite);
         }
 
         private void OnTimerTick(object? state)
         {
-            Action[] actions;
+            List<Action> actions;
             lock (_lock)
             {
                 if (_pendingActions.Count == 0)
@@ -76,12 +70,11 @@ namespace SimplyMinecraftServerManager.Helpers
                     _isPending = false;
                     return;
                 }
-                actions = [.. _pendingActions];
-                _pendingActions.Clear();
+                actions = new List<Action>(_pendingActions);
+                while (_pendingActions.TryDequeue(out var a)) { }
                 _isPending = false;
             }
 
-            _lastInvoke = DateTime.Now;
             _dispatcher.BeginInvoke(() =>
             {
                 foreach (var action in actions)

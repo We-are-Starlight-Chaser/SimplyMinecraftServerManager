@@ -14,12 +14,12 @@
     
     <TieredCompilation>true</TieredCompilation>
     <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
+    <TieredPGO>true</TieredPGO>
     
     <WpfDisableXamlLineInfo>true</WpfDisableXamlLineInfo>
     <WpfEnableNullableReferenceTypes>true</WpfEnableNullableReferenceTypes>
     <Optimize>true</Optimize>
-    <DebugType>none</DebugType>
-    <DebugSymbols>false</DebugSymbols>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     
     <PublishReadyToRun>true</PublishReadyToRun>
@@ -43,7 +43,8 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DebugType>embedded</DebugType>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>
@@ -55,7 +56,7 @@
     <PackageReference Include="Tomlyn" Version="0.17.0" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="WPF-UI.DependencyInjection" Version="4.3.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 	<PackageReference Include="WPF-UI.Tray" Version="4.3.0" />
 	<PackageReference Include="YamlDotNet" Version="18.0.0" />

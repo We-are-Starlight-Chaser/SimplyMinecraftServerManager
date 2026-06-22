@@ -31,11 +31,13 @@ namespace SimplyMinecraftServerManager.Internals
 public class PerformanceMonitor(string instanceId) : IDisposable
     {
         private readonly string _instanceId = instanceId;
+        private readonly Lock _lock = new();
         private Timer? _monitorTimer;
         private PerformanceCounter? _cpuCounter;
         private Process? _targetProcess;
         private DateTime _lastCpuTime = DateTime.MinValue;
         private TimeSpan _lastTotalProcessorTime = TimeSpan.Zero;
+        private bool _disposed;
 
         private long _cachedStorageMb;
         private Dictionary<string, long> _cachedWorldSizes = [];
@@ -54,43 +56,54 @@ public class PerformanceMonitor(string instanceId) : IDisposable
         /// </summary>
         public void Start(int intervalMs = 2000)
         {
-            Stop();
-
-            // 获取进程
-            var serverProcess = ServerProcessManager.GetProcess(_instanceId);
-            if (serverProcess?.ProcessId == null)
-                throw new InvalidOperationException("Server process not found");
-
-            try
+            lock (_lock)
             {
-                _targetProcess = Process.GetProcessById(serverProcess.ProcessId.Value);
+                if (_disposed) return;
 
-                // 创建 CPU 性能计数器
+                // 停止已有的定时器和清理资源
+                _monitorTimer?.Dispose();
+                _monitorTimer = null;
+                _cpuCounter?.Dispose();
+                _cpuCounter = null;
+                _targetProcess?.Dispose();
+                _targetProcess = null;
+
+                // 获取进程
+                var serverProcess = ServerProcessManager.GetProcess(_instanceId);
+                if (serverProcess?.ProcessId == null)
+                    throw new InvalidOperationException("Server process not found");
+
                 try
                 {
-                    _cpuCounter = new PerformanceCounter(
-                        "Processor",
-                        "% Processor Time",
-                        _targetProcess.ProcessName,
-                        true);
-                    // 预热计数器
-                    _cpuCounter.NextValue();
+                    _targetProcess = Process.GetProcessById(serverProcess.ProcessId.Value);
+
+                    // 创建 CPU 性能计数器
+                    try
+                    {
+                        _cpuCounter = new PerformanceCounter(
+                            "Processor",
+                            "% Processor Time",
+                            _targetProcess.ProcessName,
+                            true);
+                        // 预热计数器
+                        _cpuCounter.NextValue();
+                    }
+                    catch
+                    {
+                        _cpuCounter = null;
+                    }
+
+                    _lastCpuTime = DateTime.Now;
+                    _lastTotalProcessorTime = _targetProcess.TotalProcessorTime;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    _cpuCounter = null;
+                    throw new InvalidOperationException($"Failed to initialize performance monitoring: {ex.Message}");
                 }
 
-                _lastCpuTime = DateTime.Now;
-                _lastTotalProcessorTime = _targetProcess.TotalProcessorTime;
+                // 启动定时器
+                _monitorTimer = new Timer(_ => CollectData(), null, 0, intervalMs);
             }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException($"Failed to initialize performance monitoring: {ex.Message}");
-            }
-
-            // 启动定时器
-            _monitorTimer = new Timer(_ => CollectData(), null, 0, intervalMs);
         }
 
         /// <summary>
@@ -98,29 +111,38 @@ public class PerformanceMonitor(string instanceId) : IDisposable
         /// </summary>
         public void Stop()
         {
-            _monitorTimer?.Dispose();
-            _monitorTimer = null;
-            _cpuCounter?.Dispose();
-            _cpuCounter = null;
-            _targetProcess?.Dispose();
-            _targetProcess = null;
+            lock (_lock)
+            {
+                _monitorTimer?.Dispose();
+                _monitorTimer = null;
+                _cpuCounter?.Dispose();
+                _cpuCounter = null;
+                _targetProcess?.Dispose();
+                _targetProcess = null;
+            }
         }
 
 private void CollectData()
         {
-            var process = _targetProcess;
-            if (process == null) return;
+            Process? process;
+            PerformanceCounter? cpuCounter;
 
-            var cpuCounter = _cpuCounter;
-
-            try
+            lock (_lock)
             {
+                if (_disposed) return;
+                process = _targetProcess;
+                cpuCounter = _cpuCounter;
+                if (process == null) return;
+
                 if (process.HasExited)
                 {
                     Stop();
                     return;
                 }
+            }
 
+            try
+            {
                 var memoryMb = process.WorkingSet64 / (1024.0 * 1024.0);
 
                 double cpuUsage = 0;
@@ -215,24 +237,6 @@ private void CollectData()
             long size = 0;
             try
             {
-                foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-                {
-                    try
-                    {
-                        size += new FileInfo(file).Length;
-                    }
-                    catch { }
-                }
-            }
-            catch { }
-            return size;
-        }
-
-        private static long GetDirectorySizeFast(string path)
-        {
-            long size = 0;
-            try
-            {
                 var dir = new DirectoryInfo(path);
                 foreach (var file in dir.EnumerateFiles("*", SearchOption.AllDirectories))
                 {
@@ -244,9 +248,19 @@ private void CollectData()
             return size;
         }
 
+        private static long GetDirectorySizeFast(string path)
+        {
+            return GetDirectorySize(path);
+        }
+
         public void Dispose()
         {
-            Stop();
+            lock (_lock)
+            {
+                if (_disposed) return;
+                _disposed = true;
+                Stop();
+            }
             GC.SuppressFinalize(this);
         }
     }

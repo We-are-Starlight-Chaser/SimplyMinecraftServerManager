@@ -23,6 +23,9 @@
   WindowStyle="None"
   MinHeight="720"
   MinWidth="1180">
+    <ui:FluentWindow.TaskbarItemInfo>
+        <TaskbarItemInfo ProgressState="None" x:Name="TaskbarItemInfo"/>
+    </ui:FluentWindow.TaskbarItemInfo>
   <Grid>
     <ui:TitleBar
       x:Name="TitleBar"

@@ -6,7 +6,7 @@ namespace SimplyMinecraftServerManager.Internals
 {
     public static class ServerPropertiesManager
     {
-        private static readonly Lock FileLock = new();
+        private static readonly ReaderWriterLockSlim FileLock = new(LockRecursionPolicy.NoRecursion);
         private static readonly MemoryCache<Dictionary<string, string>> _propsCache = new(TimeSpan.FromSeconds(30), 50);
 
         public static Dictionary<string, string> Read(string instanceId)
@@ -20,7 +20,8 @@ namespace SimplyMinecraftServerManager.Internals
 
             var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            lock (FileLock)
+            FileLock.EnterReadLock();
+            try
             {
                 foreach (string line in ReadAllLinesWithRetry(path))
                 {
@@ -36,6 +37,10 @@ namespace SimplyMinecraftServerManager.Internals
                     result[key] = value;
                 }
             }
+            finally
+            {
+                FileLock.ExitReadLock();
+            }
 
             _propsCache.Set(instanceId, result);
             return result;
@@ -46,48 +51,34 @@ namespace SimplyMinecraftServerManager.Internals
             _propsCache.Remove(instanceId);
         }
 
-        /// <summary>
-        /// 获取单个属性值。
-        /// </summary>
         public static string? GetValue(string instanceId, string key)
         {
             var props = Read(instanceId);
             return props.TryGetValue(key, out string? v) ? v : null;
         }
 
-        /// <summary>
-        /// 获取单个属性值，带默认值。
-        /// </summary>
         public static string GetValue(string instanceId, string key, string defaultValue)
         {
             return GetValue(instanceId, key) ?? defaultValue;
         }
 
-        /// <summary>
-        /// 获取整数属性。
-        /// </summary>
         public static int GetInt(string instanceId, string key, int defaultValue = 0)
         {
             string? v = GetValue(instanceId, key);
             return v != null && int.TryParse(v, out int result) ? result : defaultValue;
         }
 
-        /// <summary>
-        /// 获取布尔属性。
-        /// </summary>
         public static bool GetBool(string instanceId, string key, bool defaultValue = false)
         {
             string? v = GetValue(instanceId, key);
             return v != null && bool.TryParse(v, out bool result) ? result : defaultValue;
         }
 
-        /// <summary>
-        /// 设置单个属性值（就地修改文件，保留注释和顺序）。
-        /// </summary>
-public static void SetValue(string instanceId, string key, string value)
+        public static void SetValue(string instanceId, string key, string value)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
-            lock (FileLock)
+            FileLock.EnterWriteLock();
+            try
             {
                 var lines = File.Exists(path)
                     ? ReadAllLinesWithRetry(path).ToList()
@@ -120,13 +111,18 @@ public static void SetValue(string instanceId, string key, string value)
 
                 WriteAllLinesWithRetry(path, lines);
             }
+            finally
+            {
+                FileLock.ExitWriteLock();
+            }
             InvalidateCache(instanceId);
         }
 
         public static void SetValues(string instanceId, Dictionary<string, string> values)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
-            lock (FileLock)
+            FileLock.EnterWriteLock();
+            try
             {
                 var lines = File.Exists(path)
                     ? ReadAllLinesWithRetry(path).ToList()
@@ -157,6 +153,10 @@ public static void SetValue(string instanceId, string key, string value)
 
                 WriteAllLinesWithRetry(path, lines);
             }
+            finally
+            {
+                FileLock.ExitWriteLock();
+            }
             InvalidateCache(instanceId);
         }
 
@@ -172,9 +172,14 @@ public static void SetValue(string instanceId, string key, string value)
             foreach (var kvp in properties.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
                 lines.Add($"{kvp.Key}={kvp.Value}");
 
-            lock (FileLock)
+            FileLock.EnterWriteLock();
+            try
             {
                 WriteAllLinesWithRetry(path, lines);
+            }
+            finally
+            {
+                FileLock.ExitWriteLock();
             }
             InvalidateCache(instanceId);
         }
@@ -184,7 +189,8 @@ public static void SetValue(string instanceId, string key, string value)
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             if (!File.Exists(path)) return false;
 
-            lock (FileLock)
+            FileLock.EnterWriteLock();
+            try
             {
                 var lines = ReadAllLinesWithRetry(path).ToList();
                 int removed = lines.RemoveAll(line =>
@@ -201,6 +207,10 @@ public static void SetValue(string instanceId, string key, string value)
 
                 if (removed > 0) InvalidateCache(instanceId);
                 return removed > 0;
+            }
+            finally
+            {
+                FileLock.ExitWriteLock();
             }
         }
 

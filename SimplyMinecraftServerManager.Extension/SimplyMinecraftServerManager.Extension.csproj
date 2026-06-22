@@ -4,6 +4,21 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Optimize>true</Optimize>
+    <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
+    <EnableAotAnalyzers>true</EnableAotAnalyzers>
+    <IsTrimmable>true</IsTrimmable>
+    <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;IL2026;IL3050</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0">
+      <PrivateAssets>all</PrivateAssets>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
 
 </Project>

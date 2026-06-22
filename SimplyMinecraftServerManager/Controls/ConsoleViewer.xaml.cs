@@ -90,6 +90,13 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
         private bool _isSearchOpen;
         private ScrollViewer? _scrollViewer;
 
+        private readonly Stack<Paragraph> _paragraphPool = new(64);
+        private readonly Stack<Run> _runPool = new(256);
+        private readonly List<string> _pendingLines = [];
+        private readonly Lock _pendingLineLock = new();
+        private bool _batchPending;
+        private const int MaxLineLength = 8192;
+
         public static readonly DependencyProperty ViewModelProperty =
             DependencyProperty.Register(
                 nameof(ViewModel),
@@ -247,7 +254,10 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
         private void RebuildDocument()
         {
             var lines = ViewModel?.GetConsoleLines() ?? [];
+            var oldDoc = ConsoleTextBox.Document;
             var document = CreateDocument();
+            foreach (var block in oldDoc.Blocks)
+                RecycleParagraph(block);
             ConsoleTextBox.Document = document;
             _searchMatches.Clear();
             _currentSearchIndex = -1;
@@ -265,12 +275,19 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
             QueueAutoScrollIfNeeded();
         }
 
+        private Paragraph GetPooledParagraph()
+        {
+            return _paragraphPool.Count > 0 ? _paragraphPool.Pop() : new Paragraph { Margin = new Thickness(0) };
+        }
+
+        private Run GetPooledRun()
+        {
+            return _runPool.Count > 0 ? _runPool.Pop() : new Run();
+        }
+
         private Paragraph CreateParagraph(string line, string searchText)
         {
-            var paragraph = new Paragraph
-            {
-                Margin = new Thickness(0)
-            };
+            var paragraph = GetPooledParagraph();
 
             if (TrySplitTimestampPrefix(line, out var prefix, out var content))
             {
@@ -477,7 +494,8 @@ private static SolidColorBrush MessageBrush => _messageBrush ??= GetCachedBrush(
 
         private Run CreateRun(string text, StyledSegment segment, bool isSearchHit)
         {
-            var run = new Run(text);
+            var run = GetPooledRun();
+            run.Text = text;
             var foreground = segment.Foreground;
             var background = segment.Background;
 
@@ -968,59 +986,88 @@ return
             return Color.FromRgb(gray, gray, gray);
         }
 
+        private static string TruncateLine(string line)
+        {
+            return line.Length <= MaxLineLength ? line : line[..MaxLineLength];
+        }
+
         private void OnConsoleLineAdded(object? sender, string line)
         {
+            line = TruncateLine(line);
+            lock (_pendingLineLock)
+            {
+                _pendingLines.Add(line);
+                if (_batchPending) return;
+                _batchPending = true;
+            }
+            Dispatcher.BeginInvoke(ProcessBatch, DispatcherPriority.Background);
+        }
+
+        private void ProcessBatch()
+        {
+            List<string> lines;
+            lock (_pendingLineLock)
+            {
+                if (_pendingLines.Count == 0) { _batchPending = false; return; }
+                lines = [.. _pendingLines];
+                _pendingLines.Clear();
+                _batchPending = false;
+            }
+
             if (!Dispatcher.CheckAccess())
             {
-                _ = Dispatcher.InvokeAsync(() => OnConsoleLineAdded(sender, line));
+                Dispatcher.BeginInvoke(() => ProcessBatchInternal(lines), DispatcherPriority.Background);
                 return;
             }
-            var document = ConsoleTextBox.Document;
-            if (!string.IsNullOrWhiteSpace(GetActiveSearchText()))
-            {
-                var searchText = GetActiveSearchText();
-                var paragraph = CreateParagraph(line, searchText);
-                document.Blocks.Add(paragraph);
+            ProcessBatchInternal(lines);
+        }
 
-                // 同样需要限制最大行数
-                TrimExcessBlocks(document);
-                QueueAutoScrollIfNeeded();
-                UpdateSearchResultText(); 
-                return;
+        private void ProcessBatchInternal(List<string> lines)
+        {
+            var document = ConsoleTextBox.Document;
+            var searchText = GetActiveSearchText();
+            bool hasSearch = !string.IsNullOrWhiteSpace(searchText);
+
+            foreach (var line in lines)
+            {
+                var para = hasSearch
+                    ? CreateParagraph(line, searchText)
+                    : CreateParagraph(line, string.Empty);
+                document.Blocks.Add(para);
             }
-            document.Blocks.Add(CreateParagraph(line, string.Empty));
-            
+
             var maxBlocks = InstanceViewModel.MaxConsoleLines;
             if (document.Blocks.Count > maxBlocks)
             {
-                var toRemove = document.Blocks.Count - maxBlocks;
-                for (int i = 0; i < toRemove; i++)
+                int toRemove = document.Blocks.Count - maxBlocks;
+                var first = document.Blocks.FirstBlock;
+                for (int i = 0; i < toRemove && first != null; i++)
                 {
-                    document.Blocks.Remove(document.Blocks.FirstBlock);
+                    var next = first.NextBlock;
+                    RecycleParagraph(first);
+                    document.Blocks.Remove(first);
+                    first = next;
                 }
             }
 
             UpdateEmptyHintVisibility(true);
+            if (hasSearch) UpdateSearchResultText();
             QueueAutoScrollIfNeeded();
         }
-        private static void TrimExcessBlocks(FlowDocument document)
+
+        private void RecycleParagraph(Block block)
         {
-            var maxBlocks = InstanceViewModel.MaxConsoleLines;
-            if (document.Blocks.Count <= maxBlocks) return;
-
-            var toRemove = document.Blocks.Count - maxBlocks;
-            var blocksToRemove = new List<Block>(toRemove);
-
-            var current = document.Blocks.FirstBlock;
-            for (int i = 0; i < toRemove && current != null; i++)
+            if (block is Paragraph p)
             {
-                blocksToRemove.Add(current);
-                current = current.NextBlock;
+                foreach (var inline in p.Inlines)
+                {
+                    if (inline is Run r) { r.Text = ""; _runPool.Push(r); }
+                }
+                p.Inlines.Clear();
+                _paragraphPool.Push(p);
             }
-
-            foreach (var block in blocksToRemove)
-                document.Blocks.Remove(block);
         }
+
         private void OnConsoleCleared(object? sender, EventArgs e)
         {
             if (!Dispatcher.CheckAccess())
@@ -1029,7 +1076,10 @@ return
                 return;
             }
 
+            var oldDoc = ConsoleTextBox.Document;
             ConsoleTextBox.Document = CreateDocument();
+            foreach (var block in oldDoc.Blocks)
+                RecycleParagraph(block);
             _searchMatches.Clear();
             _currentSearchIndex = -1;
             ApplyConsoleAppearance();

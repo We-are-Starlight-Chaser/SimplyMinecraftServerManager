@@ -87,7 +87,7 @@
                   </StackPanel>
 
                   <Border Grid.Column="2" Padding="10,4" CornerRadius="8" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
-                    <TextBlock Text="{Binding TargetBadgeText}" FontSize="11" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding TargetBadgeText}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
                 </Grid>
 

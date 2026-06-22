@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using SimplyMinecraftServerManager.Extension.Models;
 
 namespace SimplyMinecraftServerManager.Extension.Interfaces
 {
-    public interface ICustomTool
+    public interface ICustomTool : IExtension
     {
-        object ControlContent { get; set; }
-        Task RunAsync(CancellationToken cancellationToken);
+        /// <summary> 
+        /// 使用Wpf.Ui.Controls.Button以保证工具页面统一性
+        /// </summary>
+        ButtonInfo ControlContent { get;}
     }
 }

@@ -20,6 +20,7 @@ namespace SimplyMinecraftServerManager
         private static readonly string LogPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "smsm", "logs", $"app_{DateTime.Now:yyyyMMdd}.log");
+        private static readonly string LogDateFormat = "yyyy-MM-dd HH:mm:ss.fff";
 
         private static readonly IHost _host = Host
             .CreateDefaultBuilder()
@@ -139,6 +140,14 @@ namespace SimplyMinecraftServerManager
             {
                 Log($"Shutdown error: {ex}");
             }
+            finally
+            {
+                lock (_logLock)
+                {
+                    _logWriter?.Dispose();
+                    _logWriter = null;
+                }
+            }
         }
 
         private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
@@ -193,11 +202,9 @@ namespace SimplyMinecraftServerManager
                     }
                 }
                 writer.Write('[');
-                writer.Write(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                writer.Write(DateTime.Now.ToString(LogDateFormat));
                 writer.Write("] ");
-                writer.Write(message);
-                writer.WriteLine();
-                writer.Flush();
+                writer.WriteLine(message);
             }
             catch
             {

@@ -297,11 +297,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             long totalSize = 0;
             var fileEntries = new List<(string Path, string Relative, long Length)>();
-            foreach (var fp in Directory.EnumerateFiles(sourceFolder, "*", SearchOption.AllDirectories))
+            var srcDir = new DirectoryInfo(sourceFolder);
+            foreach (var fi in srcDir.EnumerateFiles("*", SearchOption.AllDirectories))
             {
+                var fp = fi.FullName;
                 if (fp.Contains("\\logs\\") || fp.EndsWith(".log", StringComparison.OrdinalIgnoreCase))
                     continue;
-                var fi = new FileInfo(fp);
                 totalSize += fi.Length;
                 fileEntries.Add((fp, Path.GetRelativePath(sourceFolder, fp).Replace('\\', '/'), fi.Length));
             }
@@ -309,7 +310,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             long processedSize = 0;
 
             using var fileStream = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan);
-            using var zstdStream = new CompressionStream(fileStream, new CompressionOptions(12));
+            using var zstdStream = new CompressionStream(fileStream, new CompressionOptions(3));
             var writerOptions = new TarWriterOptions(CompressionType.None)
             {
                 ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 },
@@ -699,14 +700,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             long size = 0;
             try
             {
-                foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                var dir = new DirectoryInfo(path);
+                foreach (var file in dir.EnumerateFiles("*", SearchOption.AllDirectories))
                 {
-                    try
-                    {
-                        var fi = new FileInfo(file);
-                        if (fi.Exists)
-                            size += fi.Length;
-                    }
+                    try { size += file.Length; }
                     catch { }
                 }
             }
@@ -1129,10 +1126,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         public void Dispose()
         {
-            StopDashboardMonitoring(); // 确保停止仪表盘监控
+            StopDashboardMonitoring();
             StopPerformanceMonitoring();
             ServerProcessManager.InstanceStatusChanged -= OnInstanceStatusChanged;
-            GC.SuppressFinalize(this);
         }
 
         [RelayCommand]

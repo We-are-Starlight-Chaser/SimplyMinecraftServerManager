@@ -7,7 +7,7 @@ namespace SimplyMinecraftServerManager.Internals
     public static class ConfigManager
     {
         private static readonly Lock _lock = new();
-        private static AppConfig? _cached;
+        private static volatile AppConfig? _cached;
 
         public static AppConfig Current
         {

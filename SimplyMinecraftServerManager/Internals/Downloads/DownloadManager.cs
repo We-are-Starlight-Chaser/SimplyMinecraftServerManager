@@ -43,7 +43,6 @@ private readonly HttpClient _httpClient;
         private readonly ConcurrentDictionary<string, DownloadTask> _tasks = new();
         private readonly ConcurrentDictionary<string, bool> _pausedTasks = new();
         private const int BufferSize = 262144;
-        private static readonly byte[] _sharedBuffer = new byte[BufferSize];
         
         private const int ProgressReportIntervalMs = 150;
 
@@ -439,9 +438,10 @@ private readonly HttpClient _httpClient;
                     long lastReportTime = 0;
                     long speed = 0;
 
+                    byte[] buffer = new byte[BufferSize];
                     int bytesRead;
                     while ((bytesRead = await contentStream.ReadAsync(
-                        _sharedBuffer.AsMemory(0, BufferSize), task.Cts.Token)) > 0)
+                        buffer.AsMemory(0, BufferSize), task.Cts.Token)) > 0)
                     {
                         // 检查是否被暂停
                         if (_pausedTasks.ContainsKey(task.Id))
@@ -454,7 +454,7 @@ private readonly HttpClient _httpClient;
                         }
 
                         await fileStream.WriteAsync(
-                            _sharedBuffer.AsMemory(0, bytesRead), task.Cts.Token);
+                            buffer.AsMemory(0, bytesRead), task.Cts.Token);
                         task.BytesDownloaded += bytesRead;
 
                         long elapsed = sw.ElapsedMilliseconds;

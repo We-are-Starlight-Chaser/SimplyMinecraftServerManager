@@ -14,8 +14,20 @@ namespace SimplyMinecraftServerManager.Internals
         private static bool _loaded;
         private static readonly ConcurrentDictionary<string, InstanceInfo> _idCache = new();
         private static readonly ConcurrentDictionary<string, List<InstanceInfo>> _searchCache = new();
-        private static Timer? _saveDebounceTimer;
-        private static bool _pendingSave;
+        private static readonly Timer _saveDebounceTimer = new(_ => FlushSave());
+        private static volatile bool _pendingSave;
+        private static readonly Lock _saveLock = new();
+
+        private static void FlushSave()
+        {
+            if (!_pendingSave) return;
+            lock (_saveLock)
+            {
+                if (!_pendingSave) return;
+                Save();
+                _pendingSave = false;
+            }
+        }
         private static readonly Dictionary<string, string> DefaultServerProperties = new(StringComparer.OrdinalIgnoreCase)
         {
             ["enable-query"] = "false",
@@ -83,19 +95,12 @@ namespace SimplyMinecraftServerManager.Internals
         private static void DebouncedSave()
         {
             if (_pendingSave) return;
-            _pendingSave = true;
-            _saveDebounceTimer?.Dispose();
-            _saveDebounceTimer = new Timer(_ =>
+            lock (_saveLock)
             {
-                lock (_lock)
-                {
-                    if (_pendingSave)
-                    {
-                        Save();
-                        _pendingSave = false;
-                    }
-                }
-            }, null, 500, Timeout.Infinite);
+                if (_pendingSave) return;
+                _pendingSave = true;
+                _saveDebounceTimer.Change(500, Timeout.Infinite);
+            }
         }
 
         private static void EnsureLoaded()
@@ -171,8 +176,11 @@ namespace SimplyMinecraftServerManager.Internals
 
         public static InstanceInfo? GetById(string id)
         {
-            EnsureLoaded();
-            return _idCache.GetValueOrDefault(id);
+            lock (_lock)
+            {
+                EnsureLoaded();
+                return _idCache.TryGetValue(id, out var info) ? info : null;
+            }
         }
 
         public static IReadOnlyList<InstanceInfo> Search(string keyword)
@@ -468,13 +476,11 @@ public static void SetJdkPath(string instanceId, string jdkPath)
             {
                 if (_pendingSave)
                 {
-                    Save();
-                    _pendingSave = false;
+                    FlushSave();
                 }
             }
 
-            _saveDebounceTimer?.Dispose();
-            _saveDebounceTimer = null;
+            _saveDebounceTimer.Dispose();
         }
 
         private static int GetNextAvailableRconPort(string instanceId, int preferredPort)
