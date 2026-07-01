@@ -66,16 +66,6 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        /// <summary>
-        /// 尝试解密加密的字符串。
-        /// </summary>
-        /// <param name="encryptedText">要解密的加密字符串。</param>
-        /// <param name="plainText">解密后的明文字符串。</param>
-        /// <returns>如果解密成功返回 true，否则返回 false。</returns>
-        public static bool TryDecrypt(string encryptedText, out string plainText)
-        {
-            plainText = Decrypt(encryptedText);
-            return plainText != encryptedText;
-        }
+
     }
 }

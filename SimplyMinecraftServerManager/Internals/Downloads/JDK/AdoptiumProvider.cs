@@ -159,7 +159,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
         {
             var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
             client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "SimplyMinecraftServerManager/1.0");
+                "SimplyMinecraftServerManager/1.0 (https://github.com/We-are-Starlight-Chaser/SimplyMinecraftServerManager)");
             client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
             return client;
         }

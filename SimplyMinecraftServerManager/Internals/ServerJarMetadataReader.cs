@@ -24,11 +24,6 @@ namespace SimplyMinecraftServerManager.Internals
         /// 获取或初始化 Minecraft 版本号。
         /// </summary>
         public string MinecraftVersion { get; init; } = "未知版本";
-
-        /// <summary>
-        /// 获取或初始化 JAR 文件是否存在。
-        /// </summary>
-        public bool JarExists { get; init; }
     }
 
     /// <summary>
@@ -96,28 +91,6 @@ namespace SimplyMinecraftServerManager.Internals
             return metadata;
         }
 
-        /// <summary>
-        /// 使指定实例的服务器 JAR 元数据缓存失效。
-        /// </summary>
-        /// <param name="instanceId">实例 ID。</param>
-        /// <param name="serverJar">服务器 JAR 文件名。</param>
-        public static void Invalidate(string instanceId, string serverJar)
-        {
-            if (string.IsNullOrWhiteSpace(instanceId) || string.IsNullOrWhiteSpace(serverJar))
-            {
-                return;
-            }
-
-            try
-            {
-                var jarPath = PathHelper.GetServerJarPath(instanceId, serverJar);
-                Cache.TryRemove(Path.GetFullPath(jarPath), out _);
-            }
-            catch
-            {
-            }
-        }
-
         private static ServerJarMetadata ReadInternal(string jarPath)
         {
             var fileName = Path.GetFileNameWithoutExtension(jarPath);
@@ -161,7 +134,6 @@ namespace SimplyMinecraftServerManager.Internals
 
             return new ServerJarMetadata
             {
-                JarExists = true,
                 ServerType = NormalizeServerType(detectedType),
                 MinecraftVersion = string.IsNullOrWhiteSpace(detectedVersion) ? "未知版本" : detectedVersion
             };

@@ -21,10 +21,14 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             {
                 if (_sharedClient == null)
                 {
-                    _sharedClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-                    _sharedClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-                        "SimplyMinecraftServerManager/1.0");
-                    _sharedClient.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+                    var handler = new SocketsHttpHandler
+                    {
+                        AutomaticDecompression = System.Net.DecompressionMethods.All,
+                    };
+                    _sharedClient = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(30) };
+                    _sharedClient.DefaultRequestHeaders.TryAddWithoutValidation(
+                        "User-Agent", "SimplyMinecraftServerManager/1.0 (https://github.com/We-are-Starlight-Chaser/SimplyMinecraftServerManager)");
+                    _sharedClient.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
                 }
                 return _sharedClient;
             }

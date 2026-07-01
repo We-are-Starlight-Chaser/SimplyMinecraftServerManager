@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <ResourceDictionary
@@ -6,17 +6,4 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:SimplyMinecraftServerManager.Controls">
 
-
-    <Style TargetType="{x:Type local:ServerCard}">
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type local:ServerCard}">
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}">
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
 </ResourceDictionary>

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
@@ -47,8 +47,5 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
         /// <summary>是否安装完成</summary>
         public bool IsInstalled => InstallationStatus == InstallationStatus.Installed;
-
-        /// <summary>是否安装失败</summary>
-        public bool IsInstallationFailed => InstallationStatus == InstallationStatus.InstallationFailed;
     }
 }

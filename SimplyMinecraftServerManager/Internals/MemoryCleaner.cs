@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System;
@@ -173,10 +173,7 @@ namespace SimplyMinecraftServerManager.Internals
         /// </summary>
         public bool IsRunning { get; private set; }
 
-        /// <summary>
-        /// 是否具有管理员权限
-        /// </summary>
-        public static bool IsElevated => IsProcessElevated;
+
 
         #endregion
 
@@ -413,41 +410,5 @@ namespace SimplyMinecraftServerManager.Internals
         #endregion
     }
 
-    /// <summary>
-    /// 内存清理进度事件参数
-    /// </summary>
-    public class MemoryCleanProgressEventArgs(string message) : EventArgs
-    {
-        /// <summary>
-        /// 进度消息
-        /// </summary>
-        public string Message { get; } = message ?? throw new ArgumentNullException(nameof(message));
-    }
 
-    /// <summary>
-    /// 内存清理完成事件参数
-    /// </summary>
-    public class MemoryCleanCompleteEventArgs(int processCount, bool debugPrivilegeResult,
-        bool quotaPrivilegeResult, bool cacheCleanupResult) : EventArgs
-    {
-        /// <summary>
-        /// 清理的进程数量
-        /// </summary>
-        public int ProcessCount { get; } = processCount;
-
-        /// <summary>
-        /// 调试权限设置结果
-        /// </summary>
-        public bool DebugPrivilegeResult { get; } = debugPrivilegeResult;
-
-        /// <summary>
-        /// 配额权限设置结果
-        /// </summary>
-        public bool QuotaPrivilegeResult { get; } = quotaPrivilegeResult;
-
-        /// <summary>
-        /// 缓存清理结果
-        /// </summary>
-        public bool CacheCleanupResult { get; } = cacheCleanupResult;
-    }
 }

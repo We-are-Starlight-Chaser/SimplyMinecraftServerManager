@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Diagnostics;
@@ -46,8 +46,6 @@ public class PerformanceMonitor(string instanceId) : IDisposable
         private Dictionary<string, long> _cachedWorldSizes = [];
         private DateTime _lastStorageCacheTime = DateTime.MinValue;
         private readonly int _storageCacheIntervalMs = 30000;
-
-        public string InstanceId => _instanceId;
 
         /// <summary>
         /// 当性能数据更新时触发。
@@ -268,57 +266,5 @@ private void CollectData()
         }
     }
 
-    /// <summary>
-    /// 全局性能监控管理器。
-    /// </summary>
-    public static class PerformanceMonitorManager
-    {
-        private static readonly Dictionary<string, PerformanceMonitor> _monitors = [];
 
-        /// <summary>
-        /// 获取或创建指定实例的性能监控器。
-        /// </summary>
-        public static PerformanceMonitor GetOrCreate(string instanceId)
-        {
-            if (!_monitors.TryGetValue(instanceId, out var monitor))
-            {
-                monitor = new PerformanceMonitor(instanceId);
-                _monitors[instanceId] = monitor;
-            }
-            return monitor;
-        }
-
-        /// <summary>
-        /// 移除并停止指定实例的监控器。
-        /// </summary>
-        public static void Remove(string instanceId)
-        {
-            if (_monitors.TryGetValue(instanceId, out var monitor))
-            {
-                monitor.Dispose();
-                _monitors.Remove(instanceId);
-            }
-        }
-
-        /// <summary>
-        /// 获取指定实例的监控器（如果存在）。
-        /// </summary>
-        public static PerformanceMonitor? Get(string instanceId)
-        {
-            _monitors.TryGetValue(instanceId, out var monitor);
-            return monitor;
-        }
-
-        /// <summary>
-        /// 停止所有监控。
-        /// </summary>
-        public static void StopAll()
-        {
-            foreach (var monitor in _monitors.Values)
-            {
-                monitor.Dispose();
-            }
-            _monitors.Clear();
-        }
-    }
 }

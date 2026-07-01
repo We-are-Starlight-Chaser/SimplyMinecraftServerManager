@@ -74,8 +74,7 @@ private readonly HttpClient _httpClient;
         /// <summary>任务安装完成事件（仅 DownloadAndInstall 类型任务触发）</summary>
         public event EventHandler<DownloadTask>? TaskInstalled;
 
-        /// <summary>当前最大并发下载数</summary>
-        public int MaxConcurrentDownloads => _maxConcurrent;
+
 
         private static readonly string[] AllowedHosts =
         [
@@ -128,7 +127,7 @@ private readonly HttpClient _httpClient;
                     Timeout = TimeSpan.FromMinutes(30)
                 };
                 _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-                    "SimplyMinecraftServerManager/1.0 (Windows)");
+                    "SimplyMinecraftServerManager/1.0 (https://github.com/We-are-Starlight-Chaser/SimplyMinecraftServerManager)");
                 _httpClient.DefaultRequestHeaders.Accept.ParseAdd("*/*");
                 _ownsHttpClient = true;
             }
@@ -175,26 +174,12 @@ private readonly HttpClient _httpClient;
 
         // 动态调整并发数
 
-        /// <summary>
-        /// 动态修改最大并发下载数。
-        /// 已在运行的任务不受影响，新提交的任务立即使用新限制。
-        /// </summary>
-        public void SetMaxConcurrentDownloads(int value)
-        {
-            value = Math.Clamp(value, 1, 32);
-            if (value == _maxConcurrent) return;
 
-            _maxConcurrent = value;
-            // 创建新信号量，旧信号量被正在运行的任务引用，完成后自然 GC
-            _semaphore = new SemaphoreSlim(value, value);
-        }
 
         // 查询
 
         /// <summary>获取所有下载任务的只读列表</summary>
         public IReadOnlyList<DownloadTask> AllTasks => _tasks.Values.ToList().AsReadOnly();
-        /// <summary>当前正在下载的任务数量</summary>
-        public int ActiveCount => _tasks.Values.Count(t => t.Status == DownloadStatus.Downloading);
 
         // 入队
 
@@ -255,83 +240,7 @@ private readonly HttpClient _httpClient;
             return EnqueueAsync(task);
         }
 
-        /// <summary>
-        /// 异步入队下载并安装任务，下载完成后自动安装到指定实例。
-        /// </summary>
-        /// <param name="url">下载 URL</param>
-        /// <param name="destinationPath">保存的本地完整路径</param>
-        /// <param name="targetInstanceId">目标实例 ID</param>
-        /// <param name="displayName">显示名称，为空时使用文件名</param>
-        /// <param name="expectedHash">预期文件哈希值（可选）</param>
-        /// <param name="hashAlgorithm">哈希算法，默认 SHA256</param>
-        /// <returns>完成后的下载任务</returns>
-        public Task<DownloadTask> EnqueueDownloadAndInstallAsync(
-            string url,
-            string destinationPath,
-            string targetInstanceId,
-            string displayName = "",
-            string? expectedHash = null,
-            string hashAlgorithm = "SHA256")
-        {
-            var task = new DownloadTask
-            {
-                Url = url,
-                DestinationPath = destinationPath,
-                DisplayName = string.IsNullOrEmpty(displayName)
-                    ? Path.GetFileName(destinationPath)
-                    : displayName,
-                ExpectedHash = expectedHash,
-                HashAlgorithm = hashAlgorithm,
-                Type = TaskType.DownloadAndInstall,
-                TargetInstanceId = targetInstanceId
-            };
-            return EnqueueAsync(task);
-        }
 
-        /// <summary>
-        /// 同步入队下载并安装任务，下载完成后自动安装到指定实例（火后不管模式）。
-        /// </summary>
-        /// <param name="url">下载 URL</param>
-        /// <param name="destinationPath">保存的本地完整路径</param>
-        /// <param name="targetInstanceId">目标实例 ID</param>
-        /// <param name="displayName">显示名称，为空时使用文件名</param>
-        /// <param name="expectedHash">预期文件哈希值（可选）</param>
-        /// <param name="hashAlgorithm">哈希算法，默认 SHA256</param>
-        /// <returns>入队的下载任务</returns>
-        public DownloadTask QueueDownloadAndInstall(
-            string url,
-            string destinationPath,
-            string targetInstanceId,
-            string displayName = "",
-            string? expectedHash = null,
-            string hashAlgorithm = "SHA256")
-        {
-            var task = new DownloadTask
-            {
-                Url = url,
-                DestinationPath = destinationPath,
-                DisplayName = string.IsNullOrEmpty(displayName)
-                    ? Path.GetFileName(destinationPath)
-                    : displayName,
-                ExpectedHash = expectedHash,
-                HashAlgorithm = hashAlgorithm,
-                Type = TaskType.DownloadAndInstall,
-                TargetInstanceId = targetInstanceId
-            };
-
-            return Queue(task);
-        }
-
-        /// <summary>
-        /// 批量异步入队多个下载任务并等待所有任务完成。
-        /// </summary>
-        /// <param name="tasks">下载任务集合</param>
-        /// <returns>所有完成后的下载任务数组</returns>
-        public async Task<DownloadTask[]> EnqueueBatchAsync(IEnumerable<DownloadTask> tasks)
-        {
-            var running = tasks.Select(t => EnqueueAsync(t)).ToArray();
-            return await Task.WhenAll(running);
-        }
 
         // 取消
 
@@ -348,18 +257,7 @@ private readonly HttpClient _httpClient;
             }
         }
 
-        /// <summary>
-        /// 取消所有下载任务。
-        /// </summary>
-        public void CancelAll()
-        {
-            foreach (var task in _tasks.Values)
-            {
-                task.Cts.Cancel();
-                if (task.Status is DownloadStatus.Pending or DownloadStatus.Downloading)
-                    task.Status = DownloadStatus.Cancelled;
-            }
-        }
+
 
         // 暂停
 
@@ -703,7 +601,12 @@ private readonly HttpClient _httpClient;
         /// </summary>
         public void Dispose()
         {
-            CancelAll();
+            foreach (var task in _tasks.Values)
+            {
+                task.Cts.Cancel();
+                if (task.Status is DownloadStatus.Pending or DownloadStatus.Downloading)
+                    task.Status = DownloadStatus.Cancelled;
+            }
             _semaphore.Dispose();
             if (_ownsHttpClient)
                 _httpClient.Dispose();

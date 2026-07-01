@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     /// <summary>
-    /// 通用 PaperMC API v2 提供者。
+    /// 通用 PaperMC API v3 提供者（fill.papermc.io）。
     /// Paper / Folia / Velocity 共用同一套 API，仅 project 名不同。
     /// </summary>
     public class PaperProvider : IServerProvider
@@ -22,7 +22,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         public ServerPlatform Platform { get; }
 
         /// <summary>
-        /// 创建一个 PaperMC API v2 提供者。
+        /// 创建一个 PaperMC API v3 提供者。
         /// </summary>
         /// <param name="platform">平台枚举</param>
         /// <param name="project">API 项目名 (paper / folia / velocity)</param>
@@ -34,7 +34,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         {
             Platform = platform;
             _project = project;
-            _baseUrl = $"https://api.papermc.io/v2/projects/{_project}";
+            _baseUrl = $"https://fill.papermc.io/v3/projects/{_project}";
             _http = httpClient ?? CreateDefaultClient();
         }
 
@@ -68,21 +68,36 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
         /// <summary>
         /// 获取所有支持的 Minecraft 版本列表（降序排列）。
+        /// fill.papermc.io 返回 { "versions": { "1.21": [...], "1.20": [...] } } 嵌套结构。
         /// </summary>
         /// <param name="ct">取消令牌</param>
         /// <returns>版本号只读列表</returns>
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {
-            string json = await _http.GetStringAsync(_baseUrl, ct);
+            using var response = await _http.GetAsync(_baseUrl, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                string body = await response.Content.ReadAsStringAsync(ct);
+                throw new HttpRequestException(
+                    $"Paper API returned {(int)response.StatusCode}: {body}");
+            }
+            string json = await response.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(json);
 
-            var versions = doc.RootElement
-                .GetProperty("versions")
-                .EnumerateArray()
-                .Select(e => e.GetString()!)
-                .ToList();
+            var versions = new List<string>();
+            var versionsElement = doc.RootElement.GetProperty("versions");
 
-            versions.Reverse();
+            foreach (var group in versionsElement.EnumerateObject())
+            {
+                if (group.Value.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var v in group.Value.EnumerateArray())
+                    {
+                        versions.Add(v.GetString()!);
+                    }
+                }
+            }
+
             return versions.AsReadOnly();
         }
 
@@ -90,6 +105,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
         /// <summary>
         /// 获取指定 Minecraft 版本的所有构建（降序排列，最新在前）。
+        /// fill.papermc.io 返回扁平数组 [ {"id":132, "downloads":{"server:default":{...}}} ]。
         /// </summary>
         /// <param name="minecraftVersion">Minecraft 版本号</param>
         /// <param name="ct">取消令牌</param>
@@ -98,33 +114,55 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             string minecraftVersion, CancellationToken ct = default)
         {
             string url = $"{_baseUrl}/versions/{minecraftVersion}/builds";
-            string json = await _http.GetStringAsync(url, ct);
+            using var response = await _http.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                string body = await response.Content.ReadAsStringAsync(ct);
+                throw new HttpRequestException(
+                    $"Paper API returned {(int)response.StatusCode}: {body}");
+            }
+            string json = await response.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(json);
 
             var builds = new List<ServerBuild>();
 
-            foreach (var buildElem in doc.RootElement.GetProperty("builds").EnumerateArray())
+            var buildsArray = doc.RootElement.ValueKind == JsonValueKind.Array
+                ? doc.RootElement
+                : doc.RootElement.TryGetProperty("builds", out var b) ? b : default;
+
+            foreach (var buildElem in buildsArray.EnumerateArray())
             {
-                int buildNum = buildElem.GetProperty("build").GetInt32();
+                int buildNum = buildElem.GetProperty("id").GetInt32();
                 string channel = buildElem.TryGetProperty("channel", out var ch)
                     ? ch.GetString() ?? "default"
                     : "default";
 
                 string fileName = "";
                 string? sha256 = null;
+                string downloadUrl = "";
 
-                if (buildElem.TryGetProperty("downloads", out var downloads)
-                    && downloads.TryGetProperty("application", out var app))
+                if (buildElem.TryGetProperty("downloads", out var downloads))
                 {
-                    fileName = app.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                    sha256 = app.TryGetProperty("sha256", out var s) ? s.GetString() : null;
+                    var downloadKey = downloads.EnumerateObject().FirstOrDefault();
+                    if (downloadKey.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        var downloadObj = downloadKey.Value;
+                        fileName = downloadObj.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        downloadUrl = downloadObj.TryGetProperty("url", out var u) ? u.GetString() ?? "" : "";
+
+                        if (downloadObj.TryGetProperty("checksums", out var checksums)
+                            && checksums.TryGetProperty("sha256", out var s))
+                        {
+                            sha256 = s.GetString();
+                        }
+                    }
                 }
 
                 if (string.IsNullOrEmpty(fileName))
                     fileName = $"{_project}-{minecraftVersion}-{buildNum}.jar";
 
-                string downloadUrl =
-                    $"{_baseUrl}/versions/{minecraftVersion}/builds/{buildNum}/downloads/{fileName}";
+                if (string.IsNullOrEmpty(downloadUrl))
+                    downloadUrl = $"{_baseUrl}/versions/{minecraftVersion}/builds/{buildNum}/downloads/{fileName}";
 
                 builds.Add(new ServerBuild
                 {
@@ -154,7 +192,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             string minecraftVersion, CancellationToken ct = default)
         {
             var builds = await GetBuildsAsync(minecraftVersion, ct);
-            return builds[0];
+            return builds.Count > 0 ? builds[0] : null;
         }
 
         // ────────── 下载 ──────────
@@ -193,10 +231,14 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         /// </summary>
         private static HttpClient CreateDefaultClient()
         {
-            var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "SimplyMinecraftServerManager/1.0");
-            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+            var handler = new SocketsHttpHandler
+            {
+                AutomaticDecompression = System.Net.DecompressionMethods.All
+            };
+            var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(30) };
+            client.DefaultRequestHeaders.TryAddWithoutValidation(
+                "User-Agent", "SimplyMinecraftServerManager/1.0 (https://github.com/We-are-Starlight-Chaser/SimplyMinecraftServerManager)");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
             return client;
         }
     }

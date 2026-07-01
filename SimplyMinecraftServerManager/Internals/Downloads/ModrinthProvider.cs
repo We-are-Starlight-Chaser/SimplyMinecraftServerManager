@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Net.Http;
@@ -99,7 +99,6 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
             var response = new ModrinthSearchResponse
             {
-                Offset = root.GetProperty("offset").GetInt32(),
                 Limit = root.GetProperty("limit").GetInt32(),
                 TotalHits = root.GetProperty("total_hits").GetInt32()
             };
@@ -315,7 +314,6 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 Follows = elem.TryGetProperty("follows", out var f) ? f.GetInt32() : 0,
                 ServerSide = GetStr(elem, "server_side"),
                 ClientSide = GetStr(elem, "client_side"),
-                LatestVersionId = GetStr(elem, "latest_version"),
             };
 
             if (elem.TryGetProperty("versions", out var versions))
@@ -459,7 +457,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         {
             var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
             client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "SimplyMinecraftServerManager/1.0 (smsm@example.com)");
+                "SimplyMinecraftServerManager/1.0 (https://github.com/We-are-Starlight-Chaser/SimplyMinecraftServerManager)");
             client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
             return client;
         }

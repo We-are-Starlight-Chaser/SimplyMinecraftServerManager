@@ -13,49 +13,18 @@ namespace SimplyMinecraftServerManager.Helpers
         private static Dispatcher? _dispatcher;
 
         /// <summary>
-        /// 初始化调度器辅助类，获取当前应用程序的 Dispatcher 实例。
-        /// </summary>
-        public static void Initialize() => _dispatcher = Application.Current?.Dispatcher;
-
-        /// <summary>
-        /// 获取当前应用程序的 Dispatcher 实例，如果未初始化则自动获取。
-        /// </summary>
-        public static Dispatcher? Dispatcher => _dispatcher ??= Application.Current?.Dispatcher;
-
-        /// <summary>
-        /// 检查当前线程是否为 UI 线程。
-        /// </summary>
-        /// <returns>如果当前线程是 UI 线程或调度器不可用则返回 true，否则返回 false。</returns>
-        public static bool CheckAccess() => _dispatcher?.CheckAccess() ?? true;
-
-        /// <summary>
         /// 如果需要则异步调用操作，确保操作在 UI 线程上执行。
         /// </summary>
         /// <param name="action">需要在 UI 线程上执行的操作。</param>
         public static void InvokeIfNeeded(Action action)
         {
-            var d = _dispatcher;
+            var d = _dispatcher ??= Application.Current?.Dispatcher;
             if (d == null || d.CheckAccess())
             {
                 action();
                 return;
             }
             d.BeginInvoke(action, DispatcherPriority.Background);
-        }
-
-        /// <summary>
-        /// 如果需要则同步调用操作，确保操作在 UI 线程上执行。
-        /// </summary>
-        /// <param name="action">需要在 UI 线程上执行的操作。</param>
-        public static void InvokeIfNeededSync(Action action)
-        {
-            var d = _dispatcher;
-            if (d == null || d.CheckAccess())
-            {
-                action();
-                return;
-            }
-            d.Invoke(action, DispatcherPriority.Background);
         }
     }
 
@@ -103,7 +72,7 @@ namespace SimplyMinecraftServerManager.Helpers
                     _isPending = false;
                     return;
                 }
-                actions = new List<Action>(_pendingActions);
+                actions = [.. _pendingActions];
                 while (_pendingActions.TryDequeue(out var a)) { }
                 _isPending = false;
             }

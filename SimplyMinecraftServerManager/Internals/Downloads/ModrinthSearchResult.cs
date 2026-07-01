@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
@@ -45,14 +45,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         public string ServerSide { get; set; } = ""; // required / optional / unsupported
         public string ClientSide { get; set; } = "";
 
-        /// <summary>最新版本 ID</summary>
-        public string LatestVersionId { get; set; } = "";
-
         /// <summary>搜索结果中的最新支持 Minecraft 版本</summary>
         public string LatestGameVersion { get; set; } = "";
-
-        /// <summary>Modrinth 页面 URL</summary>
-        public string Url => $"https://modrinth.com/{ProjectType}/{Slug}";
     }
 
     /// <summary>
@@ -61,7 +55,6 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     public record class ModrinthSearchResponse
     {
         public List<ModrinthProject> Hits { get; set; } = [];
-        public int Offset { get; set; }
         public int Limit { get; set; }
         public int TotalHits { get; set; }
     }
