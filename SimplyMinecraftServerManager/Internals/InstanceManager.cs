@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Collections.Concurrent;
@@ -9,6 +9,9 @@ using Tomlyn;
 
 namespace SimplyMinecraftServerManager.Internals
 {
+    /// <summary>
+    /// 服务器实例管理器，负责实例的增删改查、持久化和端口分配。
+    /// </summary>
     public static class InstanceManager
     {
         private static readonly UTF8Encoding Utf8WithoutBom = new(false);
@@ -48,6 +51,7 @@ namespace SimplyMinecraftServerManager.Internals
             ["view-distance"] = "10"
         };
 
+        /// <summary>从实例列表文件加载所有实例数据</summary>
         public static void Load()
         {
             lock (_lock)
@@ -168,6 +172,8 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>获取所有实例的只读列表</summary>
+        /// <returns>实例信息列表</returns>
         public static IReadOnlyList<InstanceInfo> GetAll()
         {
             lock (_lock)
@@ -177,6 +183,9 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>根据 ID 查找实例</summary>
+        /// <param name="id">实例唯一标识</param>
+        /// <returns>找到的实例信息，未找到则返回 null</returns>
         public static InstanceInfo? GetById(string id)
         {
             lock (_lock)
@@ -186,6 +195,9 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>按名称关键字搜索实例</summary>
+        /// <param name="keyword">搜索关键字</param>
+        /// <returns>匹配的实例列表</returns>
         public static IReadOnlyList<InstanceInfo> Search(string keyword)
         {
             lock (_lock)
@@ -297,6 +309,10 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>
+        /// 更新已有实例的信息。
+        /// </summary>
+        /// <param name="info">更新后的实例信息</param>
         public static void UpdateInstance(InstanceInfo info)
         {
             lock (_lock)
@@ -316,6 +332,11 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>
+        /// 设置指定实例的 JDK 路径。
+        /// </summary>
+        /// <param name="instanceId">实例 ID</param>
+        /// <param name="jdkPath">JDK 完整路径</param>
 public static void SetJdkPath(string instanceId, string jdkPath)
         {
             lock (_lock)
@@ -331,6 +352,12 @@ public static void SetJdkPath(string instanceId, string jdkPath)
             }
         }
 
+        /// <summary>
+        /// 设置指定实例的内存分配。
+        /// </summary>
+        /// <param name="instanceId">实例 ID</param>
+        /// <param name="minMb">最小内存 (MB)</param>
+        /// <param name="maxMb">最大内存 (MB)</param>
         public static void SetMemory(string instanceId, int minMb, int maxMb)
         {
             lock (_lock)
@@ -347,6 +374,12 @@ public static void SetJdkPath(string instanceId, string jdkPath)
             }
         }
 
+        /// <summary>
+        /// 删除指定实例，可选是否同时删除磁盘文件。
+        /// </summary>
+        /// <param name="instanceId">实例 ID</param>
+        /// <param name="deleteFiles">是否删除实例目录及文件</param>
+        /// <returns>是否成功删除</returns>
         public static bool DeleteInstance(string instanceId, bool deleteFiles = true)
         {
             lock (_lock)
@@ -375,6 +408,10 @@ public static void SetJdkPath(string instanceId, string jdkPath)
             }
         }
 
+        /// <summary>
+        /// 自动接受指定实例的 Minecraft EULA 协议。
+        /// </summary>
+        /// <param name="instanceId">实例 ID</param>
         public static void AcceptEula(string instanceId)
         {
             string path = PathHelper.GetEulaPath(instanceId);
@@ -382,6 +419,11 @@ public static void SetJdkPath(string instanceId, string jdkPath)
             File.WriteAllText(path, "# Auto-accepted by SMSM\neula=true\n", Utf8WithoutBom);
         }
 
+        /// <summary>
+        /// 确保指定实例的 RCON 配置完整，若缺失则自动生成。
+        /// </summary>
+        /// <param name="instanceId">实例 ID</param>
+        /// <returns>RCON 连接信息</returns>
         public static RconConnectionInfo EnsureRconConfiguration(string instanceId)
         {
             EnsureLoaded();
@@ -428,6 +470,11 @@ public static void SetJdkPath(string instanceId, string jdkPath)
             };
         }
 
+        /// <summary>
+        /// 获取指定实例的 RCON 连接信息，若未配置则自动初始化。
+        /// </summary>
+        /// <param name="instanceId">实例 ID</param>
+        /// <returns>RCON 连接信息</returns>
         public static RconConnectionInfo GetRconConnectionInfo(string instanceId)
         {
             var props = ServerPropertiesManager.Read(instanceId);
@@ -453,6 +500,11 @@ public static void SetJdkPath(string instanceId, string jdkPath)
             };
         }
 
+        /// <summary>
+        /// 解析实例的 JDK 路径：优先使用实例自定义路径，否则使用全局默认。
+        /// </summary>
+        /// <param name="instanceId">实例 ID</param>
+        /// <returns>有效的 JDK 可执行文件路径</returns>
         public static string ResolveJdkPath(string instanceId)
         {
             var info = GetById(instanceId);
@@ -462,6 +514,7 @@ public static void SetJdkPath(string instanceId, string jdkPath)
             return ConfigManager.Current.DefaultJdkPath;
         }
 
+        /// <summary>重新加载实例列表（清除缓存后重新从文件读取）</summary>
         public static void Reload()
         {
             lock (_lock)
@@ -473,6 +526,7 @@ public static void SetJdkPath(string instanceId, string jdkPath)
             }
         }
 
+        /// <summary>关闭实例管理器，刷新待保存数据并释放资源</summary>
         public static void Shutdown()
         {
             lock (_lock)

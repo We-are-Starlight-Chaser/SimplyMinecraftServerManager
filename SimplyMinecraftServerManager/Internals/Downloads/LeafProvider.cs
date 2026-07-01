@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Net.Http;
@@ -16,8 +16,14 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         private const string BaseUrl = "https://api.leafmc.one/v2/projects/leaf";
         private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
 
+        /// <inheritdoc />
         public ServerPlatform Platform => ServerPlatform.Leaf;
 
+        /// <summary>
+        /// 异步获取 Leaf 服务端所有可用的 Minecraft 版本列表。
+        /// </summary>
+        /// <param name="ct">用于取消操作的令牌。</param>
+        /// <returns>一个包含所有可用版本字符串的只读列表，按版本倒序排列。</returns>
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {
             string json = await _http.GetStringAsync(BaseUrl, ct);
@@ -33,6 +39,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return versions.AsReadOnly();
         }
 
+        /// <summary>
+        /// 异步获取指定 Minecraft 版本的所有 Leaf 服务端构建信息。
+        /// </summary>
+        /// <param name="minecraftVersion">要查询构建的 Minecraft 版本。</param>
+        /// <param name="ct">用于取消操作的令牌。</param>
+        /// <returns>一个包含所有构建信息的只读列表，按构建号倒序排列。</returns>
         public async Task<IReadOnlyList<ServerBuild>> GetBuildsAsync(
             string minecraftVersion, CancellationToken ct = default)
         {
@@ -80,6 +92,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return builds.AsReadOnly();
         }
 
+        /// <summary>
+        /// 异步获取指定 Minecraft 版本的最新 Leaf 服务端构建。
+        /// </summary>
+        /// <param name="minecraftVersion">要查询最新构建的 Minecraft 版本。</param>
+        /// <param name="ct">用于取消操作的令牌。</param>
+        /// <returns>最新构建信息；若无可用构建则返回 <c>null</c>。</returns>
         public async Task<ServerBuild?> GetLatestBuildAsync(
             string minecraftVersion, CancellationToken ct = default)
         {
@@ -87,6 +105,14 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return builds[0];
         }
 
+        /// <summary>
+        /// 异步下载指定的 Leaf 服务端构建。
+        /// </summary>
+        /// <param name="build">要下载的构建信息。</param>
+        /// <param name="destinationPath">下载文件的目标路径。</param>
+        /// <param name="downloadManager">用于管理下载任务的 <see cref="DownloadManager"/> 实例；为 <c>null</c> 时使用默认实例。</param>
+        /// <param name="ct">用于取消操作的令牌。</param>
+        /// <returns>新创建的 <see cref="DownloadTask"/> 实例。</returns>
         public async Task<DownloadTask> DownloadAsync(
             ServerBuild build, string destinationPath,
             DownloadManager? downloadManager = null, CancellationToken ct = default)

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using SimplyMinecraftServerManager.Internals;
@@ -15,12 +15,21 @@ using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
+    /// <summary>
+    /// 服务器列表页面的视图模型，负责管理 Minecraft 服务器实例的显示、创建、启动、停止和删除等操作。
+    /// </summary>
     public partial class ServersViewModel : ObservableObject, INavigationAware, IDisposable
     {
         private readonly IContentDialogService _contentDialogService;
         private readonly INavigationService _navigationService;
         private readonly NavigationParameterService _navigationParameterService;
 
+        /// <summary>
+        /// 初始化服务器视图模型的新实例。
+        /// </summary>
+        /// <param name="contentDialogService">内容对话框服务，用于显示对话框。</param>
+        /// <param name="navigationService">导航服务，用于页面跳转。</param>
+        /// <param name="navigationParameterService">导航参数服务，用于传递实例 ID。</param>
         public ServersViewModel(IContentDialogService contentDialogService, INavigationService navigationService, NavigationParameterService navigationParameterService)
         {
             _contentDialogService = contentDialogService;
@@ -31,6 +40,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             ServerProcessManager.InstanceStatusChanged += OnInstanceStatusChanged;
         }
 
+        /// <summary>
+        /// 处理实例运行状态变化事件，更新对应实例的 UI 显示状态。
+        /// </summary>
         private void OnInstanceStatusChanged(object? sender, (string InstanceId, bool IsRunning) e)
         {
             RunOnUiThread(() =>
@@ -52,6 +64,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
+        /// <summary>
+        /// 确保操作在 UI 线程上执行。
+        /// </summary>
+        /// <param name="action">需要在 UI 线程上执行的操作。</param>
         private static void RunOnUiThread(Action action)
         {
             var dispatcher = Application.Current?.Dispatcher;
@@ -104,6 +120,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private int _selectedCount = 0;
 
+        /// <summary>
+        /// 导航到此页面时执行，加载所有服务器实例、可用 Minecraft 版本和 JDK 列表。
+        /// </summary>
         public async Task OnNavigatedToAsync()
         {
             await LoadInstancesAsync();
@@ -111,17 +130,26 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             LoadAvailableJdks();
         }
 
+        /// <summary>
+        /// 从此页面导航离开时执行。
+        /// </summary>
         public Task OnNavigatedFromAsync()
         {
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// 释放资源，取消订阅实例状态变化事件。
+        /// </summary>
         public void Dispose()
         {
             ServerProcessManager.InstanceStatusChanged -= OnInstanceStatusChanged;
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// 打开新建实例对话框，允许用户创建新的 Minecraft 服务器实例。
+        /// </summary>
         [RelayCommand]
         private async Task CreateNewInstanceAsync()
         {
@@ -151,6 +179,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             await _contentDialogService.ShowAsync(dialog, CancellationToken.None);
         }
 
+        /// <summary>
+        /// 执行创建实例的内部逻辑，包括验证参数、获取或安装 JDK、下载服务端并创建实例。
+        /// </summary>
+        /// <param name="vm">新建实例对话框的视图模型，包含用户输入的参数。</param>
+        /// <param name="dialog">新建实例对话框实例，用于关闭对话框。</param>
         private async Task CreateInstanceInternalAsync(NewInstanceDialogViewModel vm, NewInstanceDialog dialog)
         {
             InstanceInfo? instance = null;
@@ -268,6 +301,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 导航到指定服务器实例的详情页面。
+        /// </summary>
+        /// <param name="item">要查看详情的服务器实例项。</param>
         [RelayCommand]
         private void ViewInstance(InstanceDisplayItem? item)
         {
@@ -276,6 +313,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _navigationService.Navigate(typeof(InstancePage));
         }
 
+        /// <summary>
+        /// 加载已安装的 JDK 列表，用于在创建实例时选择。
+        /// </summary>
         private void LoadAvailableJdks()
         {
             AvailableJdks.Clear();
@@ -294,7 +334,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-[RelayCommand]
+        /// <summary>
+        /// 异步加载所有服务器实例，更新实例列表并显示运行状态。
+        /// </summary>
+        [RelayCommand]
         private async Task LoadInstancesAsync()
         {
             IsLoading = true;
@@ -334,6 +377,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 异步加载可用的 Minecraft 版本列表，用于创建新实例时选择版本。
+        /// </summary>
         [RelayCommand]
         private async Task LoadMinecraftVersionsAsync()
         {
@@ -368,6 +414,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 异步删除指定的服务器实例，包括终止运行中的进程和删除所有相关文件。
+        /// </summary>
+        /// <param name="item">要删除的服务器实例项。</param>
         [RelayCommand]
         private async Task DeleteInstanceAsync(InstanceDisplayItem? item)
         {
@@ -401,6 +451,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 异步启动指定的服务器实例。
+        /// </summary>
+        /// <param name="item">要启动的服务器实例项。</param>
         [RelayCommand]
         private async Task StartInstance(InstanceDisplayItem? item)
         {
@@ -490,6 +544,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 异步停止指定的服务器实例，发送停止信号并等待进程退出。
+        /// </summary>
+        /// <param name="item">要停止的服务器实例项。</param>
         [RelayCommand]
         private async Task StopInstance(InstanceDisplayItem? item)
         {
@@ -537,6 +595,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 强制终止指定的服务器实例，立即杀死进程。
+        /// </summary>
+        /// <param name="item">要强制终止的服务器实例项。</param>
         [RelayCommand]
         private async Task TerminateInstance(InstanceDisplayItem? item)
         {
@@ -568,6 +630,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 刷新服务器实例列表。
+        /// </summary>
         [RelayCommand]
         private void RefreshInstances()
         {
@@ -575,6 +640,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
+    /// <summary>
+    /// 服务器实例的显示项，封装实例信息并提供 UI 绑定所需的属性。
+    /// </summary>
     public partial class InstanceDisplayItem(InstanceInfo info) : ObservableObject
     {
         private readonly ServerJarMetadata _metadata = ServerJarMetadataReader.Read(info);
@@ -651,6 +719,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
+    /// <summary>
+    /// JDK 的显示项，封装已安装 JDK 的信息用于 UI 显示。
+    /// </summary>
     public class JdkDisplayItem(InstalledJdk jdk)
     {
         public string DisplayName { get; } = $"{jdk.Distribution} JDK {jdk.MajorVersion} ({jdk.Architecture})";

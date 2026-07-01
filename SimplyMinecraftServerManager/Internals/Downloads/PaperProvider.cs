@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Net.Http;
@@ -40,17 +40,37 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
         // ────────── 快捷静态工厂 ──────────
 
+        /// <summary>
+        /// 创建 Paper 平台提供者。
+        /// </summary>
+        /// <param name="http">可选共享 HttpClient</param>
+        /// <returns>Paper 提供者实例</returns>
         public static PaperProvider CreatePaper(HttpClient? http = null)
             => new(ServerPlatform.Paper, "paper", http);
 
+        /// <summary>
+        /// 创建 Folia 平台提供者。
+        /// </summary>
+        /// <param name="http">可选共享 HttpClient</param>
+        /// <returns>Folia 提供者实例</returns>
         public static PaperProvider CreateFolia(HttpClient? http = null)
             => new(ServerPlatform.Folia, "folia", http);
 
+        /// <summary>
+        /// 创建 Velocity 代理端提供者。
+        /// </summary>
+        /// <param name="http">可选共享 HttpClient</param>
+        /// <returns>Velocity 提供者实例</returns>
         public static PaperProvider CreateVelocity(HttpClient? http = null)
             => new(ServerPlatform.Velocity, "velocity", http);
 
         // ────────── 获取版本列表 ──────────
 
+        /// <summary>
+        /// 获取所有支持的 Minecraft 版本列表（降序排列）。
+        /// </summary>
+        /// <param name="ct">取消令牌</param>
+        /// <returns>版本号只读列表</returns>
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {
             string json = await _http.GetStringAsync(_baseUrl, ct);
@@ -68,6 +88,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
         // ────────── 获取构建列表 ──────────
 
+        /// <summary>
+        /// 获取指定 Minecraft 版本的所有构建（降序排列，最新在前）。
+        /// </summary>
+        /// <param name="minecraftVersion">Minecraft 版本号</param>
+        /// <param name="ct">取消令牌</param>
+        /// <returns>构建列表只读集合</returns>
         public async Task<IReadOnlyList<ServerBuild>> GetBuildsAsync(
             string minecraftVersion, CancellationToken ct = default)
         {
@@ -118,6 +144,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
         // ────────── 获取最新构建 ──────────
 
+        /// <summary>
+        /// 获取指定 Minecraft 版本的最新构建。
+        /// </summary>
+        /// <param name="minecraftVersion">Minecraft 版本号</param>
+        /// <param name="ct">取消令牌</param>
+        /// <returns>最新构建，无可用构建时返回 null</returns>
         public async Task<ServerBuild?> GetLatestBuildAsync(
             string minecraftVersion, CancellationToken ct = default)
         {
@@ -127,6 +159,14 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 
         // ────────── 下载 ──────────
 
+        /// <summary>
+        /// 下载指定构建到目标路径。
+        /// </summary>
+        /// <param name="build">要下载的构建</param>
+        /// <param name="destinationPath">保存的本地完整路径</param>
+        /// <param name="downloadManager">可选下载管理器，为 null 时使用全局默认实例</param>
+        /// <param name="ct">取消令牌</param>
+        /// <returns>下载任务</returns>
         public async Task<DownloadTask> DownloadAsync(
             ServerBuild build, string destinationPath,
             DownloadManager? downloadManager = null, CancellationToken ct = default)
@@ -148,6 +188,9 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return await mgr.EnqueueAsync(task);
         }
 
+        /// <summary>
+        /// 创建默认的 HttpClient 实例，超时时间 30 分钟。
+        /// </summary>
         private static HttpClient CreateDefaultClient()
         {
             var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };

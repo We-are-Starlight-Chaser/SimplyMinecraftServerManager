@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.IO;
@@ -125,6 +125,15 @@ namespace SimplyMinecraftServerManager.Internals
             return true;
         }
 
+        /// <summary>
+        /// 将指定的插件 JAR 安装到实例的 plugins 目录中。
+        /// </summary>
+        /// <param name="instanceId">实例 UUID。</param>
+        /// <param name="sourceJarPath">源 JAR 文件的绝对路径。</param>
+        /// <returns>安装后的插件信息，若解析失败则返回 null。</returns>
+        /// <exception cref="ArgumentException">参数无效时抛出。</exception>
+        /// <exception cref="FileNotFoundException">源文件不存在时抛出。</exception>
+        /// <exception cref="InvalidOperationException">目标路径超出 plugins 目录范围时抛出。</exception>
         public static PluginInfo? InstallPlugin(string instanceId, string sourceJarPath)
         {
             if (string.IsNullOrWhiteSpace(sourceJarPath))

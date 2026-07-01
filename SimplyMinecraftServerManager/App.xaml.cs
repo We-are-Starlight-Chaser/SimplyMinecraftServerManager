@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using Microsoft.Extensions.Configuration;
@@ -18,6 +18,9 @@ using Wpf.Ui.DependencyInjection;
 
 namespace SimplyMinecraftServerManager
 {
+    /// <summary>
+    /// 应用程序入口点，负责 DI 容器初始化、生命周期管理和日志记录。
+    /// </summary>
     public partial class App
     {
         private static readonly string LogPath = Path.Combine(
@@ -79,6 +82,7 @@ namespace SimplyMinecraftServerManager
                 services.AddSingleton<SettingsViewModel>();
             }).Build();
 
+        /// <summary>获取应用程序的依赖注入服务提供者</summary>
         public static IServiceProvider Services
         {
             get { return _host.Services; }

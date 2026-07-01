@@ -1,18 +1,33 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Collections.Concurrent;
 
 namespace SimplyMinecraftServerManager.Helpers
 {
+    /// <summary>
+    /// 基于LRU（最近最少使用）策略的内存缓存实现，支持过期时间管理。
+    /// </summary>
+    /// <typeparam name="T">缓存值的类型。</typeparam>
     internal class MemoryCache<T>(TimeSpan defaultExpiration, int maxEntries = 1000)
     {
         private readonly ConcurrentDictionary<string, LinkedListNode<CacheEntry<T>>> _cache = new();
         private readonly LinkedList<CacheEntry<T>> _accessOrder = new();
         private readonly Lock _evictLock = new();
 
+        /// <summary>
+        /// 获取缓存值，如果键不存在或已过期则返回默认值。
+        /// </summary>
+        /// <param name="key">要获取的缓存键。</param>
+        /// <returns>缓存的值，如果键不存在或已过期则返回 default。</returns>
         public T? Get(string key) => TryGet(key, out var value) ? value : default;
 
+        /// <summary>
+        /// 尝试获取缓存值，如果键存在且未过期则返回 true 并更新访问顺序。
+        /// </summary>
+        /// <param name="key">要获取的缓存键。</param>
+        /// <param name="value">输出参数，包含缓存的值。</param>
+        /// <returns>如果键存在且未过期则返回 true，否则返回 false。</returns>
         public bool TryGet(string key, out T? value)
         {
             if (_cache.TryGetValue(key, out var node))
@@ -29,6 +44,12 @@ namespace SimplyMinecraftServerManager.Helpers
             return false;
         }
 
+        /// <summary>
+        /// 设置缓存值，如果缓存已满则触发淘汰策略。
+        /// </summary>
+        /// <param name="key">缓存键。</param>
+        /// <param name="value">要缓存的值。</param>
+        /// <param name="expiration">可选的过期时间，如果为 null 则使用默认过期时间。</param>
         public void Set(string key, T value, TimeSpan? expiration = null)
         {
             if (_cache.Count >= maxEntries)
@@ -50,6 +71,10 @@ namespace SimplyMinecraftServerManager.Helpers
             }
         }
 
+        /// <summary>
+        /// 移除指定键的缓存条目。
+        /// </summary>
+        /// <param name="key">要移除的缓存键。</param>
         public void Remove(string key)
         {
             if (_cache.TryRemove(key, out var node))
@@ -59,6 +84,9 @@ namespace SimplyMinecraftServerManager.Helpers
             }
         }
 
+        /// <summary>
+        /// 清空所有缓存条目。
+        /// </summary>
         public void Clear()
         {
             _cache.Clear();
@@ -66,6 +94,9 @@ namespace SimplyMinecraftServerManager.Helpers
                 _accessOrder.Clear();
         }
 
+        /// <summary>
+        /// 获取当前缓存中的条目数量。
+        /// </summary>
         public int Count => _cache.Count;
 
         private void Touch(LinkedListNode<CacheEntry<T>> node)
@@ -117,6 +148,9 @@ namespace SimplyMinecraftServerManager.Helpers
             }
         }
 
+        /// <summary>
+        /// 缓存条目，包含键、值和过期时间。
+        /// </summary>
         private sealed class CacheEntry<TValue>
         {
             public required string Key { get; init; }

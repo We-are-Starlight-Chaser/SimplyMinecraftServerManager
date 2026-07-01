@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.IO;
@@ -6,17 +6,30 @@ using System.Text.RegularExpressions;
 
 namespace SimplyMinecraftServerManager.Internals
 {
+    /// <summary>
+    /// 安全辅助工具类，提供输入验证、路径安全检查和清理功能。
+    /// </summary>
     public static partial class SecurityHelper
     {
         private static readonly Regex ValidInstanceNameRegex = ValidInstanceName();
 
         private static readonly Regex SafePathRegex = SafePath();
 
+        /// <summary>
+        /// 验证实例名称是否有效。
+        /// </summary>
+        /// <param name="name">要验证的实例名称。</param>
+        /// <returns>如果名称有效则返回 true，否则返回 false。</returns>
         public static bool IsValidInstanceName(string name)
         {
             return !string.IsNullOrWhiteSpace(name) && ValidInstanceNameRegex.IsMatch(name);
         }
 
+        /// <summary>
+        /// 验证文件名是否有效且安全。
+        /// </summary>
+        /// <param name="fileName">要验证的文件名。</param>
+        /// <returns>如果文件名有效则返回 true，否则返回 false。</returns>
         public static bool IsValidFileName(string fileName)
         {
             if (string.IsNullOrWhiteSpace(fileName)) return false;
@@ -31,6 +44,11 @@ namespace SimplyMinecraftServerManager.Internals
             return SafePathRegex.IsMatch(fileName);
         }
 
+        /// <summary>
+        /// 验证 JVM 启动参数是否安全。
+        /// </summary>
+        /// <param name="args">要验证的 JVM 参数字符串。</param>
+        /// <returns>如果参数安全则返回 true，否则返回 false。</returns>
         public static bool IsValidJvmArgs(string args)
         {
             if (string.IsNullOrWhiteSpace(args)) return true;
@@ -60,6 +78,11 @@ namespace SimplyMinecraftServerManager.Internals
             return true;
         }
 
+        /// <summary>
+        /// 清理实例名称，移除不安全字符并截断至最大长度。
+        /// </summary>
+        /// <param name="name">要清理的实例名称。</param>
+        /// <returns>清理后的安全实例名称。</returns>
         public static string SanitizeInstanceName(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) return "Unnamed";
@@ -72,6 +95,11 @@ namespace SimplyMinecraftServerManager.Internals
             return name;
         }
 
+        /// <summary>
+        /// 检测路径是否存在目录遍历攻击。
+        /// </summary>
+        /// <param name="path">要检查的路径。</param>
+        /// <returns>如果检测到目录遍历则返回 true，否则返回 false。</returns>
         public static bool IsPathTraversal(string? path)
         {
             if (string.IsNullOrWhiteSpace(path)) return false;
@@ -80,6 +108,13 @@ namespace SimplyMinecraftServerManager.Internals
             return path.Contains("..") || path.StartsWith('/') || path.Contains(":/") || path.Contains(":\\");
         }
 
+        /// <summary>
+        /// 验证并规范化路径，确保路径在指定的基础目录内。
+        /// </summary>
+        /// <param name="inputPath">要验证的输入路径。</param>
+        /// <param name="baseDirectory">基础目录路径。</param>
+        /// <returns>规范化后的完整路径。</returns>
+        /// <exception cref="ArgumentException">路径为空或存在目录遍历时抛出。</exception>
         public static string ValidateAndNormalizePath(string inputPath, string baseDirectory)
         {
             if (string.IsNullOrWhiteSpace(inputPath))

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.IO;
@@ -7,13 +7,31 @@ using System.Text;
 
 namespace SimplyMinecraftServerManager.Internals
 {
+    /// <summary>
+    /// RCON 连接配置信息，包含主机、端口和密码。
+    /// </summary>
     public sealed class RconConnectionInfo
     {
+        /// <summary>
+        /// 获取或初始化 RCON 服务器主机地址。
+        /// </summary>
         public string Host { get; init; } = "127.0.0.1";
+
+        /// <summary>
+        /// 获取或初始化 RCON 服务器端口号。
+        /// </summary>
         public int Port { get; init; }
+
+        /// <summary>
+        /// 获取或初始化 RCON 认证密码。
+        /// </summary>
         public string Password { get; init; } = "";
     }
 
+    /// <summary>
+    /// RCON 客户端，用于与 Minecraft 服务器进行远程控制台通信。
+    /// </summary>
+    /// <param name="connectionInfo">RCON 连接配置信息。</param>
     internal sealed class RconClient(RconConnectionInfo connectionInfo) : IAsyncDisposable
     {
         private readonly string _host = connectionInfo.Host;
@@ -24,6 +42,12 @@ namespace SimplyMinecraftServerManager.Internals
         private NetworkStream? _stream;
         private int _requestId = 1;
 
+        /// <summary>
+        /// 异步执行 RCON 命令并返回响应结果。
+        /// </summary>
+        /// <param name="command">要执行的命令。</param>
+        /// <param name="cancellationToken">取消令牌。</param>
+        /// <returns>命令执行后的响应字符串。</returns>
         public async Task<string> ExecuteCommandAsync(string command, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(command))
@@ -179,6 +203,10 @@ namespace SimplyMinecraftServerManager.Internals
             return command.Trim().TrimStart('/');
         }
 
+        /// <summary>
+        /// 异步释放 RCON 客户端资源。
+        /// </summary>
+        /// <returns>表示异步操作完成的 ValueTask。</returns>
         public ValueTask DisposeAsync()
         {
             try

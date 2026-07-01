@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Collections.Concurrent;
@@ -12,11 +12,18 @@ using SimplyMinecraftServerManager.Internals;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
 {
+    /// <summary>
+    /// 下载管理器，负责管理所有下载任务的生命周期。
+    /// 支持并发控制、断点续传、暂停/恢复、取消、哈希校验及下载后自动安装。
+    /// </summary>
     public sealed class DownloadManager : IDisposable
     {
         private static readonly Lock _defaultLock = new();
         private static DownloadManager? _default;
 
+        /// <summary>
+        /// 获取全局单例下载管理器，使用配置中的下载线程数初始化。
+        /// </summary>
         public static DownloadManager Default
         {
             get
@@ -33,6 +40,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             }
         }
 
+        /// <summary>
+        /// 使用新的并发数重新创建全局单例下载管理器。
+        /// </summary>
+        /// <param name="maxConcurrentDownloads">最大并发下载数</param>
         public static void ReconfigureDefault(int maxConcurrentDownloads)
         {
             lock (_defaultLock)
@@ -52,12 +63,18 @@ private readonly HttpClient _httpClient;
         private volatile SemaphoreSlim _semaphore;
         private volatile int _maxConcurrent;
 
+        /// <summary>下载进度变更事件</summary>
         public event EventHandler<DownloadProgressInfo>? ProgressChanged;
+        /// <summary>任务入队事件</summary>
         public event EventHandler<DownloadTask>? TaskQueued;
+        /// <summary>任务完成事件</summary>
         public event EventHandler<DownloadTask>? TaskCompleted;
+        /// <summary>任务失败事件</summary>
         public event EventHandler<DownloadTask>? TaskFailed;
+        /// <summary>任务安装完成事件（仅 DownloadAndInstall 类型任务触发）</summary>
         public event EventHandler<DownloadTask>? TaskInstalled;
 
+        /// <summary>当前最大并发下载数</summary>
         public int MaxConcurrentDownloads => _maxConcurrent;
 
         private static readonly string[] AllowedHosts =
@@ -85,6 +102,11 @@ private readonly HttpClient _httpClient;
             ["MD5"] = () => MD5.Create()
         };
 
+        /// <summary>
+        /// 创建下载管理器实例。
+        /// </summary>
+        /// <param name="maxConcurrentDownloads">最大并发下载数，范围 1-32</param>
+        /// <param name="httpClient">可选的共享 HttpClient，为 null 时自动创建</param>
         public DownloadManager(int maxConcurrentDownloads = 4, HttpClient? httpClient = null)
         {
             _maxConcurrent = Math.Clamp(maxConcurrentDownloads, 1, 32);
@@ -169,11 +191,18 @@ private readonly HttpClient _httpClient;
 
         // 查询
 
+        /// <summary>获取所有下载任务的只读列表</summary>
         public IReadOnlyList<DownloadTask> AllTasks => _tasks.Values.ToList().AsReadOnly();
+        /// <summary>当前正在下载的任务数量</summary>
         public int ActiveCount => _tasks.Values.Count(t => t.Status == DownloadStatus.Downloading);
 
         // 入队
 
+        /// <summary>
+        /// 异步入队下载任务并等待其完成。
+        /// </summary>
+        /// <param name="downloadTask">下载任务</param>
+        /// <returns>完成后的下载任务</returns>
         public Task<DownloadTask> EnqueueAsync(DownloadTask downloadTask)
         {
             _tasks[downloadTask.Id] = downloadTask;
@@ -183,6 +212,11 @@ private readonly HttpClient _httpClient;
             return Task.Run(() => ExecuteAsync(downloadTask, semaphore));
         }
 
+        /// <summary>
+        /// 同步入队下载任务，不等待其完成（火后不管模式）。
+        /// </summary>
+        /// <param name="downloadTask">下载任务</param>
+        /// <returns>入队的下载任务</returns>
         public DownloadTask Queue(DownloadTask downloadTask)
         {
             _tasks[downloadTask.Id] = downloadTask;
@@ -192,6 +226,15 @@ private readonly HttpClient _httpClient;
             return downloadTask;
         }
 
+        /// <summary>
+        /// 异步入队下载任务，根据 URL 和目标路径创建任务。
+        /// </summary>
+        /// <param name="url">下载 URL</param>
+        /// <param name="destinationPath">保存的本地完整路径</param>
+        /// <param name="displayName">显示名称，为空时使用文件名</param>
+        /// <param name="expectedHash">预期文件哈希值（可选）</param>
+        /// <param name="hashAlgorithm">哈希算法，默认 SHA256</param>
+        /// <returns>完成后的下载任务</returns>
         public Task<DownloadTask> EnqueueAsync(
             string url,
             string destinationPath,
@@ -212,6 +255,16 @@ private readonly HttpClient _httpClient;
             return EnqueueAsync(task);
         }
 
+        /// <summary>
+        /// 异步入队下载并安装任务，下载完成后自动安装到指定实例。
+        /// </summary>
+        /// <param name="url">下载 URL</param>
+        /// <param name="destinationPath">保存的本地完整路径</param>
+        /// <param name="targetInstanceId">目标实例 ID</param>
+        /// <param name="displayName">显示名称，为空时使用文件名</param>
+        /// <param name="expectedHash">预期文件哈希值（可选）</param>
+        /// <param name="hashAlgorithm">哈希算法，默认 SHA256</param>
+        /// <returns>完成后的下载任务</returns>
         public Task<DownloadTask> EnqueueDownloadAndInstallAsync(
             string url,
             string destinationPath,
@@ -235,6 +288,16 @@ private readonly HttpClient _httpClient;
             return EnqueueAsync(task);
         }
 
+        /// <summary>
+        /// 同步入队下载并安装任务，下载完成后自动安装到指定实例（火后不管模式）。
+        /// </summary>
+        /// <param name="url">下载 URL</param>
+        /// <param name="destinationPath">保存的本地完整路径</param>
+        /// <param name="targetInstanceId">目标实例 ID</param>
+        /// <param name="displayName">显示名称，为空时使用文件名</param>
+        /// <param name="expectedHash">预期文件哈希值（可选）</param>
+        /// <param name="hashAlgorithm">哈希算法，默认 SHA256</param>
+        /// <returns>入队的下载任务</returns>
         public DownloadTask QueueDownloadAndInstall(
             string url,
             string destinationPath,
@@ -259,6 +322,11 @@ private readonly HttpClient _httpClient;
             return Queue(task);
         }
 
+        /// <summary>
+        /// 批量异步入队多个下载任务并等待所有任务完成。
+        /// </summary>
+        /// <param name="tasks">下载任务集合</param>
+        /// <returns>所有完成后的下载任务数组</returns>
         public async Task<DownloadTask[]> EnqueueBatchAsync(IEnumerable<DownloadTask> tasks)
         {
             var running = tasks.Select(t => EnqueueAsync(t)).ToArray();
@@ -267,6 +335,10 @@ private readonly HttpClient _httpClient;
 
         // 取消
 
+        /// <summary>
+        /// 取消指定的下载任务。
+        /// </summary>
+        /// <param name="taskId">任务 ID</param>
         public void Cancel(string taskId)
         {
             if (_tasks.TryGetValue(taskId, out var task))
@@ -276,6 +348,9 @@ private readonly HttpClient _httpClient;
             }
         }
 
+        /// <summary>
+        /// 取消所有下载任务。
+        /// </summary>
         public void CancelAll()
         {
             foreach (var task in _tasks.Values)
@@ -288,6 +363,10 @@ private readonly HttpClient _httpClient;
 
         // 暂停
 
+        /// <summary>
+        /// 暂停指定的下载任务，支持断点续传时保存已下载进度。
+        /// </summary>
+        /// <param name="taskId">任务 ID</param>
         public void Pause(string taskId)
         {
             if (_tasks.TryGetValue(taskId, out var task) && task.Status == DownloadStatus.Downloading)
@@ -299,6 +378,9 @@ private readonly HttpClient _httpClient;
             }
         }
 
+        /// <summary>
+        /// 暂停所有正在下载的任务。
+        /// </summary>
         public void PauseAll()
         {
             foreach (var task in _tasks.Values)
@@ -315,6 +397,10 @@ private readonly HttpClient _httpClient;
 
         // 继续
 
+        /// <summary>
+        /// 恢复指定的已暂停下载任务，支持断点续传。
+        /// </summary>
+        /// <param name="taskId">任务 ID</param>
         public async Task ResumeAsync(string taskId)
         {
             if (_tasks.TryGetValue(taskId, out var task) && task.Status == DownloadStatus.Paused)
@@ -330,6 +416,9 @@ private readonly HttpClient _httpClient;
             }
         }
 
+        /// <summary>
+        /// 恢复所有已暂停的下载任务。
+        /// </summary>
         public async Task ResumeAllAsync()
         {
             var pausedTasks = _tasks.Values.Where(t => t.Status == DownloadStatus.Paused).ToList();
@@ -343,6 +432,9 @@ private readonly HttpClient _httpClient;
             }
         }
 
+        /// <summary>
+        /// 清除所有已完成、失败、取消或暂停的任务。
+        /// </summary>
         public void ClearFinished()
         {
             var toRemove = _tasks.Values
@@ -606,6 +698,9 @@ private readonly HttpClient _httpClient;
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
+        /// <summary>
+        /// 释放下载管理器资源，取消所有任务并释放 HttpClient（如果是内部创建的）。
+        /// </summary>
         public void Dispose()
         {
             CancelAll();

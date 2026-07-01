@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using SimplyMinecraftServerManager.Internals;
@@ -11,14 +11,20 @@ using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
+    /// <summary>
+    /// 下载任务管理页面的视图模型，负责展示、控制和通知所有下载任务。
+    /// </summary>
     public partial class DownloadsViewModel : ObservableObject, INavigationAware
     {
+        /// <summary>下载任务列表，用于界面绑定。</summary>
         [ObservableProperty]
         private ObservableCollection<DownloadTaskItem> _downloadTasks = [];
 
+        /// <summary>当前活跃（未完成）的任务数量。</summary>
         [ObservableProperty]
         private int _activeCount = 0;
 
+        /// <summary>已完成的任务数量。</summary>
         [ObservableProperty]
         private int _completedCount = 0;
 
@@ -27,8 +33,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         public event EventHandler<int>? TaskCountChanged;
 
+        /// <summary>应用通知服务，用于显示下载任务的提示消息。</summary>
         private readonly AppNotificationService _notificationService;
 
+        /// <summary>
+        /// 初始化下载任务视图模型并订阅下载管理器事件。
+        /// </summary>
+        /// <param name="notificationService">通知服务。</param>
         public DownloadsViewModel(AppNotificationService notificationService)
         {
             _notificationService = notificationService;
@@ -46,14 +57,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             DownloadManager.Default.TaskInstalled += OnDownloadTaskInstalled;
         }
 
+        /// <summary>
+        /// 导航到此页面时刷新下载任务列表。
+        /// </summary>
         public async Task OnNavigatedToAsync()
         {
             RefreshDownloadTasks();
             await Task.CompletedTask;
         }
 
+        /// <summary>
+        /// 离开此页面时执行的清理操作。
+        /// </summary>
         public Task OnNavigatedFromAsync() => Task.CompletedTask;
 
+        /// <summary>
+        /// 从下载管理器重新加载所有任务到界面列表。
+        /// </summary>
         private void RefreshDownloadTasks()
         {
             DownloadTasks.Clear();
@@ -66,6 +86,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateCounts();
         }
 
+        /// <summary>
+        /// 下载任务入队时的回调，将新任务添加到列表顶部。
+        /// </summary>
         private void OnDownloadTaskQueued(object? sender, DownloadTask task)
         {
             Application.Current.Dispatcher.Invoke(() =>
@@ -89,6 +112,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
+        /// <summary>
+        /// 下载进度变化时更新对应任务项的进度信息。
+        /// </summary>
         private void OnDownloadProgress(object? sender, DownloadProgressInfo e)
         {
             var app = Application.Current;
@@ -111,6 +137,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
+        /// <summary>
+        /// 下载任务完成时的回调，更新任务状态并发送通知。
+        /// </summary>
         private void OnDownloadTaskCompleted(object? sender, DownloadTask task)
         {
             Application.Current.Dispatcher.Invoke(() =>
@@ -132,6 +161,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
+        /// <summary>
+        /// 下载任务失败时的回调，更新任务状态并发送失败通知。
+        /// </summary>
         private void OnDownloadTaskFailed(object? sender, DownloadTask task)
         {
             Application.Current.Dispatcher.Invoke(() =>
@@ -155,6 +187,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
+        /// <summary>
+        /// 下载任务安装完成时的回调，更新任务状态并发送安装完成通知。
+        /// </summary>
         private void OnDownloadTaskInstalled(object? sender, DownloadTask task)
         {
             Application.Current.Dispatcher.Invoke(() =>
@@ -172,6 +207,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
+        /// <summary>
+        /// 任务项请求移除时的回调，从列表中删除该任务。
+        /// </summary>
         private void OnTaskRequestRemove(object? sender, EventArgs e)
         {
             if (sender is DownloadTaskItem item)
@@ -185,6 +223,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 更新活跃和已完成任务计数，并触发任务数变化事件。
+        /// </summary>
         private void UpdateCounts()
         {
             // ActiveCount: 进行中 + 暂停 + 等待中（所有未完成的任务）
@@ -193,11 +234,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             TaskCountChanged?.Invoke(this, ActiveCount);
         }
 
+        /// <summary>
+        /// 显示任务通知消息。
+        /// </summary>
         private void ShowTaskNotification(TaskNotificationMessage message)
         {
             _notificationService.Show(message);
         }
 
+        /// <summary>
+        /// 构建任务安装完成的通知消息。
+        /// </summary>
         private static TaskNotificationMessage BuildInstalledNotification(DownloadTask task)
         {
             var targetInstanceName = !string.IsNullOrWhiteSpace(task.TargetInstanceId)
@@ -211,6 +258,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return TaskNotificationMessage.Success("任务已完成", content);
         }
 
+        /// <summary>
+        /// 取消指定的下载任务。
+        /// </summary>
         [RelayCommand]
         private void CancelTask(DownloadTaskItem? item)
         {
@@ -221,6 +271,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateCounts();
         }
 
+        /// <summary>
+        /// 取消所有活跃的下载任务。
+        /// </summary>
         [RelayCommand]
         private void CancelAllTasks()
         {
@@ -233,6 +286,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateCounts();
         }
 
+        /// <summary>
+        /// 暂停指定的下载任务。
+        /// </summary>
         [RelayCommand]
         private async Task PauseTaskAsync(DownloadTaskItem? item)
         {
@@ -244,6 +300,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateCounts();
         }
 
+        /// <summary>
+        /// 恢复指定的已暂停下载任务。
+        /// </summary>
         [RelayCommand]
         private async Task ResumeTaskAsync(DownloadTaskItem? item)
         {
@@ -255,6 +314,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateCounts();
         }
 
+        /// <summary>
+        /// 暂停所有活跃的下载任务。
+        /// </summary>
         [RelayCommand]
         private void PauseAllTasks()
         {
@@ -268,6 +330,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateCounts();
         }
 
+        /// <summary>
+        /// 恢复所有已暂停的下载任务。
+        /// </summary>
         [RelayCommand]
         private async Task ResumeAllTasksAsync()
         {
@@ -281,6 +346,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateCounts();
         }
 
+        /// <summary>
+        /// 从列表中移除指定的下载任务（仅限非活跃任务）。
+        /// </summary>
         [RelayCommand]
         private void RemoveTask(DownloadTaskItem? item)
         {
@@ -304,6 +372,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 清除所有已完成和失败的下载任务。
+        /// </summary>
         [RelayCommand]
         private void ClearCompleted()
         {
@@ -320,43 +391,66 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
+    /// <summary>
+    /// 下载任务项，封装单个下载任务的界面显示数据和状态。
+    /// </summary>
     public partial class DownloadTaskItem : ObservableObject
     {
+        /// <summary>任务唯一标识符。</summary>
         public string Id { get; }
+
+        /// <summary>任务标识符（与 Id 相同）。</summary>
         public string TaskId { get; }
+
+        /// <summary>任务的显示名称。</summary>
         public string DisplayName { get; }
 
+        /// <summary>下载进度百分比（0-100）。</summary>
         [ObservableProperty]
         private double _progress;
 
+        /// <summary>任务状态文本。</summary>
         [ObservableProperty]
         private string _status = "";
 
+        /// <summary>当前下载速度文本。</summary>
         [ObservableProperty]
         private string _speed = "";
 
+        /// <summary>已下载/总大小的显示文本。</summary>
         [ObservableProperty]
         private string _sizeInfo = "";
 
+        /// <summary>指示任务是否已完成。</summary>
         [ObservableProperty]
         private bool _isCompleted;
 
+        /// <summary>指示任务是否失败。</summary>
         [ObservableProperty]
         private bool _isFailed;
 
+        /// <summary>指示任务是否正在活跃执行。</summary>
         [ObservableProperty]
         private bool _isActive;
 
+        /// <summary>指示任务是否已暂停。</summary>
         [ObservableProperty]
         private bool _isPaused;
 
+        /// <summary>指示任务是否已安装完成。</summary>
         [ObservableProperty]
         private bool _isInstalled;
 
+        /// <summary>自动移除计时器，任务完成后一段时间自动从列表移除。</summary>
         private System.Timers.Timer? _autoRemoveTimer;
 
+        /// <summary>请求从列表中移除此任务项的事件。</summary>
         public event EventHandler? RequestRemove;
 
+        /// <summary>
+        /// 使用下载任务数据初始化任务项。
+        /// </summary>
+        /// <param name="task">下载任务。</param>
         public DownloadTaskItem(DownloadTask task)
         {
             Id = task.Id;
@@ -365,6 +459,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateFromTask(task);
         }
 
+        /// <summary>
+        /// 使用进度信息初始化任务项（用于尚无对应 DownloadTask 的进度回调）。
+        /// </summary>
+        /// <param name="info">下载进度信息。</param>
         public DownloadTaskItem(DownloadProgressInfo info)
         {
             TaskId = info.TaskId;
@@ -373,6 +471,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             UpdateProgress(info);
         }
 
+        /// <summary>
+        /// 根据下载任务的当前状态更新界面显示数据。
+        /// </summary>
+        /// <param name="task">下载任务。</param>
         public void UpdateFromTask(DownloadTask task)
         {
             if (task.TotalBytes > 0)
@@ -415,6 +517,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 根据下载进度信息更新界面显示数据。
+        /// </summary>
+        /// <param name="info">下载进度信息。</param>
         public void UpdateProgress(DownloadProgressInfo info)
         {
             // 处理进度显示
@@ -469,6 +575,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 根据下载状态枚举获取对应的中文状态文本。
+        /// </summary>
         private static string GetStatusText(DownloadStatus status) => status switch
         {
             DownloadStatus.Pending => "等待中",
@@ -480,6 +589,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _ => "未知"
         };
 
+        /// <summary>
+        /// 将字节数格式化为人类可读的大小文本。
+        /// </summary>
         private static string FormatSize(long bytes)
         {
             if (bytes < 1024) return $"{bytes} B";
@@ -488,6 +600,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return $"{bytes / 1024.0 / 1024.0 / 1024.0:F2} GB";
         }
 
+        /// <summary>
+        /// 启动自动移除计时器，任务完成后 30 秒自动从列表移除。
+        /// </summary>
         private void StartAutoRemoveTimer()
         {
             if (_autoRemoveTimer != null) return;
@@ -504,6 +619,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _autoRemoveTimer.Start();
         }
 
+        /// <summary>
+        /// 取消自动移除计时器，阻止任务项被自动从列表删除。
+        /// </summary>
         public void CancelAutoRemove()
         {
             _autoRemoveTimer?.Stop();

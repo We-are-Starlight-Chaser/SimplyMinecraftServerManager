@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Net.Http;
@@ -15,8 +15,16 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         private const string BaseUrl = "https://api.purpurmc.org/v2/purpur";
         private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
 
+        /// <summary>
+        /// Purpur 平台标识。
+        /// </summary>
         public ServerPlatform Platform => ServerPlatform.Purpur;
 
+        /// <summary>
+        /// 获取所有支持的 Minecraft 版本列表（降序排列）。
+        /// </summary>
+        /// <param name="ct">取消令牌</param>
+        /// <returns>版本号只读列表</returns>
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {
             // GET /v2/purpur → { "versions": ["1.14.1", ..., "1.21.4"] }
@@ -33,6 +41,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return versions.AsReadOnly();
         }
 
+        /// <summary>
+        /// 获取指定 Minecraft 版本的所有构建（降序排列，最新在前）。
+        /// </summary>
+        /// <param name="minecraftVersion">Minecraft 版本号</param>
+        /// <param name="ct">取消令牌</param>
+        /// <returns>构建列表只读集合</returns>
         public async Task<IReadOnlyList<ServerBuild>> GetBuildsAsync(
             string minecraftVersion, CancellationToken ct = default)
         {
@@ -78,6 +92,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return builds.AsReadOnly();
         }
 
+        /// <summary>
+        /// 获取指定 Minecraft 版本的最新构建，并尝试获取 MD5 哈希。
+        /// </summary>
+        /// <param name="minecraftVersion">Minecraft 版本号</param>
+        /// <param name="ct">取消令牌</param>
+        /// <returns>最新构建，无可用构建时返回 null</returns>
         public async Task<ServerBuild?> GetLatestBuildAsync(
             string minecraftVersion, CancellationToken ct = default)
         {
@@ -121,6 +141,14 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             };
         }
 
+        /// <summary>
+        /// 下载指定构建到目标路径。
+        /// </summary>
+        /// <param name="build">要下载的构建</param>
+        /// <param name="destinationPath">保存的本地完整路径</param>
+        /// <param name="downloadManager">可选下载管理器，为 null 时使用全局默认实例</param>
+        /// <param name="ct">取消令牌</param>
+        /// <returns>下载任务</returns>
         public async Task<DownloadTask> DownloadAsync(
             ServerBuild build, string destinationPath,
             DownloadManager? downloadManager = null, CancellationToken ct = default)
@@ -142,6 +170,9 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return await mgr.EnqueueAsync(task);
         }
 
+        /// <summary>
+        /// 创建默认的 HttpClient 实例，超时时间 30 分钟。
+        /// </summary>
         private static HttpClient CreateDefaultClient()
         {
             var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };

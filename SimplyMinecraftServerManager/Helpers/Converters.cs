@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Globalization;
@@ -9,6 +9,9 @@ using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.Helpers
 {
+    /// <summary>
+    /// 布尔值反转转换器，将 true 转换为 false，将 false 转换为 true。
+    /// </summary>
     internal class InverseBooleanConverter : IValueConverter
     {
         public static readonly InverseBooleanConverter Instance = new();
@@ -20,6 +23,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => value is bool boolValue ? !boolValue : false;
     }
 
+    /// <summary>
+    /// 布尔值到可见性转换器，将 true 转换为 Visible，将 false 转换为 Collapsed。
+    /// </summary>
     internal class BooleanToVisibilityConverter : IValueConverter
     {
         public static readonly BooleanToVisibilityConverter Instance = new();
@@ -31,6 +37,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => value is Visibility visibility && visibility == Visibility.Visible;
     }
 
+    /// <summary>
+    /// 反向布尔值到可见性转换器，将 true 转换为 Collapsed，将 false 转换为 Visible。
+    /// </summary>
     internal class InverseBooleanToVisibilityConverter : IValueConverter
     {
         public static readonly InverseBooleanToVisibilityConverter Instance = new();
@@ -42,6 +51,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => value is not Visibility visibility || visibility != Visibility.Visible;
     }
 
+    /// <summary>
+    /// 字符串到可见性转换器，当字符串不为空时返回 Visible，否则返回 Collapsed。
+    /// </summary>
     internal class StringToVisibilityConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -51,6 +63,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 整数到可见性转换器，当整数大于 0 时返回 Visible，否则返回 Collapsed。支持通过参数 "inverse" 反转逻辑。
+    /// </summary>
     internal class IntToVisibilityConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -69,6 +84,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 文件大小转换器，将字节数转换为可读的文件大小格式（如 KB、MB、GB 等）。
+    /// </summary>
     internal class FileSizeConverter : IValueConverter
     {
         private static readonly string[] Suffixes = ["B", "KB", "MB", "GB", "TB"];
@@ -93,6 +111,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 服务器平台名称到颜色转换器，根据平台名称（如 Paper、Folia 等）返回对应的画刷颜色，支持深色和浅色主题。
+    /// </summary>
     internal class PlatformNameToColorConverter : IValueConverter
     {
         private static readonly SolidColorBrush PaperLight = new(Color.FromRgb(0xC9, 0xA2, 0x27));
@@ -126,6 +147,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 主题感知颜色转换器，根据当前主题（深色/浅色）选择对应的颜色值。
+    /// </summary>
     internal class ThemeAwareColorConverter : IMultiValueConverter
     {
         private static readonly SolidColorBrush GrayBrush = new(Colors.Gray);
@@ -154,6 +178,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 服务器平台名称到首字母缩写转换器，将平台名称转换为单字母缩写（如 Paper 转为 P，Folia 转为 F）。
+    /// </summary>
     internal class PlatformNameToInitialConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -175,6 +202,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 计数到可见性转换器，当计数为 0 时返回 Visible，否则返回 Collapsed。
+    /// </summary>
     internal class CountToVisibilityConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -184,6 +214,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// JDK 状态到背景色转换器，根据 JDK 状态（Valid/Invalid）返回对应的背景色画刷，支持深色和浅色主题。
+    /// </summary>
     internal class JdkStatusToBackgroundConverter : IValueConverter
     {
         private static readonly SolidColorBrush ValidLight = new(Color.FromRgb(0xE8, 0xF5, 0xE9));
@@ -213,6 +246,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// JDK 状态到前景色转换器，根据 JDK 状态（Valid/Invalid）返回对应的前景色画刷，支持深色和浅色主题。
+    /// </summary>
     internal class JdkStatusToForegroundConverter : IValueConverter
     {
         private static readonly SolidColorBrush ValidLight = new(Color.FromRgb(0x1B, 0x5E, 0x20));
@@ -242,6 +278,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 运行状态到图标转换器，当服务器正在运行时返回播放图标，否则返回圆形图标。
+    /// </summary>
     internal class RunningToIconConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -253,6 +292,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 通知外观到徽章背景色转换器，根据通知类型（成功/危险/警告/信息）返回对应的背景色画刷，支持深色和浅色主题。
+    /// </summary>
     internal class NotificationAppearanceToBadgeBrushConverter : IValueConverter
     {
         private static readonly SolidColorBrush SuccessLight = new(Color.FromRgb(0xE5, 0xF6, 0xEA));
@@ -285,6 +327,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 通知外观到前景色转换器，根据通知类型（成功/危险/警告/信息）返回对应的前景色画刷，支持深色和浅色主题。
+    /// </summary>
     internal class NotificationAppearanceToForegroundBrushConverter : IValueConverter
     {
         private static readonly SolidColorBrush SuccessLight = new(Color.FromRgb(0x1D, 0x6F, 0x42));
@@ -317,6 +362,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 通知外观到边框色转换器，根据通知类型（成功/危险/警告/信息）返回对应的半透明边框色。
+    /// </summary>
     internal class NotificationAppearanceToBorderBrushConverter : IValueConverter
     {
         private static readonly SolidColorBrush DefaultBorder = new(Color.FromArgb(0x22, 0x7F, 0x7F, 0x7F));
@@ -340,6 +388,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 通知外观到符号转换器，根据通知类型（成功/危险/警告/信息）返回对应的图标符号。
+    /// </summary>
     internal class NotificationAppearanceToSymbolConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -357,6 +408,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 布尔值到启用/禁用文本转换器，将 true 转换为"禁用"，将 false 转换为"启用"。
+    /// </summary>
     internal class BooleanToEnableTextConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -366,6 +420,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 布尔值到外观转换器，将 true（已启用）转换为 Caution，将 false（未启用）转换为 Success。
+    /// </summary>
     internal class BooleanToAppearanceConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -377,6 +434,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 字符串转大写转换器，将字符串转换为大写形式。
+    /// </summary>
     internal class StringToUpperConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -386,6 +446,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 字符串列表到逗号分隔文本转换器，将字符串列表转换为逗号分隔的文本（最多显示5项），列表为空时返回"无"。
+    /// </summary>
     internal class ListToStringConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -402,6 +465,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 游戏版本列表到范围文本转换器，将版本列表转换为版本范围（如 "1.20.1-1.21"），单个版本则直接显示。
+    /// </summary>
     internal class GameVersionsToRangeConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -423,6 +489,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 多布尔值转换器，当所有输入布尔值均为 false 时返回 true，否则返回 false。
+    /// </summary>
     internal class MultiBooleanConverter : IMultiValueConverter
     {
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
@@ -432,6 +501,9 @@ namespace SimplyMinecraftServerManager.Helpers
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// 定时任务索引到可见性转换器，根据任务索引和类型名称判断是否显示对应的任务设置区域。
+    /// </summary>
     internal class ScheduledTaskIndexToVisibilityConverter : IMultiValueConverter
     {
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)

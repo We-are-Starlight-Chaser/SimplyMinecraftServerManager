@@ -1,46 +1,98 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.IO;
 
 namespace SimplyMinecraftServerManager.Internals
 {
+    /// <summary>
+    /// 路径辅助工具类，提供应用程序和服务器实例的路径管理功能。
+    /// </summary>
     public static class PathHelper
     {
         private static readonly string _root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "smsm");
 
+        /// <summary>
+        /// 获取应用程序根目录路径。
+        /// </summary>
         public static string Root => _root;
+
+        /// <summary>
+        /// 获取配置文件路径。
+        /// </summary>
         public static string ConfigFile => Path.Combine(_root, "config.toml");
+
+        /// <summary>
+        /// 获取实例列表文件路径。
+        /// </summary>
         public static string InstancesFile => Path.Combine(_root, "instances.toml");
+
+        /// <summary>
+        /// 获取服务器实例根目录路径。
+        /// </summary>
         public static string InstancesRoot => Path.Combine(_root, "instances");
 
+        /// <summary>
+        /// 获取 JDK 安装根目录路径。
+        /// </summary>
         public static string JdksRoot => Path.Combine(_root, "jdks");
 
+        /// <summary>
+        /// 获取指定实例的目录路径。
+        /// </summary>
+        /// <param name="id">实例 ID。</param>
+        /// <returns>实例目录的完整路径。</returns>
+        /// <exception cref="ArgumentException">实例 ID 无效时抛出。</exception>
         public static string GetInstanceDir(string id)
         {
             ValidateInstanceId(id);
             return Path.Combine(InstancesRoot, id);
         }
 
+        /// <summary>
+        /// 获取指定实例的插件目录路径。
+        /// </summary>
+        /// <param name="id">实例 ID。</param>
+        /// <returns>插件目录的完整路径。</returns>
+        /// <exception cref="ArgumentException">实例 ID 无效时抛出。</exception>
         public static string GetPluginsDir(string id)
         {
             ValidateInstanceId(id);
             return Path.Combine(GetInstanceDir(id), "plugins");
         }
 
+        /// <summary>
+        /// 获取指定实例的 server.properties 文件路径。
+        /// </summary>
+        /// <param name="id">实例 ID。</param>
+        /// <returns>server.properties 文件的完整路径。</returns>
+        /// <exception cref="ArgumentException">实例 ID 无效时抛出。</exception>
         public static string GetServerPropertiesPath(string id)
         {
             ValidateInstanceId(id);
             return Path.Combine(GetInstanceDir(id), "server.properties");
         }
 
+        /// <summary>
+        /// 获取指定实例的 eula.txt 文件路径。
+        /// </summary>
+        /// <param name="id">实例 ID。</param>
+        /// <returns>eula.txt 文件的完整路径。</returns>
+        /// <exception cref="ArgumentException">实例 ID 无效时抛出。</exception>
         public static string GetEulaPath(string id)
         {
             ValidateInstanceId(id);
             return Path.Combine(GetInstanceDir(id), "eula.txt");
         }
 
+        /// <summary>
+        /// 获取指定实例的服务器 JAR 文件路径。
+        /// </summary>
+        /// <param name="id">实例 ID。</param>
+        /// <param name="jarName">JAR 文件名。</param>
+        /// <returns>服务器 JAR 文件的完整路径。</returns>
+        /// <exception cref="ArgumentException">实例 ID 或 JAR 文件名无效时抛出。</exception>
         public static string GetServerJarPath(string id, string jarName)
         {
             ValidateInstanceId(id);
@@ -63,6 +115,13 @@ namespace SimplyMinecraftServerManager.Internals
                 throw new ArgumentException("Invalid instance ID", nameof(id));
         }
 
+        /// <summary>
+        /// 验证路径是否在指定实例目录内。
+        /// </summary>
+        /// <param name="path">要验证的路径。</param>
+        /// <param name="instanceId">实例 ID。</param>
+        /// <returns>规范化后的完整路径。</returns>
+        /// <exception cref="InvalidOperationException">路径在实例目录外时抛出。</exception>
         public static string ValidatePathInsideInstance(string path, string instanceId)
         {
             string normalizedPath = Path.GetFullPath(path);
@@ -77,6 +136,9 @@ namespace SimplyMinecraftServerManager.Internals
             return normalizedPath;
         }
 
+        /// <summary>
+        /// 确保所有必需的目录结构存在，如不存在则创建。
+        /// </summary>
         public static void EnsureDirectories()
         {
             Directory.CreateDirectory(_root);

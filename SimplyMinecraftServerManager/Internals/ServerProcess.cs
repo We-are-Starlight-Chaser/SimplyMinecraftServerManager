@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Diagnostics;
@@ -9,6 +9,9 @@ using System.Text;
 
 namespace SimplyMinecraftServerManager.Internals
 {
+    /// <summary>
+    /// 管理单个 Minecraft 服务器进程的生命周期，包括启动、停止、命令发送和 RCON 通信。
+    /// </summary>
     public partial class ServerProcess(string instanceId) : IDisposable
     {
         private Process? _process;
@@ -19,10 +22,13 @@ namespace SimplyMinecraftServerManager.Internals
         private int _processId;
         private bool _startCompleted;
 
+        /// <summary>关联的实例 ID</summary>
         public string InstanceId { get; } = instanceId;
 
+        /// <summary>服务器进程 ID，未启动时为 null</summary>
         public int? ProcessId => _processId > 0 ? _processId : null;
 
+        /// <summary>服务器进程是否正在运行</summary>
         public bool IsRunning
         {
             get
@@ -35,10 +41,14 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>启动流程是否已完成</summary>
         public bool StartCompleted => _startCompleted;
 
+        /// <summary>服务器标准输出事件</summary>
         public event EventHandler<string>? OutputReceived;
+        /// <summary>服务器标准错误输出事件</summary>
         public event EventHandler<string>? ErrorReceived;
+        /// <summary>服务器进程退出事件，参数为退出代码</summary>
         public event EventHandler<int>? Exited;
 
         [LibraryImport("kernel32.dll", EntryPoint = "CreateJobObjectW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
@@ -132,6 +142,10 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>
+        /// 异步启动 Minecraft 服务器进程。
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
         public async Task StartAsync(CancellationToken cancellationToken = default)
         {
             if (IsRunning)
@@ -233,11 +247,16 @@ namespace SimplyMinecraftServerManager.Internals
             _startCompleted = true;
         }
 
+        /// <summary>同步启动服务器进程</summary>
         public void Start()
         {
             StartAsync().GetAwaiter().GetResult();
         }
 
+        /// <summary>
+        /// 向服务器标准输入发送控制台命令。
+        /// </summary>
+        /// <param name="command">要执行的命令</param>
         public void SendCommand(string command)
         {
             if (!IsRunning)
@@ -253,8 +272,15 @@ namespace SimplyMinecraftServerManager.Internals
             _process.StandardInput.Flush();
         }
 
+        /// <summary>向服务器发送 stop 命令以优雅关闭</summary>
         public void Stop() => SendCommand("stop");
 
+        /// <summary>
+        /// 通过 RCON 协议异步执行服务器命令。
+        /// </summary>
+        /// <param name="command">RCON 命令</param>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>命令执行结果字符串</returns>
         public async Task<string> ExecuteRconCommandAsync(string command, CancellationToken cancellationToken = default)
         {
             if (!IsRunning)
@@ -305,6 +331,7 @@ namespace SimplyMinecraftServerManager.Internals
             _rconClient = null;
         }
 
+        /// <summary>强制终止服务器进程及其子进程树</summary>
         public void Kill()
         {
             if (_process != null && !_process.HasExited)
@@ -317,11 +344,18 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>等待服务器进程退出</summary>
         public void WaitForExit() => _process?.WaitForExit();
 
+        /// <summary>
+        /// 在指定超时时间内等待服务器进程退出。
+        /// </summary>
+        /// <param name="milliseconds">超时毫秒数</param>
+        /// <returns>进程是否已退出</returns>
         public bool WaitForExit(int milliseconds)
             => _process?.WaitForExit(milliseconds) ?? true;
 
+        /// <summary>释放服务器进程及相关资源</summary>
         public void Dispose()
         {
             if (_disposed) return;

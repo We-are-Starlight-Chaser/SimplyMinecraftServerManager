@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Collections.Concurrent;
@@ -10,19 +10,41 @@ using System.Text.RegularExpressions;
 
 namespace SimplyMinecraftServerManager.Internals
 {
+    /// <summary>
+    /// 服务器 JAR 元数据信息，包含服务器类型、Minecraft 版本和 JAR 文件是否存在。
+    /// </summary>
     public sealed class ServerJarMetadata
     {
+        /// <summary>
+        /// 获取或初始化服务器类型（如 Paper、Fabric 等）。
+        /// </summary>
         public string ServerType { get; init; } = "未知类型";
+
+        /// <summary>
+        /// 获取或初始化 Minecraft 版本号。
+        /// </summary>
         public string MinecraftVersion { get; init; } = "未知版本";
+
+        /// <summary>
+        /// 获取或初始化 JAR 文件是否存在。
+        /// </summary>
         public bool JarExists { get; init; }
     }
 
+    /// <summary>
+    /// 服务器 JAR 元数据读取器，用于解析和缓存服务器 JAR 文件的元数据信息。
+    /// </summary>
     public static partial class ServerJarMetadataReader
     {
         private sealed record CacheEntry(DateTime LastWriteTimeUtc, ServerJarMetadata Metadata);
 
         private static readonly ConcurrentDictionary<string, CacheEntry> Cache = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// 从实例信息中读取服务器 JAR 元数据。
+        /// </summary>
+        /// <param name="info">实例信息对象，如果为 null 则返回默认元数据。</param>
+        /// <returns>服务器 JAR 元数据。</returns>
         public static ServerJarMetadata Read(InstanceInfo? info)
         {
             if (info == null)
@@ -33,6 +55,12 @@ namespace SimplyMinecraftServerManager.Internals
             return Read(info.Id, info.ServerJar);
         }
 
+        /// <summary>
+        /// 读取指定实例的服务器 JAR 元数据。
+        /// </summary>
+        /// <param name="instanceId">实例 ID。</param>
+        /// <param name="serverJar">服务器 JAR 文件名。</param>
+        /// <returns>服务器 JAR 元数据。</returns>
         public static ServerJarMetadata Read(string instanceId, string serverJar)
         {
             if (string.IsNullOrWhiteSpace(instanceId) || string.IsNullOrWhiteSpace(serverJar))
@@ -68,6 +96,11 @@ namespace SimplyMinecraftServerManager.Internals
             return metadata;
         }
 
+        /// <summary>
+        /// 使指定实例的服务器 JAR 元数据缓存失效。
+        /// </summary>
+        /// <param name="instanceId">实例 ID。</param>
+        /// <param name="serverJar">服务器 JAR 文件名。</param>
         public static void Invalidate(string instanceId, string serverJar)
         {
             if (string.IsNullOrWhiteSpace(instanceId) || string.IsNullOrWhiteSpace(serverJar))

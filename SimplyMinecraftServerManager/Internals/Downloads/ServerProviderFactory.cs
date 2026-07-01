@@ -1,10 +1,14 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Net.Http;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
 {
+    /// <summary>
+    /// 服务端提供者工厂，负责创建和缓存各平台的下载提供者实例。
+    /// 支持 Paper、Folia、Velocity、Purpur、Leaves、Leaf 等平台。
+    /// </summary>
     public static class ServerProviderFactory
     {
         private static HttpClient? _sharedClient;
@@ -26,6 +30,11 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             }
         }
 
+        /// <summary>
+        /// 获取指定平台的服务端提供者实例（带缓存）。
+        /// </summary>
+        /// <param name="platform">服务端平台枚举</param>
+        /// <returns>对应平台的服务端提供者</returns>
         public static IServerProvider Get(ServerPlatform platform)
         {
             lock (_lock)
@@ -49,6 +58,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             }
         }
 
+        /// <summary>
+        /// 获取所有已注册平台的服务端提供者（含代理端）。
+        /// </summary>
+        /// <returns>所有平台提供者的只读列表</returns>
         public static IReadOnlyList<IServerProvider> GetAll()
         {
             var list = new List<IServerProvider>();

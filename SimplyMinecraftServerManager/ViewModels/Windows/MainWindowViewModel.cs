@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using SimplyMinecraftServerManager.Internals;
@@ -11,20 +11,38 @@ using Wpf.Ui.Tray;
 
 namespace SimplyMinecraftServerManager.ViewModels.Windows
 {
+    /// <summary>
+    /// 主窗口的视图模型，管理导航菜单和应用程序状态
+    /// </summary>
     public partial class MainWindowViewModel : ObservableObject
     {
+        /// <summary>
+        /// 应用程序标题
+        /// </summary>
         [ObservableProperty]
         private string _applicationTitle = "SMSM v1.0 Beta";
 
+        /// <summary>
+        /// 主导航菜单项集合
+        /// </summary>
         [ObservableProperty]
         private ObservableCollection<object> _menuItems;
 
+        /// <summary>
+        /// 底部导航菜单项集合
+        /// </summary>
         [ObservableProperty]
         private ObservableCollection<object> _footerMenuItems;
 
+        /// <summary>
+        /// 系统托盘菜单项集合
+        /// </summary>
         [ObservableProperty]
         private ObservableCollection<MenuItem> _trayMenuItems;
 
+        /// <summary>
+        /// 当前进行中的下载任务数量
+        /// </summary>
         [ObservableProperty]
         private int _downloadTaskCount = 0;
 
@@ -33,11 +51,26 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         /// </summary>
         private readonly NavigationViewItem? _downloadTasksNavItem;
 
+        /// <summary>
+        /// 下载视图模型实例
+        /// </summary>
         private readonly DownloadsViewModel _downloadsViewModel;
+
+        /// <summary>
+        /// 应用通知服务实例
+        /// </summary>
         private readonly AppNotificationService _notificationService;
 
+        /// <summary>
+        /// 获取通知集合
+        /// </summary>
         public ObservableCollection<AppNotificationItem> Notifications => _notificationService.Notifications;
 
+        /// <summary>
+        /// 初始化主窗口视图模型
+        /// </summary>
+        /// <param name="downloadsViewModel">下载视图模型</param>
+        /// <param name="notificationService">通知服务</param>
         public MainWindowViewModel(DownloadsViewModel downloadsViewModel, AppNotificationService notificationService)
         {
             _downloadsViewModel = downloadsViewModel;

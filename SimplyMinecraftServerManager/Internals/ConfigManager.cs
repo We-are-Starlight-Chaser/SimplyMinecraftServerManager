@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.IO;
@@ -7,11 +7,15 @@ using Tomlyn;
 
 namespace SimplyMinecraftServerManager.Internals
 {
+    /// <summary>
+    /// 应用程序配置管理器，负责从 TOML 文件加载和保存全局配置。
+    /// </summary>
     public static class ConfigManager
     {
         private static readonly Lock _lock = new();
         private static volatile AppConfig? _cached;
 
+        /// <summary>获取当前配置，若未加载则自动加载</summary>
         public static AppConfig Current
         {
             get
@@ -21,6 +25,10 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>
+        /// 从配置文件加载配置，若文件不存在则创建默认配置。
+        /// </summary>
+        /// <returns>加载后的 AppConfig 实例</returns>
         public static AppConfig Load()
         {
             lock (_lock)
@@ -60,6 +68,10 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>
+        /// 将配置保存到文件。
+        /// </summary>
+        /// <param name="config">要保存的配置对象</param>
         public static void Save(AppConfig config)
         {
             lock (_lock)
@@ -91,6 +103,7 @@ namespace SimplyMinecraftServerManager.Internals
             };
         }
 
+        /// <summary>保存当前缓存的配置到文件</summary>
         public static void Save() => Save(Current);
     }
 }

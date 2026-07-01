@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Security.Cryptography;
@@ -6,11 +6,19 @@ using System.Text;
 
 namespace SimplyMinecraftServerManager.Internals
 {
+    /// <summary>
+    /// 安全配置管理类，使用 Windows DPAPI 提供敏感数据的加密和解密功能。
+    /// </summary>
     public static class SecureConfig
     {
         private static readonly byte[] EntropyBytes = Encoding.UTF8.GetBytes("SimplyMinecraftServerManager_v1");
         private const string Prefix = "DPAPI:";
 
+        /// <summary>
+        /// 使用 DPAPI 加密明文字符串。
+        /// </summary>
+        /// <param name="plainText">要加密的明文字符串。</param>
+        /// <returns>加密后的字符串，如果加密失败则返回原始明文。</returns>
         public static string Encrypt(string plainText)
         {
             if (string.IsNullOrEmpty(plainText)) return string.Empty;
@@ -30,6 +38,11 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>
+        /// 使用 DPAPI 解密加密的字符串。
+        /// </summary>
+        /// <param name="encryptedText">要解密的加密字符串。</param>
+        /// <returns>解密后的明文字符串，如果解密失败则返回原始字符串。</returns>
         public static string Decrypt(string encryptedText)
         {
             if (string.IsNullOrEmpty(encryptedText)) return string.Empty;
@@ -53,6 +66,12 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        /// <summary>
+        /// 尝试解密加密的字符串。
+        /// </summary>
+        /// <param name="encryptedText">要解密的加密字符串。</param>
+        /// <param name="plainText">解密后的明文字符串。</param>
+        /// <returns>如果解密成功返回 true，否则返回 false。</returns>
         public static bool TryDecrypt(string encryptedText, out string plainText)
         {
             plainText = Decrypt(encryptedText);

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using SimplyMinecraftServerManager.Internals;
@@ -10,6 +10,9 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
+    /// <summary>
+    /// 仪表盘页面的视图模型，负责显示服务器统计信息、JDK 状态和系统公告。
+    /// </summary>
     public partial class DashboardViewModel(INavigationService navigationService, NavigationParameterService navigationParameterService) : ObservableObject, INavigationAware
     {
         private readonly INavigationService _navigationService = navigationService;
@@ -36,6 +39,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private ObservableCollection<string> _announcements = [];
 
+        /// <summary>
+        /// 导航到此页面时执行，加载服务器列表、统计信息、JDK 状态和公告。
+        /// </summary>
         public async Task OnNavigatedToAsync()
         {
             await LoadServersAsync();
@@ -44,9 +50,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             LoadAnnouncements();
         }
 
+        /// <summary>
+        /// 从此页面导航离开时执行。
+        /// </summary>
         public Task OnNavigatedFromAsync() => Task.CompletedTask;
 
-[RelayCommand]
+        /// <summary>
+        /// 异步加载服务器实例列表，更新服务器数量和运行状态统计。
+        /// </summary>
+        [RelayCommand]
         private async Task LoadServersAsync()
         {
             try
@@ -83,11 +95,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 加载服务器统计信息文本。
+        /// </summary>
         private void LoadStatistics()
         {
             StatisticsText = $"共 {TotalServersCount} 个服务器，{RunningServersCount} 个正在运行";
         }
 
+        /// <summary>
+        /// 加载 JDK 安装状态信息。
+        /// </summary>
         private void LoadJdkStatus()
         {
             try
@@ -101,6 +119,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 加载系统公告列表。
+        /// </summary>
         private void LoadAnnouncements()
         {
             Announcements.Clear();
@@ -109,24 +130,37 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Announcements.Add("JDK 可由管理器统一安装和切换。");
         }
 
+        /// <summary>
+        /// 导航到服务器管理页面。
+        /// </summary>
         [RelayCommand]
         private void NavigateToServers()
         {
             _navigationService.Navigate(typeof(Views.Pages.ServersPage));
         }
 
+        /// <summary>
+        /// 导航到下载页面。
+        /// </summary>
         [RelayCommand]
         private void NavigateToDownloads()
         {
             _navigationService.Navigate(typeof(Views.Pages.DownloadPage));
         }
 
+        /// <summary>
+        /// 导航到设置页面。
+        /// </summary>
         [RelayCommand]
         private void NavigateToSettings()
         {
             _navigationService.Navigate(typeof(Views.Pages.SettingsPage));
         }
 
+        /// <summary>
+        /// 在默认浏览器中打开指定的 URL 链接。
+        /// </summary>
+        /// <param name="url">要打开的网站 URL 地址。</param>
         [RelayCommand]
         private void NavigateToSite(string url)
         {
@@ -142,6 +176,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
+    /// <summary>
+    /// 服务器的显示项，封装服务器信息用于仪表盘页面的 UI 显示。
+    /// </summary>
     public partial class ServerDisplayItem : ObservableObject
     {
         public string Name { get; set; } = "";

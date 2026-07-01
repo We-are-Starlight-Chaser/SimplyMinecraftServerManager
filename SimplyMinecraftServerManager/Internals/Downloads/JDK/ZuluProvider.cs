@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Net.Http;
@@ -15,10 +15,16 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
         private const string BaseUrl = "https://api.azul.com/metadata/v1/zulu/packages/";
         private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
 
+        /// <inheritdoc />
         public JdkDistribution Distribution => JdkDistribution.Zulu;
 
         // ────────── 可用版本 ──────────
 
+        /// <summary>
+        /// 异步获取 Azul Zulu JDK 所有可用的主版本号列表。
+        /// </summary>
+        /// <param name="ct">用于取消操作的令牌。</param>
+        /// <returns>一个包含所有可用主版本号的只读列表，按版本号降序排列。</returns>
         public async Task<IReadOnlyList<int>> GetAvailableMajorVersionsAsync(
             CancellationToken ct = default)
         {
@@ -54,6 +60,13 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
 
         // ────────── 构建列表 ──────────
 
+        /// <summary>
+        /// 异步获取指定主版本号的 Azul Zulu JDK 构建列表。
+        /// </summary>
+        /// <param name="majorVersion">要查询的 JDK 主版本号。</param>
+        /// <param name="architecture">目标 CPU 架构；为 <c>null</c> 时自动检测当前系统架构。</param>
+        /// <param name="ct">用于取消操作的令牌。</param>
+        /// <returns>一个包含所有匹配构建信息的只读列表。</returns>
         public async Task<IReadOnlyList<JdkInfo>> GetBuildsAsync(
             int majorVersion,
             JdkArchitecture? architecture = null,
@@ -117,6 +130,13 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
 
         // ────────── 最新构建 ──────────
 
+        /// <summary>
+        /// 异步获取指定主版本号的最新 Azul Zulu JDK 构建。
+        /// </summary>
+        /// <param name="majorVersion">要查询的 JDK 主版本号。</param>
+        /// <param name="architecture">目标 CPU 架构；为 <c>null</c> 时自动检测当前系统架构。</param>
+        /// <param name="ct">用于取消操作的令牌。</param>
+        /// <returns>最新构建信息；若无可用构建则返回 <c>null</c>。</returns>
         public async Task<JdkInfo?> GetLatestAsync(
             int majorVersion,
             JdkArchitecture? architecture = null,

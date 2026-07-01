@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using Microsoft.Win32;
@@ -22,99 +22,154 @@ using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
+    /// <summary>
+    /// 下载页面的视图模型，管理服务端版本下载和插件搜索下载两大功能。
+    /// </summary>
     public partial class DownloadViewModel : ObservableObject, INavigationAware
     {
         #region 服务端下载
 
+        /// <summary>当前选中的服务端平台索引。</summary>
         [ObservableProperty]
         private int _selectedServerPlatformIndex = 0;
 
+        /// <summary>服务端版本卡片列表。</summary>
         [ObservableProperty]
         private ObservableCollection<ServerVersionCard> _serverVersionCards = [];
 
+        /// <summary>指示是否正在加载版本列表。</summary>
         [ObservableProperty]
         private bool _isLoadingVersions = false;
 
+        /// <summary>指示是否正在加载更多版本。</summary>
         [ObservableProperty]
         private bool _isLoadingMore = false;
 
+        /// <summary>指示是否还有更多版本可加载。</summary>
         [ObservableProperty]
         private bool _hasMoreVersions = false;
 
+        /// <summary>服务端下载状态信息文本。</summary>
         [ObservableProperty]
         private string _serverDownloadStatus = "";
 
+        /// <summary>当前选中平台的名称。</summary>
         [ObservableProperty]
         private string _currentPlatformName = "Paper";
 
+        /// <summary>当前选中平台的描述。</summary>
         [ObservableProperty]
         private string _currentPlatformDescription = "高性能 Paper 服务端";
 
-        // 分页相关字段
+        /// <summary>所有版本号列表，用于分页加载。</summary>
         private List<string> _allVersions = [];
+
+        /// <summary>已加载到界面的版本数量。</summary>
         private int _loadedVersionCount = 0;
+
+        /// <summary>每页加载的版本数量。</summary>
         private const int _pageSize = 15;
+
+        /// <summary>版本加载的取消令牌源。</summary>
         private CancellationTokenSource? _loadCancellationTokenSource;
 
         #endregion
 
         #region 插件搜索下载
 
+        /// <summary>插件搜索关键词。</summary>
         [ObservableProperty]
         private string _pluginSearchQuery = "";
 
+        /// <summary>可选的目标实例列表（用于插件安装）。</summary>
         [ObservableProperty]
         private ObservableCollection<PluginTargetInstanceItem> _pluginTargetInstances = [];
 
+        /// <summary>当前选中的目标实例。</summary>
         [ObservableProperty]
         private PluginTargetInstanceItem? _selectedPluginTargetInstance;
 
+        /// <summary>指示是否已选择目标实例。</summary>
         [ObservableProperty]
         private bool _hasSelectedPluginTarget = false;
 
+        /// <summary>插件搜索结果列表。</summary>
         [ObservableProperty]
         private ObservableCollection<PluginSearchResultCard> _pluginSearchResults = [];
 
+        /// <summary>指示是否正在搜索插件。</summary>
         [ObservableProperty]
         private bool _isSearchingPlugins = false;
 
+        /// <summary>指示是否正在加载更多插件。</summary>
         [ObservableProperty]
         private bool _isLoadingMorePlugins = false;
 
+        /// <summary>指示是否正在加载插件版本列表。</summary>
         [ObservableProperty]
         private bool _isLoadingPluginVersions = false;
 
+        /// <summary>插件版本加载状态消息。</summary>
         [ObservableProperty]
         private string _pluginVersionLoadingMessage = "";
 
+        /// <summary>指示是否还有更多插件可加载。</summary>
         [ObservableProperty]
         private bool _hasMorePlugins = false;
 
+        /// <summary>插件搜索状态信息文本。</summary>
         [ObservableProperty]
         private string _pluginSearchStatus = "";
 
+        /// <summary>插件搜索提示文本。</summary>
         [ObservableProperty]
         private string _pluginTargetPrompt = "先选择目标实例，再按该实例的服务端类型和 Minecraft 版本搜索兼容插件。";
 
+        /// <summary>插件搜索上下文描述文本。</summary>
         [ObservableProperty]
         private string _pluginSearchContextText = "未选择目标实例";
+
+        /// <summary>插件搜索请求 ID，用于防止并发搜索冲突。</summary>
         private int _pluginSearchRequestId = 0;
+
+        /// <summary>插件搜索的取消令牌源。</summary>
         private CancellationTokenSource? _pluginSearchCancellationTokenSource;
 
-        // 插件分页相关字段
+        /// <summary>所有插件搜索结果（用于分页加载）。</summary>
         private List<ModrinthProject> _allPluginResults = [];
+
+        /// <summary>已加载到界面的插件数量。</summary>
         private int _loadedPluginCount = 0;
+
+        /// <summary>每页加载的插件数量。</summary>
         private const int _pluginPageSize = 12;
+
+        /// <summary>下次搜索的偏移量。</summary>
         private int _pluginSearchOffset = 0;
+
+        /// <summary>搜索结果的总数。</summary>
         private int _pluginTotalHits = 0;
 
         #endregion
 
+        /// <summary>各平台的服务端提供者映射。</summary>
         private readonly Dictionary<ServerPlatform, IServerProvider> _serverProviders = [];
+
+        /// <summary>内容对话框服务。</summary>
         private readonly IContentDialogService _contentDialogService;
+
+        /// <summary>导航服务。</summary>
         private readonly INavigationService _navigationService;
+
+        /// <summary>导航参数服务。</summary>
         private readonly NavigationParameterService _navigationParameterService;
 
+        /// <summary>
+        /// 初始化下载页面视图模型。
+        /// </summary>
+        /// <param name="contentDialogService">内容对话框服务。</param>
+        /// <param name="navigationService">导航服务。</param>
+        /// <param name="navigationParameterService">导航参数服务。</param>
         public DownloadViewModel(
             IContentDialogService contentDialogService,
             INavigationService navigationService,
@@ -135,12 +190,18 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 导航到此页面时加载插件目标实例和服务器版本。
+        /// </summary>
         public async Task OnNavigatedToAsync()
         {
             LoadPluginTargetInstances();
             await LoadServerVersionsAsync();
         }
 
+        /// <summary>
+        /// 离开此页面时取消正在进行的加载和搜索操作。
+        /// </summary>
         public Task OnNavigatedFromAsync()
         {
             _loadCancellationTokenSource?.Cancel();
@@ -150,6 +211,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         #region 服务端下载方法
 
+        /// <summary>
+        /// 加载当前选中平台的所有服务端版本列表。
+        /// </summary>
         [RelayCommand]
         private async Task LoadServerVersionsAsync()
         {
@@ -202,6 +266,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 加载下一页的服务端版本到界面列表。
+        /// </summary>
         [RelayCommand]
         private async Task LoadMoreVersionsAsync()
         {
@@ -335,6 +402,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return new Version(0, 0);
         }
 
+        /// <summary>
+        /// 下载指定服务端版本的 JAR 文件到默认下载目录。
+        /// </summary>
         [RelayCommand]
         private async Task DownloadServerVersionAsync(ServerVersionCard? card)
         {
@@ -358,6 +428,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 下载服务端并弹出创建实例对话框，完成下载后创建新的服务器实例。
+        /// </summary>
         [RelayCommand]
         private async Task DownloadAndCreateAsync(ServerVersionCard? card)
         {
@@ -427,6 +500,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 根据对话框参数创建新的服务器实例。
+        /// </summary>
         private async Task CreateInstanceFromDownloadAsync(
             NewInstanceDialogViewModel vm,
             NewInstanceDialog dialog,
@@ -522,6 +598,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 弹出保存文件对话框，将服务端 JAR 文件另存为指定路径。
+        /// </summary>
         [RelayCommand]
         private async Task SaveServerVersionAsAsync(ServerVersionCard? card)
         {
@@ -548,6 +627,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 获取当前选中索引对应的服务端平台提供者。
+        /// </summary>
         private IServerProvider? GetSelectedServerPlatform()
         {
             var platforms = new[] {
@@ -564,6 +646,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return _serverProviders.TryGetValue(platforms[idx], out var p) ? p : null;
         }
 
+        /// <summary>
+        /// 获取当前选中平台的名称、描述和主题色信息。
+        /// </summary>
         private (string Name, string Description, string ColorLight, string ColorDark) GetSelectedPlatformInfo()
         {
             // 使用更柔和的颜色，浅色模式用较深色，深色模式用较浅色
@@ -587,12 +672,18 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         #region 插件搜索下载方法
 
+        /// <summary>
+        /// 选中指定的目标实例。
+        /// </summary>
         [RelayCommand]
         private void SelectPluginTargetInstance(PluginTargetInstanceItem? item)
         {
             SelectedPluginTargetInstance = item;
         }
 
+        /// <summary>
+        /// 清除当前选中的目标实例。
+        /// </summary>
         [RelayCommand]
         private void SwitchPluginTargetInstance()
         {
@@ -628,6 +719,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 根据关键词和目标实例的兼容性筛选条件搜索 Modrinth 插件。
+        /// </summary>
         [RelayCommand]
         private async Task SearchPluginsAsync()
         {
@@ -711,6 +805,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 加载下一页的插件搜索结果到界面列表。
+        /// </summary>
         [RelayCommand]
         private async Task LoadMorePluginsAsync()
         {
@@ -772,6 +869,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 取消当前的插件搜索操作。
+        /// </summary>
         private void CancelPluginSearch()
         {
             _pluginSearchCancellationTokenSource?.Cancel();
@@ -781,12 +881,18 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             IsLoadingMorePlugins = false;
         }
 
+        /// <summary>
+        /// 检查指定的搜索请求和目标实例是否仍是当前有效的搜索。
+        /// </summary>
         private bool IsCurrentPluginSearch(int requestId, PluginTargetInstanceItem targetInstance)
         {
             return requestId == _pluginSearchRequestId
                 && SelectedPluginTargetInstance?.InstanceId == targetInstance.InstanceId;
         }
 
+        /// <summary>
+        /// 将指定范围的插件搜索结果添加到界面列表。
+        /// </summary>
         private async Task LoadPluginsPageAsync(int startIndex, int count, PluginTargetInstanceItem targetInstance)
         {
             var endIndex = Math.Min(startIndex + count, _allPluginResults.Count);
@@ -803,6 +909,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 安装指定插件到当前选中的目标实例。
+        /// </summary>
         [RelayCommand]
         private async Task DownloadPluginAsync(PluginSearchResultCard? card)
         {
@@ -833,6 +942,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 将指定插件另存为到本地文件系统。
+        /// </summary>
         [RelayCommand]
         private async Task SavePluginAsAsync(PluginSearchResultCard? card)
         {
@@ -876,6 +988,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
+        /// <summary>
+        /// 显示插件版本选择对话框，获取用户选择的版本。
+        /// </summary>
         private async Task<PluginVersionListItem?> ShowPluginVersionDialogAsync(
             ModrinthProject project,
             PluginTargetInstanceItem targetInstance,
@@ -920,6 +1035,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return dialog.SelectedVersionItem;
         }
 
+        /// <summary>
+        /// 加载指定插件项目的所有兼容版本（按发布时间降序排列）。
+        /// </summary>
         private static async Task<List<ModrinthVersion>> LoadPluginVersionsAsync(ModrinthProject project, PluginTargetInstanceItem targetInstance)
         {
             var provider = new ModrinthProvider();
@@ -944,6 +1062,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 .ToList());
         }
 
+        /// <summary>
+        /// 创建插件安装下载任务并加入下载队列。
+        /// </summary>
         private static void QueuePluginInstall(ModrinthProject project, ModrinthVersion version, PluginTargetInstanceItem targetInstance)
         {
             var primaryFile = version.PrimaryFile ?? throw new InvalidOperationException("所选版本没有可用主文件。");
@@ -972,6 +1093,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
+        /// <summary>
+        /// 创建插件下载保存任务并加入下载队列。
+        /// </summary>
         private static void QueuePluginSave(ModrinthProject project, ModrinthVersion version, string destinationPath)
         {
             var primaryFile = version.PrimaryFile ?? throw new InvalidOperationException("所选版本没有可用主文件。");
@@ -997,6 +1121,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             });
         }
 
+        /// <summary>
+        /// 创建服务端下载任务对象。
+        /// </summary>
         private static DownloadTask CreateServerDownloadTask(ServerVersionCard card, string destinationPath)
         {
             var displayName = $"{card.PlatformName} {card.MinecraftVersion} #{card.LatestBuild.BuildNumber}";
@@ -1020,6 +1147,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             };
         }
 
+        /// <summary>
+        /// 获取文件的首选哈希算法和哈希值。
+        /// </summary>
         private static (string? ExpectedHash, string HashAlgorithm) GetPreferredHash(ModrinthFile file)
         {
             if (file.Hashes.TryGetValue("sha1", out var sha1) && !string.IsNullOrWhiteSpace(sha1))
@@ -1035,6 +1165,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return (null, "SHA256");
         }
 
+        /// <summary>
+        /// 获取插件下载的暂存路径。
+        /// </summary>
         private static string GetPluginStagingPath(string instanceId, string fileName)
         {
             string safeFileName = Path.GetFileName(fileName);
@@ -1043,6 +1176,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return Path.Combine(directory, safeFileName);
         }
 
+        /// <summary>
+        /// 加载所有服务器实例作为插件安装的目标候选。
+        /// </summary>
         private void LoadPluginTargetInstances()
         {
             PluginTargetInstances.Clear();
@@ -1100,10 +1236,20 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public string VersionTag => $"MC {MinecraftVersion}";
     }
 
+    /// <summary>
+    /// 插件安装的目标实例项，包含实例信息和兼容性筛选条件。
+    /// </summary>
     public sealed class PluginTargetInstanceItem
     {
+        /// <summary>默认的插件加载器列表。</summary>
         private static readonly IReadOnlyList<string> DefaultPluginLoaders = ["paper", "purpur", "folia", "spigot", "bukkit"];
 
+        /// <summary>
+        /// 初始化目标实例项。
+        /// </summary>
+        /// <param name="instance">服务器实例信息。</param>
+        /// <param name="metadata">服务端 JAR 元数据。</param>
+        /// <param name="isRunning">实例是否正在运行。</param>
         public PluginTargetInstanceItem(InstanceInfo instance, ServerJarMetadata metadata, bool isRunning)
         {
             InstanceId = instance.Id;
@@ -1123,30 +1269,45 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 : $"将按 {string.Join(" / ", LoaderFilters)} 搜索兼容插件。";
         }
 
+        /// <summary>实例唯一标识符。</summary>
         public string InstanceId { get; }
 
+        /// <summary>实例名称。</summary>
         public string Name { get; }
 
+        /// <summary>实例是否正在运行。</summary>
         public bool IsRunning { get; }
 
+        /// <summary>服务端类型的显示文本。</summary>
         public string ServerTypeDisplay { get; }
 
+        /// <summary>Minecraft 版本的显示文本。</summary>
         public string MinecraftVersionDisplay { get; }
 
+        /// <summary>插件加载器兼容性筛选条件。</summary>
         public IReadOnlyList<string> LoaderFilters { get; }
 
+        /// <summary>游戏版本兼容性筛选条件。</summary>
         public IReadOnlyList<string> VersionFilters { get; }
 
+        /// <summary>搜索上下文描述文本。</summary>
         public string SearchContextText { get; }
 
+        /// <summary>兼容性提示文本。</summary>
         public string CompatibilityHint { get; }
 
+        /// <summary>运行状态显示文本。</summary>
         public string RunningText => IsRunning ? "运行中" : "未运行";
 
+        /// <summary>目标徽章显示文本。</summary>
         public string TargetBadgeText => $"{ServerTypeDisplay} · {MinecraftVersionDisplay}";
 
+        /// <summary>实例名称首字母（用于头像占位符）。</summary>
         public string Initial => string.IsNullOrWhiteSpace(Name) ? "S" : Name[..1].ToUpperInvariant();
 
+        /// <summary>
+        /// 根据服务端类型构建对应的插件加载器兼容列表。
+        /// </summary>
         private static IReadOnlyList<string> BuildLoaderFilters(string? serverType)
         {
             if (string.IsNullOrWhiteSpace(serverType) || serverType == "未知类型")
@@ -1169,8 +1330,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
     }
 
+    /// <summary>
+    /// 插件搜索结果卡片，封装 Modrinth 项目在搜索列表中的显示数据。
+    /// </summary>
     public sealed class PluginSearchResultCard
     {
+        /// <summary>
+        /// 使用 Modrinth 项目和目标实例初始化搜索结果卡片。
+        /// </summary>
+        /// <param name="project">Modrinth 项目信息。</param>
+        /// <param name="targetInstance">目标实例信息。</param>
         public PluginSearchResultCard(ModrinthProject project, PluginTargetInstanceItem targetInstance)
         {
             Project = project;
@@ -1190,36 +1359,54 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             ClientSideText = string.IsNullOrWhiteSpace(project.ClientSide) ? "客户端支持未知" : $"客户端：{project.ClientSide}";
         }
 
+        /// <summary>Modrinth 项目原始数据。</summary>
         public ModrinthProject Project { get; }
 
+        /// <summary>项目标题。</summary>
         public string Title { get; }
 
+        /// <summary>项目简介。</summary>
         public string Description { get; }
 
+        /// <summary>项目作者。</summary>
         public string Author { get; }
 
+        /// <summary>标题首字母（用于头像占位符）。</summary>
         public string Initial { get; }
 
+        /// <summary>项目图标 URL。</summary>
         public string IconUrl { get; }
 
+        /// <summary>是否有项目图标。</summary>
         public bool HasIcon { get; }
 
+        /// <summary>下载次数格式化文本。</summary>
         public string DownloadsText { get; }
 
+        /// <summary>关注次数格式化文本。</summary>
         public string FollowsText { get; }
 
+        /// <summary>最新支持的游戏版本文本。</summary>
         public string LatestVersionText { get; }
 
+        /// <summary>支持的加载器列表文本。</summary>
         public string LoadersText { get; }
 
+        /// <summary>支持的游戏版本范围文本。</summary>
         public string GameVersionsText { get; }
 
+        /// <summary>与目标实例的兼容性文本。</summary>
         public string CompatibilityText { get; }
 
+        /// <summary>服务端支持信息文本。</summary>
         public string ServerSideText { get; }
 
+        /// <summary>客户端支持信息文本。</summary>
         public string ClientSideText { get; }
 
+        /// <summary>
+        /// 构建插件与目标实例的兼容性描述文本。
+        /// </summary>
         private static string BuildCompatibilityText(ModrinthProject project, PluginTargetInstanceItem targetInstance)
         {
             bool loaderCompatible = project.Loaders.Count == 0
@@ -1241,6 +1428,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return $"请检查与 {targetInstance.ServerTypeDisplay} 的兼容性";
         }
 
+        /// <summary>
+        /// 将数字格式化为带单位的缩写文本（如 1.2K、3.5M）。
+        /// </summary>
         private static string FormatMetric(long value)
         {
             if (value >= 1_000_000_000) return $"{value / 1_000_000_000d:F1}B";
@@ -1249,6 +1439,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return value.ToString(CultureInfo.InvariantCulture);
         }
 
+        /// <summary>
+        /// 格式化游戏版本范围，如 "1.20.1 - 1.21.4"。
+        /// </summary>
         private static string FormatGameVersionRange(List<string>? versions)
         {
             if (versions == null || versions.Count == 0)
@@ -1275,6 +1468,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return $"{ordered[0]} - {ordered[^1]}";
         }
 
+        /// <summary>
+        /// 将版本号字符串解析为可比较的 Version 对象。
+        /// </summary>
         private static Version ParseComparableVersion(string version)
         {
             var normalized = version;
