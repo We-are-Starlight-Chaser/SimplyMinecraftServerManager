@@ -1,4 +1,7 @@
-﻿using System.IO;
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+using System.IO;
 using System.IO.Compression;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads.JDK

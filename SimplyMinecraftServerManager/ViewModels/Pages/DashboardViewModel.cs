@@ -1,3 +1,6 @@
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Services;

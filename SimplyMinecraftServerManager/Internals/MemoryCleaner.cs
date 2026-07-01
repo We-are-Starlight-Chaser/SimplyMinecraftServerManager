@@ -1,4 +1,7 @@
-﻿using System;
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;

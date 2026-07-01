@@ -1,4 +1,7 @@
-﻿namespace SimplyMinecraftServerManager.Extension.Models
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+namespace SimplyMinecraftServerManager.Extension.Models
 {
     /// <summary>
     /// 表示一个版本范围约束（纯数据结构，不含字符串解析逻辑）。

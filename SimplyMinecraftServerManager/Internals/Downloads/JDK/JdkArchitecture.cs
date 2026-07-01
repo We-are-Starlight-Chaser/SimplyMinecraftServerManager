@@ -1,4 +1,7 @@
-﻿using System.Runtime.InteropServices;
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+using System.Runtime.InteropServices;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
 {

@@ -36,10 +36,14 @@
     
     <InvariantGlobalization>false</InvariantGlobalization>
     <SatelliteResourceLanguages>zh-CN;en-US</SatelliteResourceLanguages>
+    <ErrorReport>none</ErrorReport>
+    <Authors>WASC Team</Authors>
+    <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+    <Description>A simple,lightweight and powerful utility designed to simplify Minecraft server deployment.</Description>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DebugType>embedded</DebugType>
+    <DebugType>portable</DebugType>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -71,6 +75,21 @@
   <ItemGroup>
     <Resource Include="Assets\Pictures\SMSM-icon-1024.jpg" />
     <Resource Include="Assets\Pictures\SMSM-icon-256.jpg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Properties\Settings.Designer.cs">
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
   </ItemGroup>
 
 </Project>

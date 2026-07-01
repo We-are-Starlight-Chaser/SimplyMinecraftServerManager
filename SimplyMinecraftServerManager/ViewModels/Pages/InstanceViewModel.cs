@@ -1,3 +1,6 @@
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
 using Microsoft.Win32;
 using SharpCompress.Common;
 using SharpCompress.Writers.Tar;

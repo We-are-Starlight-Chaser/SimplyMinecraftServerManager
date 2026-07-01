@@ -1,4 +1,7 @@
-﻿namespace SimplyMinecraftServerManager.Internals
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+namespace SimplyMinecraftServerManager.Internals
 {
     /// <summary>
     /// 从插件 JAR 内的 plugin.yml 提取的元信息。

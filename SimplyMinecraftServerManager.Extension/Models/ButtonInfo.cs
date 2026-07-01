@@ -1,4 +1,7 @@
-﻿using Wpf.Ui.Controls;
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.Extension.Models
 {
@@ -6,9 +9,9 @@ namespace SimplyMinecraftServerManager.Extension.Models
         string Content,
         SymbolRegular Icon,
         ControlAppearance Appearance,
-        Action OnClick
+        Func<CancellationToken, Task> OnClick
     )
     {
-        public ButtonInfo() : this("", SymbolRegular.Empty, ControlAppearance.Secondary, () => { }) { }
+        public ButtonInfo() : this("", SymbolRegular.Empty, ControlAppearance.Secondary, (ct) => { return Task.CompletedTask; }) { }
     }
 }

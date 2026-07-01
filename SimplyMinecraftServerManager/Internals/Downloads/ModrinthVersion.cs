@@ -1,4 +1,7 @@
-﻿namespace SimplyMinecraftServerManager.Internals.Downloads
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     /// <summary>
     /// Modrinth 版本中的单个文件。

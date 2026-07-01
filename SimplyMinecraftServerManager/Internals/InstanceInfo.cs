@@ -1,4 +1,7 @@
-﻿namespace SimplyMinecraftServerManager.Internals
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+namespace SimplyMinecraftServerManager.Internals
 {
     /// <summary>
     /// 单个服务器实例的元信息 POCO，持久化到 instances.toml。

@@ -1,3 +1,6 @@
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
 using Microsoft.Extensions.DependencyInjection;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;

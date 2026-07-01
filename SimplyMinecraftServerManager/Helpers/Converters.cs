@@ -1,3 +1,6 @@
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;

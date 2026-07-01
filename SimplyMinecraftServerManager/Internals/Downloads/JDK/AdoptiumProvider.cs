@@ -1,4 +1,7 @@
-﻿using System.Net.Http;
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+using System.Net.Http;
 using System.Text.Json;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads.JDK

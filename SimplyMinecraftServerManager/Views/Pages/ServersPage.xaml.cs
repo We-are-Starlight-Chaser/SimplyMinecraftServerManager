@@ -1,3 +1,6 @@
+﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
 using SimplyMinecraftServerManager.ViewModels.Pages;
 using System.Windows.Input;
 using Wpf.Ui.Abstractions.Controls;
