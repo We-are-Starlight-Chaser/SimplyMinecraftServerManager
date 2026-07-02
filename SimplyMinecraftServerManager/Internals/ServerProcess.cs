@@ -12,7 +12,7 @@ namespace SimplyMinecraftServerManager.Internals
     /// <summary>
     /// 管理单个 Minecraft 服务器进程的生命周期，包括启动、停止、命令发送和 RCON 通信。
     /// </summary>
-    public partial class ServerProcess(string instanceId) : IDisposable
+    public partial class ServerProcess(string instanceId) : IDisposable, IAsyncDisposable
     {
         private Process? _process;
         private RconClient? _rconClient;
@@ -364,6 +364,54 @@ namespace SimplyMinecraftServerManager.Internals
             try
             {
                 ResetRconClientAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                if (_process != null && !_process.HasExited)
+                {
+                    try { _process.Kill(entireProcessTree: true); } catch { }
+                }
+            }
+            catch { }
+
+            try
+            {
+                _process?.Dispose();
+            }
+            catch { }
+            _process = null;
+            _processId = 0;
+
+            if (_jobHandle != IntPtr.Zero)
+            {
+                try { CloseHandle(_jobHandle); } catch { }
+                _jobHandle = IntPtr.Zero;
+            }
+
+            try
+            {
+                _rconLock.Dispose();
+            }
+            catch
+            {
+            }
+
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>异步释放服务器进程及相关资源</summary>
+        public async ValueTask DisposeAsync()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            try
+            {
+                await ResetRconClientAsync();
             }
             catch
             {

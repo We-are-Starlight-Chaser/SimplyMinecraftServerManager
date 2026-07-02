@@ -661,15 +661,28 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private bool _isRunning;
 
         private readonly StringBuilder _consoleBuffer = new(4096);
+        private string _cachedConsoleOutput = "";
+        private const int MaxConsoleBufferSize = 50000;
+        private string? _cachedServerAddress;
 
-        public string ConsoleOutput => _consoleBuffer.ToString();
+        public string ConsoleOutput => _cachedConsoleOutput;
 
-        public void ClearConsole() => _consoleBuffer.Clear();
+        public void ClearConsole()
+        {
+            _consoleBuffer.Clear();
+            _cachedConsoleOutput = "";
+            OnPropertyChanged(nameof(ConsoleOutput));
+        }
 
         public void AppendToConsole(string line)
         {
             _consoleBuffer.Append(line);
             _consoleBuffer.Append('\n');
+            if (_consoleBuffer.Length > MaxConsoleBufferSize)
+            {
+                _consoleBuffer.Remove(0, _consoleBuffer.Length - MaxConsoleBufferSize);
+            }
+            _cachedConsoleOutput = _consoleBuffer.ToString();
             OnPropertyChanged(nameof(ConsoleOutput));
         }
 
@@ -679,33 +692,35 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         public string StatusColor => IsStarting ? "#2D8CF0" : IsRunning ? "#4CAF50" : "#9E9E9E";
 
-        // 从 server.properties 读取服务器地址和端口
         public string ServerAddress
         {
             get
             {
+                if (_cachedServerAddress != null) return _cachedServerAddress;
                 try
                 {
                     var props = ServerPropertiesManager.Read(InstanceId);
                     string ip = props.GetValueOrDefault("server-ip", "");
                     string port = props.GetValueOrDefault("server-port", "25565");
 
-                    // 如果 IP 为空，显示本地地址
                     if (string.IsNullOrWhiteSpace(ip))
                     {
                         ip = "localhost";
                     }
 
-                    return $"{ip}:{port}";
+                    _cachedServerAddress = $"{ip}:{port}";
+                    return _cachedServerAddress;
                 }
                 catch
                 {
-                    return "localhost:25565";
+                    _cachedServerAddress = "localhost:25565";
+                    return _cachedServerAddress;
                 }
             }
         }
 
-        // 当 IsRunning 改变时，通知 StatusText 和 StatusColor 也改变了
+        public void InvalidateServerAddressCache() => _cachedServerAddress = null;
+
         partial void OnIsRunningChanged(bool value)
         {
             OnPropertyChanged(nameof(StatusText));

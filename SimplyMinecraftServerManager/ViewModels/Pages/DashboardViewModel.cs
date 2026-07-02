@@ -63,8 +63,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             try
             {
-                Servers.Clear();
-                
                 var instances = InstanceManager.GetAll();
                 var runningInstances = ServerProcessManager.GetRunningInstanceIds();
                 var runningSet = new HashSet<string>(runningInstances);
@@ -72,23 +70,30 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 RunningServersCount = runningInstances.Count;
                 TotalServersCount = instances.Count;
 
-                await Task.Run(() =>
+                var items = await Task.Run(() =>
                 {
+                    var result = new List<ServerDisplayItem>();
                     foreach (var inst in instances)
                     {
                         var isRunning = runningSet.Contains(inst.Id);
                         var metadata = ServerJarMetadataReader.Read(inst);
-                        var serverItem = new ServerDisplayItem
+                        result.Add(new ServerDisplayItem
                         {
                             Name = inst.Name,
                             ServerType = metadata.ServerType,
                             MinecraftVersion = metadata.MinecraftVersion,
                             IsRunning = isRunning,
                             InstanceId = inst.Id
-                        };
-                        Servers.Add(serverItem);
+                        });
                     }
+                    return result;
                 });
+
+                Servers.Clear();
+                foreach (var item in items)
+                {
+                    Servers.Add(item);
+                }
             }
             catch
             {

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.IO;
@@ -42,10 +42,12 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
     /// </summary>
     public static class JdkManager
     {
-        /// <summary>
-        /// 获取所有已安装的 JDK。
-        /// </summary>
-        public static IReadOnlyList<InstalledJdk> GetInstalledJdks()
+        private static IReadOnlyList<InstalledJdk>? _cachedJdks;
+        private static DateTime _lastCacheTime = DateTime.MinValue;
+        private static readonly TimeSpan _cacheTtl = TimeSpan.FromSeconds(10);
+        private static readonly object _cacheLock = new();
+
+        private static IReadOnlyList<InstalledJdk> GetInstalledJdksUncached()
         {
             string jdksRoot = PathHelper.JdksRoot;
             if (!Directory.Exists(jdksRoot))
@@ -56,7 +58,6 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
             foreach (string dir in Directory.EnumerateDirectories(jdksRoot))
             {
                 string dirName = Path.GetFileName(dir);
-                // 格式: adoptium-21-x64  /  zulu-17-aarch64
                 string[] parts = dirName.Split('-');
                 if (parts.Length < 3) continue;
 
@@ -70,10 +71,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
                     ? JdkArchitecture.AArch64
                     : JdkArchitecture.X64;
 
-                // 找 JDK 根目录：可能是 dir 本身，也可能是 dir 下唯一的子目录
                 string homePath = ResolveJdkHome(dir);
-
-                // 读版本
                 string fullVersion = TryReadVersion(homePath) ?? $"{major}";
 
                 results.Add(new InstalledJdk
@@ -91,6 +89,34 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
                 .ThenBy(j => j.Distribution.ToString())
                 .ToList()
                 .AsReadOnly();
+        }
+
+        /// <summary>
+        /// 获取所有已安装的 JDK（带短时缓存）。
+        /// </summary>
+        public static IReadOnlyList<InstalledJdk> GetInstalledJdks()
+        {
+            lock (_cacheLock)
+            {
+                if (_cachedJdks != null && (DateTime.Now - _lastCacheTime) < _cacheTtl)
+                    return _cachedJdks;
+
+                _cachedJdks = GetInstalledJdksUncached();
+                _lastCacheTime = DateTime.Now;
+                return _cachedJdks;
+            }
+        }
+
+        /// <summary>
+        /// 使 JDK 缓存失效（安装/卸载后调用）。
+        /// </summary>
+        public static void InvalidateCache()
+        {
+            lock (_cacheLock)
+            {
+                _cachedJdks = null;
+                _lastCacheTime = DateTime.MinValue;
+            }
         }
 
         /// <summary>
@@ -223,6 +249,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
                     $"java.exe not found after extraction: {installed.JavaExecutable}");
             }
 
+            InvalidateCache();
             return installed;
         }
 
@@ -289,6 +316,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
             if (Directory.Exists(target))
             {
                 Directory.Delete(target, recursive: true);
+                InvalidateCache();
                 return true;
             }
 

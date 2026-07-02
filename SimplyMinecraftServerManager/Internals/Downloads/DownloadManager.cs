@@ -178,8 +178,18 @@ private readonly HttpClient _httpClient;
 
         // 查询
 
+        private volatile IReadOnlyList<DownloadTask>? _allTasksCache;
+
         /// <summary>获取所有下载任务的只读列表</summary>
-        public IReadOnlyList<DownloadTask> AllTasks => _tasks.Values.ToList().AsReadOnly();
+        public IReadOnlyList<DownloadTask> AllTasks
+        {
+            get
+            {
+                return _allTasksCache ??= _tasks.Values.ToList().AsReadOnly();
+            }
+        }
+
+        private void InvalidateAllTasksCache() => _allTasksCache = null;
 
         // 入队
 
@@ -191,6 +201,7 @@ private readonly HttpClient _httpClient;
         public Task<DownloadTask> EnqueueAsync(DownloadTask downloadTask)
         {
             _tasks[downloadTask.Id] = downloadTask;
+            InvalidateAllTasksCache();
             TaskQueued?.Invoke(this, downloadTask);
             // 捕获当前 semaphore 引用，保证任务全生命周期使用同一个
             var semaphore = _semaphore;
@@ -205,6 +216,7 @@ private readonly HttpClient _httpClient;
         public DownloadTask Queue(DownloadTask downloadTask)
         {
             _tasks[downloadTask.Id] = downloadTask;
+            InvalidateAllTasksCache();
             TaskQueued?.Invoke(this, downloadTask);
             var semaphore = _semaphore;
             _ = Task.Run(() => ExecuteAsync(downloadTask, semaphore));
@@ -345,6 +357,7 @@ private readonly HttpClient _httpClient;
 
             foreach (var id in toRemove)
                 _tasks.TryRemove(id, out _);
+            InvalidateAllTasksCache();
         }
 
         /// <summary>
@@ -519,6 +532,7 @@ private readonly HttpClient _httpClient;
 
                 task.Status = DownloadStatus.Completed;
                 task.EndTime = DateTime.Now;
+                InvalidateAllTasksCache();
 
                 RaiseProgress(task, 0, isCompleted: true, installationStatus: task.InstallationStatus);
                 TaskCompleted?.Invoke(this, task);

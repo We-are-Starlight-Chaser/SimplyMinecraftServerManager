@@ -6,6 +6,7 @@ using SimplyMinecraftServerManager.Internals.Downloads;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
 using System.Collections.ObjectModel;
+using System.Windows.Threading;
 using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
 
@@ -91,7 +92,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void OnDownloadTaskQueued(object? sender, DownloadTask task)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher.BeginInvoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
                 if (item == null)
@@ -142,7 +143,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void OnDownloadTaskCompleted(object? sender, DownloadTask task)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher.BeginInvoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
                 item?.UpdateFromTask(task);
@@ -166,7 +167,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void OnDownloadTaskFailed(object? sender, DownloadTask task)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher.BeginInvoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
                 item?.UpdateFromTask(task);
@@ -192,7 +193,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void OnDownloadTaskInstalled(object? sender, DownloadTask task)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher.BeginInvoke(() =>
             {
                 var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
                 item?.UpdateFromTask(task);
@@ -214,7 +215,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             if (sender is DownloadTaskItem item)
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                Application.Current?.Dispatcher.BeginInvoke(() =>
                 {
                     item.CancelAutoRemove();
                     DownloadTasks.Remove(item);
@@ -228,9 +229,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void UpdateCounts()
         {
-            // ActiveCount: 进行中 + 暂停 + 等待中（所有未完成的任务）
-            ActiveCount = DownloadTasks.Count(t => t.IsActive || t.IsPaused || (!t.IsCompleted && !t.IsFailed && !t.IsActive && !t.IsPaused));
-            CompletedCount = DownloadTasks.Count(t => t.IsCompleted || t.IsFailed);
+            int active = 0;
+            int completed = 0;
+            foreach (var t in DownloadTasks)
+            {
+                if (t.IsCompleted || t.IsFailed)
+                    completed++;
+                else if (t.IsActive || t.IsPaused || (!t.IsCompleted && !t.IsFailed))
+                    active++;
+            }
+            ActiveCount = active;
+            CompletedCount = completed;
             TaskCountChanged?.Invoke(this, ActiveCount);
         }
 
@@ -442,7 +451,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private bool _isInstalled;
 
         /// <summary>自动移除计时器，任务完成后一段时间自动从列表移除。</summary>
-        private System.Timers.Timer? _autoRemoveTimer;
+        private DispatcherTimer? _autoRemoveTimer;
 
         /// <summary>请求从列表中移除此任务项的事件。</summary>
         public event EventHandler? RequestRemove;
@@ -607,15 +616,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             if (_autoRemoveTimer != null) return;
 
-            _autoRemoveTimer = new System.Timers.Timer(30000); // 30 秒
-            _autoRemoveTimer.Elapsed += (s, e) =>
+            _autoRemoveTimer = new DispatcherTimer
             {
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    RequestRemove?.Invoke(this, EventArgs.Empty);
-                });
+                Interval = TimeSpan.FromSeconds(30)
             };
-            _autoRemoveTimer.AutoReset = false;
+            _autoRemoveTimer.Tick += (_, _) =>
+            {
+                _autoRemoveTimer?.Stop();
+                _autoRemoveTimer = null;
+                RequestRemove?.Invoke(this, EventArgs.Empty);
+            };
             _autoRemoveTimer.Start();
         }
 
@@ -625,7 +635,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public void CancelAutoRemove()
         {
             _autoRemoveTimer?.Stop();
-            _autoRemoveTimer?.Dispose();
             _autoRemoveTimer = null;
         }
     }

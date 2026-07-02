@@ -203,7 +203,7 @@ namespace SimplyMinecraftServerManager
                         if (writer == null)
                         {
                             EnsureLogDirectory();
-                            writer = new System.IO.StreamWriter(LogPath, append: true) { AutoFlush = false };
+                            writer = new System.IO.StreamWriter(LogPath, append: true) { AutoFlush = true };
                             _logWriter = writer;
                         }
                     }
@@ -212,6 +212,7 @@ namespace SimplyMinecraftServerManager
                 writer.Write(DateTime.Now.ToString(LogDateFormat));
                 writer.Write("] ");
                 writer.WriteLine(message);
+                writer.Flush();
             }
             catch
             {

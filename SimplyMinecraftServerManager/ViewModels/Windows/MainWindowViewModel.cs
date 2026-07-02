@@ -172,23 +172,27 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         /// </summary>
         public void RefreshInstanceMenus()
         {
-            // 移除旧的实例菜单项（保留前4个固定菜单）
-            while (MenuItems.Count > 4)
-            {
-                MenuItems.RemoveAt(4);
-            }
-
-            // 添加实例菜单
             var instances = InstanceManager.GetAll();
+            var newItems = new List<object>();
             foreach (var instance in instances)
             {
-                MenuItems.Add(new NavigationViewItem()
+                newItems.Add(new NavigationViewItem()
                 {
                     Content = instance.Name,
                     Icon = new SymbolIcon { Symbol = SymbolRegular.Box24 },
                     TargetPageType = typeof(Views.Pages.InstancePage),
                     Tag = instance.Id
                 });
+            }
+
+            while (MenuItems.Count > 4)
+            {
+                MenuItems.RemoveAt(4);
+            }
+
+            foreach (var item in newItems)
+            {
+                MenuItems.Add(item);
             }
         }
     }

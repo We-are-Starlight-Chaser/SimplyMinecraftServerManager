@@ -10,49 +10,94 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:converters="clr-namespace:SimplyMinecraftServerManager.Helpers"
       mc:Ignorable="d" 
-      MaxWidth="700"
-      MinWidth="450"
-      MinHeight="350"
-      MaxHeight="600"
-      d:DesignHeight="300"
-      d:DesignWidth="500"
+      MaxWidth="900"
+      MinWidth="600"
+      MinHeight="500"
+      MaxHeight="800"
+      d:DesignHeight="500"
+      d:DesignWidth="700"
       
       Background="{DynamicResource ApplicationBackgroundBrush}"
       BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
       BorderThickness="1"
-      Title="定时任务" 
+      Title="定时任务管理" 
       VerticalAlignment="Center" 
       HorizontalAlignment="Center">
 
     <ui:ContentDialog.Resources>
         <converters:ScheduledTaskIndexToVisibilityConverter x:Key="ScheduledTaskIndexToVisibilityConverter"/>
     </ui:ContentDialog.Resources>
+
     <Border
         Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-        CornerRadius="8"
-        Padding="30"
+        CornerRadius="12"
+        Padding="35"
         BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
         BorderThickness="1">
 
-        <Grid MinWidth="380" MinHeight="200">
+        <Grid MinWidth="500" MinHeight="350">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0">
+            <!-- 任务类型选择区域 -->
+            <Grid Grid.Row="0" Margin="0,0,0,20">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <ComboBox Grid.Column="0" SelectedIndex="0" x:Name="CBox" VerticalAlignment="Center" Margin="0,10,10,10">
-                    <ComboBoxItem>执行命令</ComboBoxItem>
-                    <ComboBoxItem>备份</ComboBoxItem>
-                    <ComboBoxItem>重启</ComboBoxItem>
-                </ComboBox>
+                <TextBlock Grid.Column="0" 
+                           Text="任务类型：" 
+                           FontSize="14" 
+                           FontWeight="SemiBold" 
+                           VerticalAlignment="Center"
+                           Margin="0,0,15,0"/>
 
-                <StackPanel Grid.Column="1" Margin="0,10,0,10" VerticalAlignment="Center" Name="ExecuteCommand">
+                <ComboBox Grid.Column="1" 
+                          SelectedIndex="0" 
+                          x:Name="CBox" 
+                          VerticalAlignment="Center" 
+                          Margin="0,5,0,5"
+                          Height="36">
+                    <ComboBoxItem Content="执行命令"/>
+                    <ComboBoxItem Content="备份存档"/>
+                    <ComboBoxItem Content="重启服务器"/>
+                    <ComboBoxItem Content="发送消息"/>
+                </ComboBox>
+            </Grid>
+
+            <!-- 主要内容区域 -->
+            <Grid Grid.Row="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- 任务名称输入 -->
+                <Grid Grid.Row="0" Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" 
+                               Text="任务名称：" 
+                               FontSize="14" 
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+
+                    <TextBox Grid.Column="1" 
+                             x:Name="TaskNameTextBox"
+                             Margin="0,0,0,0"
+                             Height="32"/>
+                </Grid>
+
+                <!-- 不同任务类型的内容面板 -->
+                <StackPanel Grid.Row="1" Margin="0,0,0,15" VerticalAlignment="Top" Name="ExecuteCommand">
                     <StackPanel.Visibility>
                         <MultiBinding Converter="{StaticResource ScheduledTaskIndexToVisibilityConverter}">
                             <Binding Path="SelectedIndex" ElementName="CBox"/>
@@ -60,28 +105,165 @@
                         </MultiBinding>
                     </StackPanel.Visibility>
 
-                    <TextBlock FontSize="16" Margin="0,0,0,8">请输入命令（每条用回车分割）：</TextBlock>
-                    <TextBox MinHeight="100" 
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8">命令列表</TextBlock>
+                    <TextBlock FontSize="12" Foreground="#888888" Margin="0,0,0,10">请输入要执行的命令（每条命令占一行）：</TextBlock>
+                    <TextBox MinHeight="120" 
+                             x:Name="CommandsTextBox"
                              Margin="0,5,0,0" 
                              VerticalAlignment="Stretch"
                              TextWrapping="Wrap"
                              AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto"
+                             FontFamily="Consolas"
+                             Padding="8"
+                             BorderThickness="1"
                              Text="{Binding Commands}"/>
                 </StackPanel>
+
+                <StackPanel Grid.Row="1" Margin="0,0,0,15" VerticalAlignment="Top" Name="BackupPanel">
+                    <StackPanel.Visibility>
+                        <MultiBinding Converter="{StaticResource ScheduledTaskIndexToVisibilityConverter}">
+                            <Binding Path="SelectedIndex" ElementName="CBox"/>
+                            <Binding Path="Name" ElementName="BackupPanel" />
+                        </MultiBinding>
+                    </StackPanel.Visibility>
+
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8">备份设置</TextBlock>
+                    <TextBlock FontSize="12" Foreground="#888888" Margin="0,0,0,10">配置备份选项：</TextBlock>
+
+                    <CheckBox Content="保留最近5个备份" 
+                              IsChecked="True"
+                              Margin="0,5,0,10"/>
+
+                    <TextBlock FontSize="12" Margin="0,0,0,5">备份路径：</TextBlock>
+                    <TextBox x:Name="BackupPathTextBox"
+                             Height="32"
+                             Margin="0,0,0,5"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Margin="0,0,0,15" VerticalAlignment="Top" Name="RestartPanel">
+                    <StackPanel.Visibility>
+                        <MultiBinding Converter="{StaticResource ScheduledTaskIndexToVisibilityConverter}">
+                            <Binding Path="SelectedIndex" ElementName="CBox"/>
+                            <Binding Path="Name" ElementName="RestartPanel" />
+                        </MultiBinding>
+                    </StackPanel.Visibility>
+
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8">重启选项</TextBlock>
+                    <TextBlock FontSize="12" Foreground="#888888" Margin="0,0,0,10">选择重启模式：</TextBlock>
+
+                    <RadioButton Content="正常重启（保存数据后重启）" 
+                                 IsChecked="True"
+                                 Margin="0,0,0,8"/>
+                    <RadioButton Content="强制重启（立即重启，可能丢失未保存数据）" 
+                                 Margin="0,0,0,8"/>
+                    <CheckBox Content="重启后自动启动服务器" 
+                              IsChecked="True"
+                              Margin="0,0,0,10"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Margin="0,0,0,15" VerticalAlignment="Top" Name="MessagePanel">
+                    <StackPanel.Visibility>
+                        <MultiBinding Converter="{StaticResource ScheduledTaskIndexToVisibilityConverter}">
+                            <Binding Path="SelectedIndex" ElementName="CBox"/>
+                            <Binding Path="Name" ElementName="MessagePanel" />
+                        </MultiBinding>
+                    </StackPanel.Visibility>
+
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8">消息内容</TextBlock>
+                    <TextBlock FontSize="12" Foreground="#888888" Margin="0,0,0,10">输入要发送的消息：</TextBlock>
+                    <TextBox MinHeight="80" 
+                             x:Name="MessageTextBox"
+                             Margin="0,5,0,0" 
+                             VerticalAlignment="Stretch"
+                             TextWrapping="Wrap"
+                             AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto"
+                             Padding="8"
+                             BorderThickness="1"/>
+                </StackPanel>
+
+                <!-- 时间调度设置 -->
+                <GroupBox Grid.Row="2" Header="时间调度设置" Margin="0,10,0,0">
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="开始日期：" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <DatePicker Grid.Column="1" 
+                                        x:Name="StartDatePicker"
+                                        Margin="0,0,15,0"
+                                        Height="32"/>
+
+                            <TextBlock Grid.Column="2" Text="开始时间：" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <ui:TimePicker Grid.Column="3" 
+                                        x:Name="StartTimePicker"
+                                        Height="32" />
+                        </Grid>
+
+                        <Grid Grid.Row="1" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0" 
+                                      Content="重复执行" 
+                                      x:Name="RepeatCheckBox"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,15,0"/>
+
+                            <ComboBox Grid.Column="1" 
+                                      x:Name="RepeatIntervalCombo"
+                                      Height="32"
+                                      IsEnabled="{Binding IsChecked, ElementName=RepeatCheckBox}">
+                                <ComboBoxItem Content="每小时"/>
+                                <ComboBoxItem Content="每天"/>
+                                <ComboBoxItem Content="每周"/>
+                                <ComboBoxItem Content="每月"/>
+                            </ComboBox>
+                        </Grid>
+
+                        <CheckBox Grid.Row="2" 
+                                  x:Name="EnableTaskCheckBox"
+                                  Content="启用此定时任务" 
+                                  IsChecked="True"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </GroupBox>
             </Grid>
 
-            <StackPanel Grid.Row="2" Margin="0,20,0,0" Orientation="Horizontal" HorizontalAlignment="Center">
-                <Button Padding="20,10" Click="Button_Click">
-                <StackPanel Orientation="Horizontal" >
-                    <ui:SymbolIcon Symbol="CheckMark24"/>
-                    <TextBlock>确定</TextBlock>
-                </StackPanel>
-                </Button>
-                <Button Padding="20,10" Margin="5,0,0,0" Click="Button_Click">
-                <StackPanel Orientation="Horizontal" >
-                    <ui:SymbolIcon Symbol="Dismiss24"/>
-                        <TextBlock>取消</TextBlock>
-                </StackPanel>
+            <!-- 按钮区域 -->
+            <StackPanel Grid.Row="2" Margin="0,25,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:Button Padding="25,12" 
+                        Click="Button_Click"
+                        Tag="Confirm"
+                        Appearance="Primary">
+                    <StackPanel Orientation="Horizontal" >
+                        <ui:SymbolIcon Symbol="Checkmark24" Margin="0,0,8,0"/>
+                        <TextBlock Text="确定"/>
+                    </StackPanel>
+                </ui:Button>
+
+                <Button Padding="25,12" 
+                        Margin="15,0,0,0" 
+                        Click="Button_Click"
+                        Tag="Cancel">
+                    <StackPanel Orientation="Horizontal" >
+                        <ui:SymbolIcon Symbol="Dismiss24" Margin="0,0,8,0"/>
+                        <TextBlock Text="取消"/>
+                    </StackPanel>
                 </Button>
             </StackPanel>
         </Grid>

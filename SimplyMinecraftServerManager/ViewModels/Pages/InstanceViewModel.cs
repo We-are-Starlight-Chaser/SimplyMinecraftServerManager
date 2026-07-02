@@ -99,7 +99,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private bool _isConsoleFullScreen = false;
 
-        private readonly List<string> _consoleLines = [];
+        private readonly Queue<string> _consoleLines = new();
 
         // 控制台内容改变事件，用于通知 UI 更新 FlowDocument
         public event EventHandler<string>? ConsoleLineAdded;
@@ -255,7 +255,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private Timer? _serverStatusTimer;
 
         /// <summary>运行时长计数定时器。</summary>
-        private Timer? _uptimeTimer;
+        private DispatcherTimer? _uptimeTimer;
 
         /// <summary>服务器启动时间。</summary>
         private DateTime _serverStartTime = DateTime.MinValue;
@@ -300,7 +300,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _scheduledCommands = dialog.Commands;
             
         }
-        private CancellationTokenSource source = new();
+        private CancellationTokenSource? _backupCts;
 
         private static readonly int processerCount = Environment.ProcessorCount;
         /// <summary>
@@ -309,9 +309,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private async Task CancelBackup()
         {
-            if (source != null && !source.IsCancellationRequested)
+            if (_backupCts != null && !_backupCts.IsCancellationRequested)
             {
-                await source.CancelAsync();
+                await _backupCts.CancelAsync();
             }
         }
 
@@ -346,14 +346,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
             Environment.SetEnvironmentVariable("ZSTD_NBTHREADS", (processerCount*2).ToString());
             BackupProgress = 0;
+            _backupCts?.Dispose();
             var currentCts = new CancellationTokenSource();
-            source = currentCts;
+            _backupCts = currentCts;
             string path = PathHelper.GetInstanceDir(InstanceId);
             string destPath = Path.Combine(PathHelper.Root, "backups");
             if (!Directory.Exists(destPath)) Directory.CreateDirectory(destPath);
             try
             {
-                await CreateTarZstdWithProgress(path, Path.Combine(destPath,$"{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.zst"),source.Token);
+                await CreateTarZstdWithProgress(path, Path.Combine(destPath,$"{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.zst"),_backupCts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -530,10 +531,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             lock (_consoleLock)
             {
-                _consoleLines.Add(line);
-                if (_consoleLines.Count > MaxConsoleLines)
+                _consoleLines.Enqueue(line);
+                while (_consoleLines.Count > MaxConsoleLines)
                 {
-                    _consoleLines.RemoveAt(0);
+                    _consoleLines.Dequeue();
                 }
             }
             ConsoleLineAdded?.Invoke(this, line);
@@ -574,20 +575,14 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private void CopyConsole()
         {
+            string text;
             lock (_consoleLock)
             {
                 if (_consoleLines.Count == 0) return;
-
-                var sb = new System.Text.StringBuilder(_consoleLines.Count * 50);
-                for (int i = 0; i < _consoleLines.Count; i++)
-                {
-                    sb.Append(_consoleLines[i]);
-                    sb.AppendLine();
-                }
-
-                System.Windows.Clipboard.SetText(sb.ToString());
-                StatusMessage = "控制台内容已复制到剪贴板";
+                text = string.Join(Environment.NewLine, _consoleLines);
             }
+            System.Windows.Clipboard.SetText(text);
+            StatusMessage = "控制台内容已复制到剪贴板";
         }
 
         /// <summary>
@@ -598,17 +593,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             lock (_consoleLock)
             {
                 if (_consoleLines.Count == 0) return string.Empty;
-
-                if (_consoleLines.Count == 1)
-                    return _consoleLines[0];
-
-                var sb = new System.Text.StringBuilder(_consoleLines.Count * 50);
-                for (int i = 0; i < _consoleLines.Count; i++)
-                {
-                    if (i > 0) sb.AppendLine();
-                    sb.Append(_consoleLines[i]);
-                }
-                return sb.ToString();
+                return string.Join(Environment.NewLine, _consoleLines);
             }
         }
 
@@ -619,7 +604,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             lock (_consoleLock)
             {
-                return [.. _consoleLines];
+                return _consoleLines.ToArray();
             }
         }
 
@@ -701,11 +686,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 ResetOnlinePlayersState();
             }
 
-            _ = Task.Run(() => LoadPlugins());
-            _ = Task.Run(() => LoadServerProperties());
-            _ = Task.Run(() => LoadPlayerManagementData());
-
-            _ = Task.Run(() => LoadDashboardData());
+            _ = Task.Run(async () =>
+            {
+                try { await Task.Run(() => LoadPlugins()); } catch { }
+                try { await Task.Run(() => LoadServerProperties()); } catch { }
+                try { await Task.Run(() => LoadPlayerManagementData()); } catch { }
+                try { await Task.Run(() => LoadDashboardData()); } catch { }
+            });
         }
 
         /// <summary>
@@ -927,16 +914,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void LoadAdminPlayers()
         {
-            AdminPlayers.Clear();
-
-            foreach (var op in ReadOps())
+            var ops = ReadOps();
+            RunOnUiThread(() =>
             {
-                AdminPlayers.Add(new PlayerDisplayItem(op.Name, op.Uuid)
+                AdminPlayers.Clear();
+                foreach (var op in ops)
                 {
-                    IsOp = true,
-                    SecondaryText = $"等级 {op.Level}" + (string.IsNullOrWhiteSpace(op.Uuid) ? string.Empty : $"  UUID {op.Uuid}")
-                });
-            }
+                    AdminPlayers.Add(new PlayerDisplayItem(op.Name, op.Uuid)
+                    {
+                        IsOp = true,
+                        SecondaryText = $"等级 {op.Level}" + (string.IsNullOrWhiteSpace(op.Uuid) ? string.Empty : $"  UUID {op.Uuid}")
+                    });
+                }
+            });
         }
 
         /// <summary>
@@ -1122,20 +1112,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void LoadPlugins()
         {
-            Plugins.Clear();
             if (string.IsNullOrEmpty(InstanceId)) return;
 
             try
             {
                 var plugins = PluginManager.GetPlugins(InstanceId);
-                foreach (var p in plugins)
+                RunOnUiThread(() =>
                 {
-                    Plugins.Add(new PluginDisplayItem(p));
-                }
+                    Plugins.Clear();
+                    foreach (var p in plugins)
+                    {
+                        Plugins.Add(new PluginDisplayItem(p));
+                    }
+                });
             }
             catch (Exception ex)
             {
-                StatusMessage = $"加载插件失败: {ex.Message}";
+                RunOnUiThread(() => StatusMessage = $"加载插件失败: {ex.Message}");
             }
         }
 
@@ -1144,20 +1137,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void LoadServerProperties()
         {
-            ServerProperties.Clear();
             if (string.IsNullOrEmpty(InstanceId)) return;
 
             try
             {
                 var props = ServerPropertiesManager.Read(InstanceId);
-                foreach (var kvp in props)
+                RunOnUiThread(() =>
                 {
-                    ServerProperties.Add(new ServerProperty(kvp.Key, kvp.Value));
-                }
+                    ServerProperties.Clear();
+                    foreach (var kvp in props)
+                    {
+                        ServerProperties.Add(new ServerProperty(kvp.Key, kvp.Value));
+                    }
+                });
             }
             catch (Exception ex)
             {
-                StatusMessage = $"加载配置失败: {ex.Message}";
+                RunOnUiThread(() => StatusMessage = $"加载配置失败: {ex.Message}");
             }
         }
 
@@ -1353,6 +1349,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             StopDashboardMonitoring();
             StopPerformanceMonitoring();
+            _consoleThrottler?.Dispose();
+            _backupCts?.Dispose();
             ServerProcessManager.InstanceStatusChanged -= OnInstanceStatusChanged;
         }
 
@@ -1898,12 +1896,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private void StartUptimeCounter()
         {
             _serverStartTime = ServerProcessManager.GetStartTime(InstanceId) ?? DateTime.Now;
-            _uptimeTimer?.Dispose();
-            _uptimeTimer = new Timer((state) =>
+            _uptimeTimer?.Stop();
+            _uptimeTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _uptimeTimer.Tick += (_, _) =>
             {
                 var uptime = DateTime.Now - _serverStartTime;
                 Uptime = $"{(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
-            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1)); // 每秒更新一次
+            };
+            _uptimeTimer.Start();
         }
 
         /// <summary>
@@ -1947,7 +1950,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public void StopDashboardMonitoring()
         {
             _serverStatusTimer?.Dispose();
-            _uptimeTimer?.Dispose();
+            _uptimeTimer?.Stop();
+            _uptimeTimer = null;
             _dashboardPerformanceMonitor?.Dispose();
         }
 

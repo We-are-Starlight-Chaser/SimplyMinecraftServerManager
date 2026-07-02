@@ -1,6 +1,7 @@
 // Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
+using System.Collections.Concurrent;
 using System.IO;
 using System.IO.Compression;
 using YamlDotNet.Serialization;
@@ -20,6 +21,9 @@ namespace SimplyMinecraftServerManager.Internals
             .IgnoreUnmatchedProperties()
             .Build();
 
+        private static readonly ConcurrentDictionary<string, (List<PluginInfo> Plugins, DateTime CacheTime)> _pluginCache = new();
+        private static readonly TimeSpan _cacheExpiration = TimeSpan.FromSeconds(10);
+
         /// <summary>
         /// 获取指定实例的所有插件信息（包括已禁用的插件）。
         /// </summary>
@@ -28,6 +32,11 @@ namespace SimplyMinecraftServerManager.Internals
             string pluginsDir = PathHelper.GetPluginsDir(instanceId);
             if (!Directory.Exists(pluginsDir))
                 return [];
+
+            if (_pluginCache.TryGetValue(instanceId, out var cached) && (DateTime.UtcNow - cached.CacheTime) < _cacheExpiration)
+            {
+                return cached.Plugins;
+            }
 
             var result = new List<PluginInfo>();
 
@@ -52,18 +61,24 @@ namespace SimplyMinecraftServerManager.Internals
             {
                 try
                 {
-                    PluginInfo? info = ParsePluginJar(disPath, true); // 传递禁用状态
+                    PluginInfo? info = ParsePluginJar(disPath, true);
                     if (info != null)
                         result.Add(info);
                 }
                 catch (Exception)
                 {
-                    // JAR 损坏或无法读取，创建一个仅包含文件信息的占位条目
-                    result.Add(CreateFallbackInfo(disPath, true)); // 传递禁用状态
+                    result.Add(CreateFallbackInfo(disPath, true));
                 }
             }
 
-            return [.. result.OrderBy(p => p.Name)];
+            var sorted = result.OrderBy(p => p.Name).ToList();
+            _pluginCache[instanceId] = (sorted, DateTime.UtcNow);
+            return sorted;
+        }
+
+        public static void InvalidateCache(string instanceId)
+        {
+            _pluginCache.TryRemove(instanceId, out _);
         }
 
         /// <summary>
@@ -122,6 +137,7 @@ namespace SimplyMinecraftServerManager.Internals
                 return false;
 
             File.Delete(path);
+            InvalidateCache(instanceId);
             return true;
         }
 
@@ -158,6 +174,7 @@ namespace SimplyMinecraftServerManager.Internals
                 throw new InvalidOperationException("Destination path is outside plugins directory");
 
             File.Copy(sourceJarPath, destPath, overwrite: true);
+            InvalidateCache(instanceId);
 
             return ParsePluginJar(destPath);
         }

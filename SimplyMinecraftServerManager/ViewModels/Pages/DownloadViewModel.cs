@@ -221,6 +221,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             // 取消之前的加载任务
             _loadCancellationTokenSource?.Cancel();
+            _loadCancellationTokenSource?.Dispose();
             _loadCancellationTokenSource = new CancellationTokenSource();
             var cancellationToken = _loadCancellationTokenSource.Token;
 

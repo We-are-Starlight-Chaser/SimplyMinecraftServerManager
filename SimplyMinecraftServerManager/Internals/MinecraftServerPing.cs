@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System;
@@ -39,12 +39,8 @@ namespace SimplyMinecraftServerManager.Internals
         }
 
         /// <summary>
-        /// Ping指定的Minecraft服务器
+        /// Ping指定的Minecraft服务器（同步版本，仅在确知不会阻塞UI时使用）
         /// </summary>
-        /// <param name="host">服务器地址</param>
-        /// <param name="port">服务器端口</param>
-        /// <param name="timeout">超时时间（毫秒）</param>
-        /// <returns>服务器状态信息</returns>
         public static ServerStatus? Ping(string host, int port = 25565, int timeout = 5000)
         {
             try
@@ -59,13 +55,49 @@ namespace SimplyMinecraftServerManager.Internals
                     return null;
                 }
 
+                return PingInternal(client.GetStream(), host, port);
+            }
+            catch (Exception)
+            {
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Ping指定的Minecraft服务器（异步版本，推荐使用）
+        /// </summary>
+        public static async Task<ServerStatus?> PingAsync(string host, int port = 25565, int timeout = 5000)
+        {
+            try
+            {
+                using var client = new TcpClient();
+                client.ReceiveTimeout = timeout;
+                client.SendTimeout = timeout;
+
+                using var cts = new CancellationTokenSource(timeout);
+                await client.ConnectAsync(host, port, cts.Token);
+
                 using var stream = client.GetStream();
+                return PingInternal(stream, host, port);
+            }
+            catch (Exception)
+            {
+            }
+
+            return null;
+        }
+
+        private static ServerStatus? PingInternal(NetworkStream stream, string host, int port)
+        {
+            try
+            {
                 using var handshakePacket = new MemoryStream();
-                WriteVarInt(handshakePacket, 0); // Handshake packet id
-                WriteVarInt(handshakePacket, 754); // Modern protocol version placeholder
+                WriteVarInt(handshakePacket, 0);
+                WriteVarInt(handshakePacket, 754);
                 WriteString(handshakePacket, host);
                 WriteUnsignedShort(handshakePacket, (ushort)port);
-                WriteVarInt(handshakePacket, 1); // Status intent
+                WriteVarInt(handshakePacket, 1);
                 WritePacket(stream, handshakePacket.ToArray());
 
                 using var requestPacket = new MemoryStream();
@@ -121,7 +153,6 @@ namespace SimplyMinecraftServerManager.Internals
             }
             catch (Exception)
             {
-                // 忽略连接错误
             }
 
             return null;

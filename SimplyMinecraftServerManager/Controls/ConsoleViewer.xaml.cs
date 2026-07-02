@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using SimplyMinecraftServerManager.ViewModels.Pages;
@@ -257,18 +257,17 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
         private void RebuildDocument()
         {
             var lines = ViewModel?.GetConsoleLines() ?? [];
-            var oldDoc = ConsoleTextBox.Document;
-            var document = CreateDocument();
-            foreach (var block in oldDoc.Blocks)
+            var oldBlocks = ConsoleTextBox.Document.Blocks.ToArray();
+            ConsoleTextBox.Document = CreateDocument();
+            foreach (var block in oldBlocks)
                 RecycleParagraph(block);
-            ConsoleTextBox.Document = document;
             _searchMatches.Clear();
             _currentSearchIndex = -1;
 
             var searchText = GetActiveSearchText();
             foreach (var line in lines)
             {
-                document.Blocks.Add(CreateParagraph(line, searchText));
+                ConsoleTextBox.Document.Blocks.Add(CreateParagraph(line, searchText));
             }
 
             ApplyConsoleAppearance();
@@ -1047,8 +1046,8 @@ return
                 for (int i = 0; i < toRemove && first != null; i++)
                 {
                     var next = first.NextBlock;
-                    RecycleParagraph(first);
                     document.Blocks.Remove(first);
+                    RecycleParagraph(first);
                     first = next;
                 }
             }
@@ -1079,9 +1078,9 @@ return
                 return;
             }
 
-            var oldDoc = ConsoleTextBox.Document;
+            var oldBlocks = ConsoleTextBox.Document.Blocks.ToArray();
             ConsoleTextBox.Document = CreateDocument();
-            foreach (var block in oldDoc.Blocks)
+            foreach (var block in oldBlocks)
                 RecycleParagraph(block);
             _searchMatches.Clear();
             _currentSearchIndex = -1;
