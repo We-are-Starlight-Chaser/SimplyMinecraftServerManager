@@ -247,12 +247,6 @@ namespace SimplyMinecraftServerManager.Internals
             _startCompleted = true;
         }
 
-        /// <summary>同步启动服务器进程</summary>
-        public void Start()
-        {
-            StartAsync().GetAwaiter().GetResult();
-        }
-
         /// <summary>
         /// 向服务器标准输入发送控制台命令。
         /// </summary>

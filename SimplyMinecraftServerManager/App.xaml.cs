@@ -11,7 +11,6 @@ using SimplyMinecraftServerManager.ViewModels.Windows;
 using SimplyMinecraftServerManager.Views.Pages;
 using SimplyMinecraftServerManager.Views.Windows;
 using System.IO;
-using System.Net;
 using System.Windows.Threading;
 using Wpf.Ui;
 using Wpf.Ui.DependencyInjection;
@@ -187,7 +186,7 @@ namespace SimplyMinecraftServerManager
                 Directory.CreateDirectory(dir);
         }
 
-        private static readonly object _logLock = new();
+        private static readonly Lock _logLock = new();
         private static System.IO.StreamWriter? _logWriter;
 
         private static void Log(string message)

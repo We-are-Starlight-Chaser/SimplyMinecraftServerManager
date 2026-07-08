@@ -37,6 +37,12 @@
                     <TextBlock Text="创建MOTD" Margin="5,0,0,0"/>
                 </StackPanel>
             </Button>
+            <Button Margin="5" Command="{Binding ViewModel.OpenPingerContentDialogCommand}">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="NetworkAdapter16"/>
+                    <TextBlock Text="服务器联通性检测" Margin="5,0,0,0"/>
+                </StackPanel>
+            </Button>
         </WrapPanel>
     </Grid>
 </Page>

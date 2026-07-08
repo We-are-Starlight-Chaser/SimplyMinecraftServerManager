@@ -233,7 +233,7 @@
                         HorizontalAlignment="Stretch">
                         <Grid>
                             <StackPanel Orientation="Horizontal" 
-                                Visibility="{Binding ViewModel.IsLoading, Converter={StaticResource InverseBooleanConverter}}">
+                                Visibility="{Binding ViewModel.IsLoading, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                 <ui:SymbolIcon Symbol="ArrowDownload24"/>
                                 <TextBlock Text="下载并安装" Margin="8,0,0,0"/>
                             </StackPanel>

@@ -3,13 +3,15 @@
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using SimplyMinecraftServerManager.Internals;
+using SimplyMinecraftServerManager.Views.Pages;
+using Wpf.Ui;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
     /// <summary>
     /// 工具页面的视图模型，提供系统工具功能
     /// </summary>
-    public partial class ToolsViewModel : ObservableObject
+    public partial class ToolsViewModel(IContentDialogService contentDialogService) : ObservableObject
     {
         /// <summary>
         /// 清理系统内存，释放未使用的内存资源
@@ -19,7 +21,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             try
             {
-                new MemoryCleaner().CleanMemory();
+                await Task.Run(()=>new MemoryCleaner().CleanMemory());
                 await new Wpf.Ui.Controls.MessageBox()
                 {
                     Title = "内存清理",
@@ -36,6 +38,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     }.ShowDialogAsync();
                 }
             }
+        }
+        [RelayCommand]
+        private async Task OpenPingerContentDialogAsync()
+        {
+            await contentDialogService.ShowAsync(new ServerPingerDialog(new Dialogs.ServerPingerDialogViewModel()), CancellationToken.None);
         }
     }
 }
