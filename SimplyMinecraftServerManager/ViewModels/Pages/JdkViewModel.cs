@@ -296,14 +296,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>
         /// 显示"已复制"提示，2 秒后自动消失。
         /// </summary>
-        public void ShowCopied()
+        public async void ShowCopied()
         {
             IsCopied = true;
-            Task.Run(async () =>
-            {
-                await Task.Delay(2000);
-                Application.Current.Dispatcher.Invoke(() => IsCopied = false);
-            });
+            await Task.Delay(2000);
+            Application.Current?.Dispatcher.BeginInvoke(() => IsCopied = false);
         }
     }
 }

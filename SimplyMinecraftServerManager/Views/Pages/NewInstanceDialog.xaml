@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <ui:ContentDialog
@@ -42,7 +42,7 @@
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
             <TextBlock Text="实例名称" FontWeight="Medium" Margin="0,0,0,4"/>
-            <ui:TextBox Text="{Binding InstanceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            <ui:TextBox Text="{Binding InstanceName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                 PlaceholderText="输入名称"/>
         </StackPanel>
         <StackPanel Grid.Row="1" Margin="0,0,0,12">
@@ -66,7 +66,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <ui:TextBox Grid.Column="0" 
-                    Text="{Binding CustomJarPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    Text="{Binding CustomJarPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                     PlaceholderText="使用自定义JAR文件路径（可选）"
                     IsEnabled="{Binding UseCustomJar, Mode=TwoWay}"/>
                 <ui:Button Grid.Column="1" 

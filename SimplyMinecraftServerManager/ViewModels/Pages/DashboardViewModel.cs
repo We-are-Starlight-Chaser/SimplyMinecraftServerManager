@@ -4,6 +4,7 @@
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Services;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
@@ -72,8 +73,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 var items = await Task.Run(() =>
                 {
-                    var result = new List<ServerDisplayItem>();
-                    foreach (var inst in instances)
+                    var result = new ConcurrentBag<ServerDisplayItem>();
+                    Parallel.ForEach(instances, inst =>
                     {
                         var isRunning = runningSet.Contains(inst.Id);
                         var metadata = ServerJarMetadataReader.Read(inst);
@@ -85,15 +86,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                             IsRunning = isRunning,
                             InstanceId = inst.Id
                         });
-                    }
-                    return result;
+                    });
+                    return result.OrderBy(x => x.Name).ToList();
                 });
 
-                Servers.Clear();
-                foreach (var item in items)
-                {
-                    Servers.Add(item);
-                }
+                Servers = new ObservableCollection<ServerDisplayItem>(items);
             }
             catch
             {

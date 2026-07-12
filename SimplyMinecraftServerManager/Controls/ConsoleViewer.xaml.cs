@@ -2,7 +2,9 @@
 // Licensed under the MIT License.
 
 using SimplyMinecraftServerManager.ViewModels.Pages;
+using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,7 +16,7 @@ using System.Windows.Threading;
 
 namespace SimplyMinecraftServerManager.Controls
 {
-    public partial class ConsoleViewer : UserControl
+    public partial class ConsoleViewer : UserControl, IDisposable
     {
         private CancellationTokenSource? _searchCts;
         private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
@@ -92,12 +94,15 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
         private int _currentSearchIndex = -1;
         private bool _isSearchOpen;
         private ScrollViewer? _scrollViewer;
+        private bool _userScrolledUp;
 
         private readonly Stack<Paragraph> _paragraphPool = new(64);
         private readonly Stack<Run> _runPool = new(256);
-        private readonly List<string> _pendingLines = [];
-        private readonly Lock _pendingLineLock = new();
-        private bool _batchPending;
+        private int _paragraphPoolPeak;
+        private int _runPoolPeak;
+        private int _poolShrinkCounter;
+        private readonly ConcurrentQueue<string> _pendingLines = new();
+        private int _batchPending;
         private const int MaxLineLength = 8192;
 
         public static readonly DependencyProperty ViewModelProperty =
@@ -257,7 +262,13 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
         private void RebuildDocument()
         {
             var lines = ViewModel?.GetConsoleLines() ?? [];
-            var oldBlocks = ConsoleTextBox.Document.Blocks.ToArray();
+            var oldBlocks = new List<Block>();
+            while (ConsoleTextBox.Document.Blocks.Count > 0)
+            {
+                var block = ConsoleTextBox.Document.Blocks.FirstBlock!;
+                oldBlocks.Add(block);
+                ConsoleTextBox.Document.Blocks.Remove(block);
+            }
             ConsoleTextBox.Document = CreateDocument();
             foreach (var block in oldBlocks)
                 RecycleParagraph(block);
@@ -272,6 +283,7 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
 
             ApplyConsoleAppearance();
             UpdateEmptyHintVisibility(lines.Count > 0);
+            _userScrolledUp = false;
             UpdateSearchResultText();
             SelectCurrentSearchResult();
             QueueAutoScrollIfNeeded();
@@ -330,8 +342,12 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
                 return;
             }
 
-            var visibleText = string.Concat(segments.Select(static segment => segment.Text));
-            if (string.IsNullOrEmpty(visibleText))
+            var sb = _parseBuffer ??= new StringBuilder(256);
+            sb.Clear();
+            foreach (var segment in segments)
+                sb.Append(segment.Text);
+            var visibleText = sb.ToString();
+            if (visibleText.Length == 0)
             {
                 return;
             }
@@ -574,6 +590,9 @@ if (isSearchHit)
             return ranges;
         }
 
+        [ThreadStatic]
+        private static StringBuilder? _parseBuffer;
+
         private List<StyledSegment> ParseStyledSegments(string text)
         {
             if (string.IsNullOrEmpty(text))
@@ -581,8 +600,9 @@ if (isSearchHit)
                 return [];
             }
 
-            var segments = new List<StyledSegment>();
-            var buffer = new System.Text.StringBuilder();
+            var segments = new List<StyledSegment>(8);
+            var buffer = _parseBuffer ??= new StringBuilder(256);
+            buffer.Clear();
             var style = ConsoleTextStyle.Default;
             var index = 0;
 
@@ -641,14 +661,16 @@ if (isSearchHit)
 
         private bool HasExplicitStyling(IReadOnlyList<StyledSegment> segments)
         {
-            return segments.Any(static segment =>
-                segment.Foreground != null
-                || segment.Background != null
-                || segment.IsBold
-                || segment.IsItalic
-                || segment.IsUnderline
-                || segment.IsStrikethrough
-                || segment.Inverse);
+            for (int i = 0; i < segments.Count; i++)
+            {
+                var segment = segments[i];
+                if (segment.Foreground != null || segment.Background != null
+                    || segment.IsBold || segment.IsItalic
+                    || segment.IsUnderline || segment.IsStrikethrough
+                    || segment.Inverse)
+                    return true;
+            }
+            return false;
         }
 
         private List<StyledSegment> BuildSemanticSegments(string fullLine, string prefix, string content)
@@ -745,8 +767,7 @@ return
 
         private ConsoleSemanticSeverity DetectSeverity(string fullLine, string prefix, string content)
         {
-
-            static bool ContainsAny(string source, params string[] targets)
+            static bool ContainsAny(string source, ReadOnlySpan<string> targets)
             {
                 foreach (var target in targets)
                 {
@@ -756,14 +777,20 @@ return
                 return false;
             }
 
-            if (ContainsAny(content, "FATAL", "SEVERE", "ERROR", "Exception", "Caused by:") ||
-                ContainsAny(prefix, "FATAL", "SEVERE", "ERROR"))
+            ReadOnlySpan<string> errorWords = ["FATAL", "SEVERE", "ERROR", "Exception", "Caused by:"];
+            ReadOnlySpan<string> errorPrefix = ["FATAL", "SEVERE", "ERROR"];
+            ReadOnlySpan<string> warnWords = ["WARN", "WARNING"];
+            ReadOnlySpan<string> warnPrefix = ["WARN"];
+            ReadOnlySpan<string> debugWords = ["DEBUG", "TRACE"];
+            ReadOnlySpan<string> debugPrefix = ["DEBUG"];
+
+            if (ContainsAny(content, errorWords) || ContainsAny(prefix, errorPrefix))
                 return ConsoleSemanticSeverity.Error;
 
-            if (ContainsAny(content, "WARN", "WARNING") || ContainsAny(prefix, "WARN"))
+            if (ContainsAny(content, warnWords) || ContainsAny(prefix, warnPrefix))
                 return ConsoleSemanticSeverity.Warning;
 
-            if (ContainsAny(content, "DEBUG", "TRACE") || ContainsAny(prefix, "DEBUG"))
+            if (ContainsAny(content, debugWords) || ContainsAny(prefix, debugPrefix))
                 return ConsoleSemanticSeverity.Debug;
 
             if (content.Contains("INFO", StringComparison.OrdinalIgnoreCase) ||
@@ -920,7 +947,7 @@ return
             return code is 'l' or 'm' or 'n' or 'o' or 'r' or 'k';
         }
 
-        private static bool TryParseMinecraftHexColor(string text, int startIndex, out Color color, out int consumedLength)
+        private static bool TryParseMinecraftHexColor(ReadOnlySpan<char> text, int startIndex, out Color color, out int consumedLength)
         {
             color = default;
             consumedLength = 0;
@@ -934,7 +961,7 @@ return
             for (var i = 0; i < 6; i++)
             {
                 var markerIndex = startIndex + 2 + (i * 2);
-                if (text[markerIndex] != '§')
+                if (text[markerIndex] != '\u00a7')
                 {
                     return false;
                 }
@@ -948,20 +975,25 @@ return
                 hexChars[i] = hexChar;
             }
 
-            var hex = new string(hexChars);
             color = Color.FromRgb(
-                Convert.ToByte(hex[..2], 16),
-                Convert.ToByte(hex.Substring(2, 2), 16),
-                Convert.ToByte(hex.Substring(4, 2), 16));
+                (byte)((HexValue(hexChars[0]) << 4) | HexValue(hexChars[1])),
+                (byte)((HexValue(hexChars[2]) << 4) | HexValue(hexChars[3])),
+                (byte)((HexValue(hexChars[4]) << 4) | HexValue(hexChars[5])));
             consumedLength = 14;
             return true;
+
+            static int HexValue(char c) => c switch
+            {
+                >= '0' and <= '9' => c - '0',
+                >= 'a' and <= 'f' => c - 'a' + 10,
+                >= 'A' and <= 'F' => c - 'A' + 10,
+                _ => 0
+            };
         }
 
         private static SolidColorBrush CreateBrush(Color color)
         {
-            var brush = new SolidColorBrush(color);
-            brush.Freeze();
-            return brush;
+            return GetCachedBrush(color);
         }
 
         private static Color MapAnsiPaletteColor(int paletteIndex)
@@ -995,26 +1027,32 @@ return
 
         private void OnConsoleLineAdded(object? sender, string line)
         {
-            line = TruncateLine(line);
-            lock (_pendingLineLock)
+            _pendingLines.Enqueue(TruncateLine(line));
+            if (Interlocked.CompareExchange(ref _batchPending, 1, 0) == 0)
             {
-                _pendingLines.Add(line);
-                if (_batchPending) return;
-                _batchPending = true;
+                Dispatcher.BeginInvoke(ProcessBatch, DispatcherPriority.Background);
             }
-            Dispatcher.BeginInvoke(ProcessBatch, DispatcherPriority.Background);
         }
 
         private void ProcessBatch()
         {
-            List<string> lines;
-            lock (_pendingLineLock)
+            if (_pendingLines.IsEmpty)
             {
-                if (_pendingLines.Count == 0) { _batchPending = false; return; }
-                lines = [.. _pendingLines];
-                _pendingLines.Clear();
-                _batchPending = false;
+                Interlocked.Exchange(ref _batchPending, 0);
+                if (!_pendingLines.IsEmpty && Interlocked.CompareExchange(ref _batchPending, 1, 0) == 0)
+                    Dispatcher.BeginInvoke(ProcessBatch, DispatcherPriority.Background);
+                return;
             }
+
+            var lines = new List<string>();
+            while (_pendingLines.TryDequeue(out var line))
+                lines.Add(line);
+            Interlocked.Exchange(ref _batchPending, 0);
+
+            if (!_pendingLines.IsEmpty && Interlocked.CompareExchange(ref _batchPending, 1, 0) == 0)
+                Dispatcher.BeginInvoke(ProcessBatch, DispatcherPriority.Background);
+
+            if (lines.Count == 0) return;
 
             if (!Dispatcher.CheckAccess())
             {
@@ -1030,25 +1068,32 @@ return
             var searchText = GetActiveSearchText();
             bool hasSearch = !string.IsNullOrWhiteSpace(searchText);
 
+            var paragraphs = new List<Paragraph>(lines.Count);
             foreach (var line in lines)
             {
-                var para = hasSearch
+                paragraphs.Add(hasSearch
                     ? CreateParagraph(line, searchText)
-                    : CreateParagraph(line, string.Empty);
-                document.Blocks.Add(para);
+                    : CreateParagraph(line, string.Empty));
             }
+
+            foreach (var para in paragraphs)
+                document.Blocks.Add(para);
 
             var maxBlocks = InstanceViewModel.MaxConsoleLines;
             if (document.Blocks.Count > maxBlocks)
             {
                 int toRemove = document.Blocks.Count - maxBlocks;
-                var first = document.Blocks.FirstBlock;
-                for (int i = 0; i < toRemove && first != null; i++)
+                var blocksToRemove = new Block[toRemove];
+                var current = document.Blocks.FirstBlock;
+                for (int i = 0; i < toRemove && current != null; i++)
                 {
-                    var next = first.NextBlock;
-                    document.Blocks.Remove(first);
-                    RecycleParagraph(first);
-                    first = next;
+                    blocksToRemove[i] = current;
+                    current = current.NextBlock;
+                }
+                foreach (var block in blocksToRemove)
+                {
+                    document.Blocks.Remove(block);
+                    RecycleParagraph(block);
                 }
             }
 
@@ -1061,13 +1106,39 @@ return
         {
             if (block is Paragraph p)
             {
-                foreach (var inline in p.Inlines)
+                var inlines = p.Inlines.ToArray();
+                foreach (var inline in inlines)
                 {
                     if (inline is Run r) { r.Text = ""; _runPool.Push(r); }
                 }
                 p.Inlines.Clear();
                 _paragraphPool.Push(p);
+
+                if (_paragraphPool.Count > _paragraphPoolPeak)
+                    _paragraphPoolPeak = _paragraphPool.Count;
+                if (_runPool.Count > _runPoolPeak)
+                    _runPoolPeak = _runPool.Count;
+
+                if (++_poolShrinkCounter >= 256)
+                {
+                    _poolShrinkCounter = 0;
+                    ShrinkPools();
+                }
             }
+        }
+
+        private void ShrinkPools()
+        {
+            var targetParagraphs = Math.Max(32, (int)(_paragraphPoolPeak * 1.5));
+            while (_paragraphPool.Count > targetParagraphs)
+                _paragraphPool.Pop();
+
+            var targetRuns = Math.Max(128, (int)(_runPoolPeak * 1.5));
+            while (_runPool.Count > targetRuns)
+                _runPool.Pop();
+
+            _paragraphPoolPeak = Math.Max(_paragraphPool.Count, 32);
+            _runPoolPeak = Math.Max(_runPool.Count, 128);
         }
 
         private void OnConsoleCleared(object? sender, EventArgs e)
@@ -1078,7 +1149,13 @@ return
                 return;
             }
 
-            var oldBlocks = ConsoleTextBox.Document.Blocks.ToArray();
+            var oldBlocks = new List<Block>();
+            while (ConsoleTextBox.Document.Blocks.Count > 0)
+            {
+                var block = ConsoleTextBox.Document.Blocks.FirstBlock!;
+                oldBlocks.Add(block);
+                ConsoleTextBox.Document.Blocks.Remove(block);
+            }
             ConsoleTextBox.Document = CreateDocument();
             foreach (var block in oldBlocks)
                 RecycleParagraph(block);
@@ -1103,6 +1180,8 @@ return
                 return;
             }
 
+            if (_userScrolledUp) return;
+
             _ = Dispatcher.InvokeAsync(() =>
             {
                 ConsoleTextBox.CaretPosition = ConsoleTextBox.Document.ContentEnd;
@@ -1114,7 +1193,17 @@ return
 
         private void AttachScrollViewer()
         {
+            if (_scrollViewer != null)
+                _scrollViewer.ScrollChanged -= OnScrollChanged;
             _scrollViewer = FindDescendant<ScrollViewer>(ConsoleTextBox);
+            if (_scrollViewer != null)
+                _scrollViewer.ScrollChanged += OnScrollChanged;
+        }
+
+        private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_scrollViewer == null) return;
+            _userScrolledUp = _scrollViewer.VerticalOffset < _scrollViewer.ScrollableHeight - 16;
         }
 
         private static T? FindDescendant<T>(DependencyObject? parent)
@@ -1259,19 +1348,33 @@ return
         private async void OnSearchTextChanged(object sender, TextChangedEventArgs e)
         {
             if (!_isSearchOpen) return;
-            _searchCts?.Cancel();
+            var oldCts = _searchCts;
             _searchCts = new CancellationTokenSource();
             var token = _searchCts.Token;
+            oldCts?.Cancel();
+            oldCts?.Dispose();
 
             try
             {
-                await Task.Delay(250, token); // 250ms 防抖
+                var lineCount = ViewModel?.GetConsoleLines().Count ?? 0;
+                var delay = lineCount switch
+                {
+                    < 500 => 100,
+                    < 2000 => 250,
+                    < 5000 => 500,
+                    _ => 800
+                };
+                await Task.Delay(delay, token);
                 if (!token.IsCancellationRequested && Dispatcher.CheckAccess())
                 {
                     RebuildDocument();
                 }
             }
-            catch (OperationCanceledException) { /* 正常取消 */ }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ConsoleViewer] Search rebuild failed: {ex.Message}");
+            }
         }
 
         private void OnSearchTextBoxKeyDown(object sender, KeyEventArgs e)
@@ -1342,11 +1445,6 @@ return
             }
         }
 
-        private void OnConsoleTextChanged(object sender, TextChangedEventArgs e)
-        {
-            QueueAutoScrollIfNeeded();
-        }
-
         private sealed record TextRangeInfo(int Start, int End);
 
         private sealed record StyledSegment(string Text, ConsoleTextStyle Style)
@@ -1392,6 +1490,23 @@ return
             Error,
             Success,
             Startup
+        }
+
+        public void Dispose()
+        {
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+            _searchCts = null;
+
+            _searchDebounceTimer.Stop();
+
+            if (_subscribedViewModel != null)
+            {
+                _subscribedViewModel.ConsoleLineAdded -= OnConsoleLineAdded;
+                _subscribedViewModel = null;
+            }
+
+            GC.SuppressFinalize(this);
         }
     }
 }

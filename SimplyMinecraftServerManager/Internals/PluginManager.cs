@@ -22,7 +22,7 @@ namespace SimplyMinecraftServerManager.Internals
             .Build();
 
         private static readonly ConcurrentDictionary<string, (List<PluginInfo> Plugins, DateTime CacheTime)> _pluginCache = new();
-        private static readonly TimeSpan _cacheExpiration = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan _cacheExpiration = TimeSpan.FromSeconds(60);
 
         /// <summary>
         /// 获取指定实例的所有插件信息（包括已禁用的插件）。

@@ -3,6 +3,7 @@
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using SimplyMinecraftServerManager.Internals;
+using SimplyMinecraftServerManager.ViewModels.Dialogs;
 using SimplyMinecraftServerManager.Views.Pages;
 using Wpf.Ui;
 
@@ -13,6 +14,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     /// </summary>
     public partial class ToolsViewModel(IContentDialogService contentDialogService) : ObservableObject
     {
+        private readonly IContentDialogService contentDialogService = contentDialogService;
+        private readonly ServerPingerDialogViewModel _pingerDialogViewModel = new();
+
         /// <summary>
         /// 清理系统内存，释放未使用的内存资源
         /// </summary>
@@ -42,7 +46,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private async Task OpenPingerContentDialogAsync()
         {
-            await contentDialogService.ShowAsync(new ServerPingerDialog(new Dialogs.ServerPingerDialogViewModel()), CancellationToken.None);
+            await contentDialogService.ShowAsync(new ServerPingerDialog(_pingerDialogViewModel), CancellationToken.None);
         }
     }
 }

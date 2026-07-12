@@ -24,7 +24,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
     /// </summary>
     public partial class ScheduledTaskDialog : ContentDialog, INotifyPropertyChanged
     {
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
         private string _commands;
         public string Commands
         {
@@ -38,7 +38,7 @@ namespace SimplyMinecraftServerManager.Views.Pages
         public ScheduledTaskDialog(string commands)
         {
             InitializeComponent();
-            Commands = commands;
+            _commands = commands;
             DataContext = this;
         }
 

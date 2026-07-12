@@ -14,7 +14,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     public class ModrinthProvider(HttpClient? httpClient = null)
     {
         private const string BaseUrl = "https://api.modrinth.com/v2";
-        private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
+        private static readonly HttpClient s_sharedClient = CreateDefaultClient();
+        private readonly HttpClient _http = httpClient ?? s_sharedClient;
 
         // JSON 选项：Modrinth 返回 snake_case
         private static readonly JsonSerializerOptions JsonOptions = new()

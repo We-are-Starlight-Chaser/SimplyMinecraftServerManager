@@ -13,6 +13,11 @@ namespace SimplyMinecraftServerManager.Internals
         private static readonly string _root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "smsm");
 
+        private static readonly string _configFile = Path.Combine(_root, "config.toml");
+        private static readonly string _instancesFile = Path.Combine(_root, "instances.toml");
+        private static readonly string _instancesRoot = Path.Combine(_root, "instances");
+        private static readonly string _jdksRoot = Path.Combine(_root, "jdks");
+
         /// <summary>
         /// 获取应用程序根目录路径。
         /// </summary>
@@ -21,22 +26,22 @@ namespace SimplyMinecraftServerManager.Internals
         /// <summary>
         /// 获取配置文件路径。
         /// </summary>
-        public static string ConfigFile => Path.Combine(_root, "config.toml");
+        public static string ConfigFile => _configFile;
 
         /// <summary>
         /// 获取实例列表文件路径。
         /// </summary>
-        public static string InstancesFile => Path.Combine(_root, "instances.toml");
+        public static string InstancesFile => _instancesFile;
 
         /// <summary>
         /// 获取服务器实例根目录路径。
         /// </summary>
-        public static string InstancesRoot => Path.Combine(_root, "instances");
+        public static string InstancesRoot => _instancesRoot;
 
         /// <summary>
         /// 获取 JDK 安装根目录路径。
         /// </summary>
-        public static string JdksRoot => Path.Combine(_root, "jdks");
+        public static string JdksRoot => _jdksRoot;
 
         /// <summary>
         /// 获取指定实例的目录路径。

@@ -73,7 +73,7 @@ namespace SimplyMinecraftServerManager.Helpers
                     return;
                 }
                 actions = [.. _pendingActions];
-                while (_pendingActions.TryDequeue(out var a)) { }
+                _pendingActions.Clear();
                 _isPending = false;
             }
 

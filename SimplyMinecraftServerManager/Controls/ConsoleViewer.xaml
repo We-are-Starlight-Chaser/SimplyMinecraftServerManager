@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <UserControl
@@ -158,12 +158,12 @@
         </Border>
 
         <Grid Grid.Row="1">
-            <Border
-                x:Name="ConsoleViewport"
-                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource ControlElevationBorderBrush}"
-                BorderThickness="1"
-                CornerRadius="10">
+                <Border
+                    x:Name="ConsoleViewport"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Height" Value="420"/>
@@ -185,9 +185,9 @@
                     FontSize="{Binding ViewModel.ConsoleFontSize, ElementName=Root}"
                     HorizontalScrollBarVisibility="Auto"
                     VerticalScrollBarVisibility="Auto"
-                    TextChanged="OnConsoleTextChanged"
                     SelectionBrush="{DynamicResource AccentFillColorDefaultBrush}"
-                    SelectionOpacity="0.35"/>
+                    SelectionOpacity="0.35"
+                    FlowDirection="LeftToRight"/>
             </Border>
 
             <TextBlock

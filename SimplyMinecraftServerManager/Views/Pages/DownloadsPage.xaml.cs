@@ -1,15 +1,16 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using SimplyMinecraftServerManager.ViewModels.Pages;
-using SimplyMinecraftServerManager.ViewModels.Windows;
+using System.Windows;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.Views.Pages
 {
-    public partial class DownloadsPage : INavigableView<DownloadsViewModel>
+    public partial class DownloadsPage : INavigableView<DownloadsViewModel>, IDisposable
     {
         public DownloadsViewModel ViewModel { get; }
+        private bool _disposed;
 
         public DownloadsPage(DownloadsViewModel viewModel)
         {
@@ -17,17 +18,36 @@ namespace SimplyMinecraftServerManager.Views.Pages
             DataContext = this;
             InitializeComponent();
 
-            // 订阅任务数变化事件，更新主窗口角标
+            Loaded += OnLoaded;
+            Unloaded += OnUnloaded;
+        }
+
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
             ViewModel.TaskCountChanged += OnTaskCountChanged;
+        }
+
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            ViewModel.TaskCountChanged -= OnTaskCountChanged;
         }
 
         private void OnTaskCountChanged(object? sender, int count)
         {
-            // 获取主窗口 ViewModel 并更新角标
             if (Application.Current.MainWindow is Views.Windows.MainWindow mainWindow)
             {
                 mainWindow.ViewModel.UpdateDownloadTaskBadge(count);
             }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            ViewModel.TaskCountChanged -= OnTaskCountChanged;
+            Loaded -= OnLoaded;
+            Unloaded -= OnUnloaded;
+            GC.SuppressFinalize(this);
         }
     }
 }

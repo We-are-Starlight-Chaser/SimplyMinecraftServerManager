@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using Microsoft.Extensions.DependencyInjection;
@@ -60,6 +60,7 @@ namespace SimplyMinecraftServerManager.Controls
 
             storyboard.Children.Add(opacityAnimation);
             storyboard.Children.Add(translateAnimation);
+            storyboard.FillBehavior = FillBehavior.Stop;
             storyboard.Begin();
         }
 
@@ -118,6 +119,7 @@ namespace SimplyMinecraftServerManager.Controls
 
             storyboard.Children.Add(opacityAnimation);
             storyboard.Children.Add(translateAnimation);
+            storyboard.FillBehavior = FillBehavior.Stop;
             storyboard.Completed += (_, _) => completionSource.TrySetResult();
             storyboard.Begin();
 

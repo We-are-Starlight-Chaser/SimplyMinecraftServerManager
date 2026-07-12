@@ -20,7 +20,9 @@ namespace SimplyMinecraftServerManager.Internals
         private bool _disposed;
         private IntPtr _jobHandle = IntPtr.Zero;
         private int _processId;
-        private bool _startCompleted;
+        private volatile bool _startCompleted;
+        private DataReceivedEventHandler? _outputHandler;
+        private DataReceivedEventHandler? _errorHandler;
 
         /// <summary>关联的实例 ID</summary>
         public string InstanceId { get; } = instanceId;
@@ -182,14 +184,16 @@ namespace SimplyMinecraftServerManager.Internals
 
             if (!SecurityHelper.IsValidJvmArgs(info.ExtraJvmArgs))
                 throw new InvalidOperationException("Invalid JVM arguments");
-
             var args = new StringBuilder();
             args.Append($"-Xms{info.MinMemoryMb}M ");
             args.Append($"-Xmx{info.MaxMemoryMb}M ");
-
             if (!string.IsNullOrWhiteSpace(info.ExtraJvmArgs))
                 args.Append($"{info.ExtraJvmArgs.Trim()} ");
-
+            args.Append($"-Dfile.encoding=UTF-8 ");
+            if (GetJavaMajorVersion(javaPath) >= 18)
+            {
+                args.Append("-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 ");
+            }
             args.Append($"-jar \"{info.ServerJar}\" nogui");
 
             CreateJobObject();
@@ -211,16 +215,17 @@ namespace SimplyMinecraftServerManager.Internals
                 EnableRaisingEvents = true
             };
 
-            _process.OutputDataReceived += (_, e) =>
+            _outputHandler = (_, e) =>
             {
                 if (e.Data != null) OutputReceived?.Invoke(this, e.Data);
             };
-
-            _process.ErrorDataReceived += (_, e) =>
+            _errorHandler = (_, e) =>
             {
                 if (e.Data != null) ErrorReceived?.Invoke(this, e.Data);
             };
 
+            _process.OutputDataReceived += _outputHandler;
+            _process.ErrorDataReceived += _errorHandler;
             _process.Exited += OnProcessExited;
 
             var started = await Task.Run(() => _process.Start(), cancellationToken);
@@ -247,6 +252,39 @@ namespace SimplyMinecraftServerManager.Internals
             _startCompleted = true;
         }
 
+        private static int GetJavaMajorVersion(string javaPath)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = javaPath,
+                    Arguments = "-version",
+                    UseShellExecute = false,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using var proc = Process.Start(psi);
+                if (proc == null) return -1;
+
+                string? firstLine = proc.StandardError.ReadLine();
+                proc.WaitForExit(3000);
+
+                if (string.IsNullOrEmpty(firstLine)) return -1;
+                var match = JdkVersionRegex().Match(firstLine);
+                if (match.Success && int.TryParse(match.Groups[1].Value, out int major))
+                {
+                    return major;
+                }
+
+                return -1;
+            }
+            catch
+            {
+                return -1;
+            }
+        }
         /// <summary>
         /// 向服务器标准输入发送控制台命令。
         /// </summary>
@@ -357,7 +395,15 @@ namespace SimplyMinecraftServerManager.Internals
 
             try
             {
-                ResetRconClientAsync().AsTask().GetAwaiter().GetResult();
+                var client = _rconClient;
+                _rconClient = null;
+                if (client != null)
+                {
+                    Task.Run(async () =>
+                    {
+                        try { await client.DisposeAsync(); } catch { }
+                    }).GetAwaiter().GetResult();
+                }
             }
             catch
             {
@@ -368,6 +414,17 @@ namespace SimplyMinecraftServerManager.Internals
                 if (_process != null && !_process.HasExited)
                 {
                     try { _process.Kill(entireProcessTree: true); } catch { }
+                }
+            }
+            catch { }
+
+            try
+            {
+                if (_process != null)
+                {
+                    if (_outputHandler != null) _process.OutputDataReceived -= _outputHandler;
+                    if (_errorHandler != null) _process.ErrorDataReceived -= _errorHandler;
+                    _process.Exited -= OnProcessExited;
                 }
             }
             catch { }
@@ -422,6 +479,17 @@ namespace SimplyMinecraftServerManager.Internals
 
             try
             {
+                if (_process != null)
+                {
+                    if (_outputHandler != null) _process.OutputDataReceived -= _outputHandler;
+                    if (_errorHandler != null) _process.ErrorDataReceived -= _errorHandler;
+                    _process.Exited -= OnProcessExited;
+                }
+            }
+            catch { }
+
+            try
+            {
                 _process?.Dispose();
             }
             catch { }
@@ -447,9 +515,13 @@ namespace SimplyMinecraftServerManager.Internals
 
         private void OnProcessExited(object? sender, EventArgs e)
         {
+            if (_disposed) return;
             int code = -1;
             try { code = _process?.ExitCode ?? -1; } catch { }
             Exited?.Invoke(this, code);
         }
+
+        [System.Text.RegularExpressions.GeneratedRegex(@"""(\d+)")]
+        private static partial System.Text.RegularExpressions.Regex JdkVersionRegex();
     }
 }

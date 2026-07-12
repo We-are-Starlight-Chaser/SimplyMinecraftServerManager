@@ -48,9 +48,9 @@ namespace SimplyMinecraftServerManager.Internals
         [return: MarshalAs(UnmanagedType.Bool)]
         private static partial bool OpenProcessToken(IntPtr ProcessHandle, TokenAccessLevels DesiredAccess, out IntPtr TokenHandle);
 
-        [DllImport("advapi32.dll", SetLastError = true)]
+        [LibraryImport("advapi32.dll", EntryPoint = "LookupPrivilegeValueW", SetLastError = true,StringMarshalling = StringMarshalling.Utf16)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, out LUID lpLuid);
+        private static partial bool LookupPrivilegeValue(string lpSystemName, string lpName, out LUID lpLuid);
 
         [LibraryImport("advapi32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -143,11 +143,17 @@ namespace SimplyMinecraftServerManager.Internals
         }
 
         [StructLayout(LayoutKind.Sequential)]
+        public struct LUID_AND_ATTRIBUTES
+        {
+            public LUID Luid;
+            public uint Attributes;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
         public struct TOKEN_PRIVILEGES
         {
             public uint PrivilegeCount;
-            public LUID Luid;
-            public uint Attributes;
+            public LUID_AND_ATTRIBUTES Privileges;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -163,17 +169,6 @@ namespace SimplyMinecraftServerManager.Internals
         private const uint SE_PRIVILEGE_ENABLED = 0x00000002;
         private const string SE_DEBUG_NAME = "SeDebugPrivilege";
         private const string SE_INCREASE_QUOTA_NAME = "SeIncreaseQuotaPrivilege";
-
-        #endregion
-
-        #region Properties
-
-        /// <summary>
-        /// 是否正在运行内存清理
-        /// </summary>
-        public bool IsRunning { get; private set; }
-
-
 
         #endregion
 
@@ -203,55 +198,6 @@ namespace SimplyMinecraftServerManager.Internals
             return cleanedProcesses;
         }
 
-        /// <summary>
-        /// 开始定期清理内存
-        /// </summary>
-        /// <param name="intervalSeconds">清理间隔（秒）</param>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public async System.Threading.Tasks.Task StartPeriodicCleanAsync(int intervalSeconds,
-            System.Threading.CancellationToken cancellationToken = default)
-        {
-            if (!IsProcessElevated)
-            {
-                throw new InvalidOperationException("此操作需要管理员权限，请以管理员身份运行应用程序");
-            }
-
-            IsRunning = true;
-
-            try
-            {
-                // 提升权限
-                bool debugPrivilegeResult = AdjustTokenPrivilegesForNT();
-                bool quotaPrivilegeResult = EnableSpecificPrivilege(SE_INCREASE_QUOTA_NAME);
-
-                while (!cancellationToken.IsCancellationRequested && IsRunning)
-                {
-
-                    await Task.Delay(intervalSeconds * 1000, cancellationToken);
-
-                    if (cancellationToken.IsCancellationRequested || !IsRunning)
-                        break;
-
-                    int cleanedProcesses = GetEmptyAllSet();
-
-                    bool cacheCleanupResult = SetSystemFileCacheSize(-1, -1, 0);
-                }
-            }
-            finally
-            {
-                IsRunning = false;
-            }
-        }
-
-        /// <summary>
-        /// 停止定期清理
-        /// </summary>
-        public void StopPeriodicClean()
-        {
-            IsRunning = false;
-        }
-
         #endregion
 
         #region Private Helper Methods
@@ -272,14 +218,14 @@ namespace SimplyMinecraftServerManager.Internals
                 }
                 else
                 {
-                    if (!LookupPrivilegeValue(null, lpPrivilegeName, out tokenPrivilege.Luid))
+                    if (!LookupPrivilegeValue(null, lpPrivilegeName, out tokenPrivilege.Privileges.Luid))
                     {
                         bRet = false;
                     }
                     else
                     {
                         tokenPrivilege.PrivilegeCount = 1;
-                        tokenPrivilege.Attributes = SE_PRIVILEGE_ENABLED;
+                        tokenPrivilege.Privileges.Attributes = SE_PRIVILEGE_ENABLED;
 
                         if (!AdjustTokenPrivileges(hToken, false, ref tokenPrivilege, 0, IntPtr.Zero, IntPtr.Zero))
                         {
@@ -313,13 +259,13 @@ namespace SimplyMinecraftServerManager.Internals
                     return false;
                 }
 
-                if (!LookupPrivilegeValue(null, SE_DEBUG_NAME, out tkp.Luid))
+                if (!LookupPrivilegeValue(null, SE_DEBUG_NAME, out tkp.Privileges.Luid))
                 {
                     return false;
                 }
 
                 tkp.PrivilegeCount = 1;
-                tkp.Attributes = SE_PRIVILEGE_ENABLED;
+                tkp.Privileges.Attributes = SE_PRIVILEGE_ENABLED;
 
                 return AdjustTokenPrivileges(hToken, false, ref tkp, 0, IntPtr.Zero, IntPtr.Zero);
             }
@@ -334,39 +280,49 @@ namespace SimplyMinecraftServerManager.Internals
 
         private static int GetEmptyAllSet()
         {
-            uint[] processIds = new uint[1024];
-
-            if (!EnumProcesses(processIds, (uint)(processIds.Length * sizeof(uint)), out uint bytesReturned))
-            {
-                return 0;
-            }
-
-            int numProcesses = (int)(bytesReturned / sizeof(uint));
+            uint[] processIds = new uint[2048];
             int cleanedCount = 0;
 
-            for (int i = 0; i < numProcesses; i++)
+            while (true)
             {
-                if (processIds[i] == 0) continue; // Skip null process IDs
-
-                IntPtr hProcess = OpenProcess(ProcessAccessFlags.All, false, processIds[i]);
-
-                if (hProcess != IntPtr.Zero)
+                if (!EnumProcesses(processIds, (uint)(processIds.Length * sizeof(uint)), out uint bytesReturned))
                 {
-                    try
+                    return cleanedCount;
+                }
+
+                int numProcesses = (int)(bytesReturned / sizeof(uint));
+
+                if (numProcesses == processIds.Length)
+                {
+                    processIds = new uint[processIds.Length * 2];
+                    continue;
+                }
+
+                for (int i = 0; i < numProcesses; i++)
+                {
+                    if (processIds[i] == 0) continue;
+
+                    IntPtr hProcess = OpenProcess(ProcessAccessFlags.All, false, processIds[i]);
+
+                    if (hProcess != IntPtr.Zero)
                     {
-                        SetProcessWorkingSetSize(hProcess, -1, -1);
-                        EmptyWorkingSet(hProcess);
-                        cleanedCount++;
-                    }
-                    catch (Exception)
-                    {
-                        // 忽略单个进程清理时的错误
-                    }
-                    finally
-                    {
-                        CloseHandle(hProcess);
+                        try
+                        {
+                            SetProcessWorkingSetSize(hProcess, -1, -1);
+                            EmptyWorkingSet(hProcess);
+                            cleanedCount++;
+                        }
+                        catch (Exception)
+                        {
+                        }
+                        finally
+                        {
+                            CloseHandle(hProcess);
+                        }
                     }
                 }
+
+                break;
             }
 
             return cleanedCount;

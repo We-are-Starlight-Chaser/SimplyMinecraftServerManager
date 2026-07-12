@@ -3,6 +3,7 @@
 
 using System.Net.Http;
 using System.Text.Json;
+using SimplyMinecraftServerManager.Helpers;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
 {
@@ -14,6 +15,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     {
         private const string BaseUrl = "https://api.purpurmc.org/v2/purpur";
         private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
+        private static readonly MemoryCache<IReadOnlyList<string>> _versionsCache = new(TimeSpan.FromMinutes(5), 10);
 
         /// <summary>
         /// Purpur 平台标识。
@@ -27,6 +29,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         /// <returns>版本号只读列表</returns>
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {
+            string cacheKey = "purpur:versions";
+            if (_versionsCache.TryGet(cacheKey, out var cached))
+                return cached;
+
             // GET /v2/purpur → { "versions": ["1.14.1", ..., "1.21.4"] }
             string json = await _http.GetStringAsync(BaseUrl, ct);
             using var doc = JsonDocument.Parse(json);
@@ -38,7 +44,9 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 .ToList();
 
             versions.Reverse();
-            return versions.AsReadOnly();
+            var result = versions.AsReadOnly();
+            _versionsCache.Set(cacheKey, result);
+            return result;
         }
 
         /// <summary>

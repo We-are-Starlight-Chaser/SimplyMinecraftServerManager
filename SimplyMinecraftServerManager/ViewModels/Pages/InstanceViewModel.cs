@@ -53,51 +53,57 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         /// <summary>实例唯一标识符。</summary>
         [ObservableProperty]
-        private string _instanceId = "";
+        public partial string InstanceId { get; set; } = "";
+
+        private static async void SafeFireAndForget(Task task)
+        {
+            try { await task; }
+            catch (Exception ex) { Debug.WriteLine($"[InstanceViewModel] Background task failed: {ex.Message}"); }
+        }
 
         /// <summary>实例详细信息。</summary>
         [ObservableProperty]
-        private InstanceInfo? _instanceInfo;
+        public partial InstanceInfo? InstanceInfo { get; set; }
 
         /// <summary>实例显示名称。</summary>
         [ObservableProperty]
-        private string _instanceName = "加载中...";
+        public partial string InstanceName { get; set; } = "加载中...";
 
         /// <summary>服务端类型（如 Paper、Purpur）。</summary>
         [ObservableProperty]
-        private string _serverType = "";
+        public partial string ServerType { get; set; } = "";
 
         /// <summary>Minecraft 版本号。</summary>
         [ObservableProperty]
-        private string _minecraftVersion = "";
+        public partial string MinecraftVersion { get; set; } = "";
 
         /// <summary>服务器是否正在运行。</summary>
         [ObservableProperty]
-        private bool _isRunning = false;
+        public partial bool IsRunning { get; set; } = false;
 
         /// <summary>服务器是否正在启动中。</summary>
         [ObservableProperty]
-        private bool _isStarting = false;
+        public partial bool IsStarting { get; set; } = false;
 
         /// <summary>控制台是否自动滚动到底部。</summary>
         [ObservableProperty]
-        private bool _autoScroll = true;
+        public partial bool AutoScroll { get; set; } = true;
 
         /// <summary>控制台是否自动换行。</summary>
         [ObservableProperty]
-        private bool _consoleWrapLines = false;
+        public partial bool ConsoleWrapLines { get; set; } = false;
 
         /// <summary>控制台字体。</summary>
         [ObservableProperty]
-        private string _consoleFontFamily = "Consolas";
+        public partial string ConsoleFontFamily { get; set; } = "Consolas";
 
         /// <summary>控制台字号。</summary>
         [ObservableProperty]
-        private int _consoleFontSize = 12;
+        public partial int ConsoleFontSize { get; set; } = 12;
 
         /// <summary>控制台是否全屏显示。</summary>
         [ObservableProperty]
-        private bool _isConsoleFullScreen = false;
+        public partial bool IsConsoleFullScreen { get; set; } = false;
 
         private readonly Queue<string> _consoleLines = new();
 
@@ -110,121 +116,121 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         /// <summary>控制台命令输入文本。</summary>
         [ObservableProperty]
-        private string _commandInput = "";
+        public partial string CommandInput { get; set; } = "";
 
         /// <summary>插件列表。</summary>
         [ObservableProperty]
-        private ObservableCollection<PluginDisplayItem> _plugins = [];
+        public partial ObservableCollection<PluginDisplayItem> Plugins { get; set; } = [];
 
         /// <summary>服务器属性（server.properties）列表。</summary>
         [ObservableProperty]
-        private ObservableCollection<ServerProperty> _serverProperties = [];
+        public partial ObservableCollection<ServerProperty> ServerProperties { get; set; } = [];
 
         /// <summary>状态消息文本。</summary>
         [ObservableProperty]
-        private string _statusMessage = "";
+        public partial string StatusMessage { get; set; } = "";
 
         // 编辑中的属性
         /// <summary>编辑中的最小内存值（MB）。</summary>
         [ObservableProperty]
-        private string _editMinMemory = "1024";
+        public partial string EditMinMemory { get; set; } = "1024";
 
         /// <summary>编辑中的最大内存值（MB）。</summary>
         [ObservableProperty]
-        private string _editMaxMemory = "2048";
+        public partial string EditMaxMemory { get; set; } = "2048";
 
         /// <summary>是否使用自定义 JDK 路径。</summary>
         [ObservableProperty]
-        private bool _useCustomJdk = false;
+        public partial bool UseCustomJdk { get; set; } = false;
 
         /// <summary>是否自动选择 JDK。</summary>
         [ObservableProperty]
-        private bool _autoSelectJdk = true;
+        public partial bool AutoSelectJdk { get; set; } = true;
 
         /// <summary>自定义 JDK 可执行文件路径。</summary>
         [ObservableProperty]
-        private string _editJdkPath = "";
+        public partial string EditJdkPath { get; set; } = "";
 
         /// <summary>额外的 JVM 启动参数。</summary>
         [ObservableProperty]
-        private string _editExtraJvmArgs = "";
+        public partial string EditExtraJvmArgs { get; set; } = "";
 
         /// <summary>已安装的 JDK 列表。</summary>
         [ObservableProperty]
-        private ObservableCollection<InstalledJdk> _installedJdks = [];
+        public partial ObservableCollection<InstalledJdk> InstalledJdks { get; set; } = [];
 
         /// <summary>当前选中的已安装 JDK。</summary>
         [ObservableProperty]
-        private InstalledJdk? _selectedInstalledJdk;
+        public partial InstalledJdk? SelectedInstalledJdk { get; set; }
 
         // 性能监控属性 - 保留原有的性能监控属性
         /// <summary>CPU 使用率百分比。</summary>
         [ObservableProperty]
-        private double _cpuUsage = 0;
+        public partial double CpuUsage { get; set; } = 0;
 
         /// <summary>内存使用量（MB）。</summary>
         [ObservableProperty]
-        private double _memoryUsage = 0;
+        public partial double MemoryUsage { get; set; } = 0;
 
         /// <summary>总存储空间（MB）。</summary>
         [ObservableProperty]
-        private long _totalStorageMb = 0;
+        public partial long TotalStorageMb { get; set; } = 0;
 
         /// <summary>总存储空间的格式化文本。</summary>
         [ObservableProperty]
-        private string _totalStorage = "0 MB";
+        public partial string TotalStorage { get; set; } = "0 MB";
 
         /// <summary>各世界文件夹的存储信息。</summary>
         [ObservableProperty]
-        private ObservableCollection<WorldStorageInfo> _worldStorageInfo = [];
+        public partial ObservableCollection<WorldStorageInfo> WorldStorageInfo { get; set; } = [];
 
         /// <summary>游戏模式（如生存模式、创造模式）。</summary>
         [ObservableProperty]
-        private string _gameMode = "未知";
+        public partial string GameMode { get; set; } = "未知";
 
         /// <summary>是否启用在线模式（正版验证）。</summary>
         [ObservableProperty]
-        private bool _isOnlineMode = false;
+        public partial bool IsOnlineMode { get; set; } = false;
 
         /// <summary>模拟距离。</summary>
         [ObservableProperty]
-        private int _simulationDistance = 0;
+        public partial int SimulationDistance { get; set; } = 0;
 
         /// <summary>视距。</summary>
         [ObservableProperty]
-        private int _viewDistance = 0;
+        public partial int ViewDistance { get; set; } = 0;
 
         /// <summary>服务器连接地址。</summary>
         [ObservableProperty]
-        private string _serverAddress = "localhost:25565";
+        public partial string ServerAddress { get; set; } = "localhost:25565";
 
         /// <summary>当前在线玩家数。</summary>
         [ObservableProperty]
-        private int _onlinePlayersCount = 0;
+        public partial int OnlinePlayersCount { get; set; } = 0;
 
         /// <summary>最大玩家数上限。</summary>
         [ObservableProperty]
-        private int _maxPlayersCount = 0;
+        public partial int MaxPlayersCount { get; set; } = 0;
 
         /// <summary>在线玩家列表。</summary>
         [ObservableProperty]
-        private ObservableCollection<PlayerDisplayItem> _onlinePlayers = [];
+        public partial ObservableCollection<PlayerDisplayItem> OnlinePlayers { get; set; } = [];
 
         /// <summary>管理员（OP）玩家列表。</summary>
         [ObservableProperty]
-        private ObservableCollection<PlayerDisplayItem> _adminPlayers = [];
+        public partial ObservableCollection<PlayerDisplayItem> AdminPlayers { get; set; } = [];
 
         /// <summary>玩家数据文件数量。</summary>
         [ObservableProperty]
-        private int _playerDataCount = 0;
+        public partial int PlayerDataCount { get; set; } = 0;
 
         /// <summary>在线玩家提示文本。</summary>
         [ObservableProperty]
-        private string _onlinePlayersHint = "启动服务器以查看";
+        public partial string OnlinePlayersHint { get; set; } = "启动服务器以查看";
 
         /// <summary>指示是否正在刷新在线玩家列表。</summary>
         [ObservableProperty]
-        private bool _isRefreshingPlayers = false;
+        public partial bool IsRefreshingPlayers { get; set; } = false;
 
         /// <summary>在线玩家列表为空时是否显示提示。</summary>
         public bool ShowOnlinePlayersHint => OnlinePlayers.Count == 0;
@@ -234,19 +240,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         /// <summary>服务器运行时长格式化文本。</summary>
         [ObservableProperty]
-        private string _uptime = "00:00:00";
+        public partial string Uptime { get; set; } = "00:00:00";
 
         /// <summary>网络已发送字节数。</summary>
         [ObservableProperty]
-        private long _networkSentBytes = 0;
+        public partial long NetworkSentBytes { get; set; } = 0;
 
         /// <summary>网络已接收字节数。</summary>
         [ObservableProperty]
-        private long _networkReceivedBytes = 0;
+        public partial long NetworkReceivedBytes { get; set; } = 0;
 
         /// <summary>备份进度百分比。</summary>
         [ObservableProperty]
-        private double _backupProgress;
+        public partial double BackupProgress { get; set; }
 
         /// <summary>实例最大内存（MB）。</summary>
         public int MaxMemoryMb => InstanceInfo?.MaxMemoryMb ?? 2048;
@@ -260,11 +266,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>服务器启动时间。</summary>
         private DateTime _serverStartTime = DateTime.MinValue;
 
-        /// <summary>仪表盘性能监控器。</summary>
-        private PerformanceMonitor? _dashboardPerformanceMonitor;
-
         /// <summary>定时任务命令列表。</summary>
         private string _scheduledCommands = "";
+
+        private static readonly MemoryCache<List<OpEntry>> _opsCache = new(TimeSpan.FromSeconds(5), 50);
 
         /// <summary>
         /// 初始化实例详情视图模型。
@@ -281,8 +286,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _navigationService = navigationService;
             _navigationParameterService = navigationParameterService;
             LoadConsolePreferences();
-            OnlinePlayers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowOnlinePlayersHint));
-            AdminPlayers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowAdminPlayersHint));
+            OnlinePlayers.CollectionChanged += OnOnlinePlayersCollectionChanged;
+            AdminPlayers.CollectionChanged += OnAdminPlayersCollectionChanged;
 
             // 订阅全局状态变化事件
             ServerProcessManager.InstanceStatusChanged += OnInstanceStatusChanged;
@@ -302,16 +307,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
         private CancellationTokenSource? _backupCts;
 
-        private static readonly int processerCount = Environment.ProcessorCount;
         /// <summary>
         /// 取消正在进行的备份操作。
         /// </summary>
         [RelayCommand]
         private async Task CancelBackup()
         {
-            if (_backupCts != null && !_backupCts.IsCancellationRequested)
+            var cts = Volatile.Read(ref _backupCts);
+            if (cts != null && !cts.IsCancellationRequested)
             {
-                await _backupCts.CancelAsync();
+                await cts.CancelAsync();
             }
         }
 
@@ -321,12 +326,21 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private async Task BackupAsync()
         {
+            var oldCts = Interlocked.Exchange(ref _backupCts, new CancellationTokenSource());
+            if (oldCts != null)
+            {
+                await oldCts.CancelAsync();
+                oldCts.Dispose();
+            }
+            var currentCts = _backupCts!;
+            var token = currentCts.Token;
             try
             {
                 if (ServerProcessManager.IsRunning(InstanceId) )
                 {
                     await ExecutePlayerRconCommandAsync("save-off");
                     await ExecutePlayerRconCommandAsync("save-all flush");
+                    await Task.Delay(2500, token);
                 }
             }
             catch{
@@ -344,19 +358,16 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     return;
                 }
             }
-            Environment.SetEnvironmentVariable("ZSTD_NBTHREADS", (processerCount*2).ToString());
             BackupProgress = 0;
-            _backupCts?.Dispose();
-            var currentCts = new CancellationTokenSource();
-            _backupCts = currentCts;
+ 
             string path = PathHelper.GetInstanceDir(InstanceId);
             string destPath = Path.Combine(PathHelper.Root, "backups");
             if (!Directory.Exists(destPath)) Directory.CreateDirectory(destPath);
             try
             {
-                await CreateTarZstdWithProgress(path, Path.Combine(destPath,$"{InstanceId}_{DateTime.Now:yyyy_MM_dd_HH_mm}.zst"),_backupCts.Token);
+                await CreateTarZstdWithProgress(path, Path.Combine(destPath,$"{InstanceId}_{DateTimeOffset.Now:yyyy_MM_dd_HH_mm}.zst"),token);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 await _contentDialogService.ShowAsync(new ContentDialog()
                 {
@@ -368,11 +379,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
             catch
             {
-                await _contentDialogService.ShowAsync(new Wpf.Ui.Controls.ContentDialog()
+                await _contentDialogService.ShowAsync(new ContentDialog()
                 {
                     Title = "SMSM",
                     Content = "备份出现异常！",
-                    CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary,
+                    CloseButtonAppearance = ControlAppearance.Primary,
                     CloseButtonText = "确定"
                 }, CancellationToken.None);
                 
@@ -382,6 +393,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 BackupProgress = 100;
                 if (ServerProcessManager.IsRunning(InstanceId))
                     await ExecutePlayerRconCommandAsync("save-on");
+                if (Interlocked.CompareExchange(ref _backupCts, null, currentCts) == currentCts)
+                {
+                    currentCts.Dispose();
+                }
             }
         }
         /// <summary>
@@ -397,7 +412,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             foreach (var fi in srcDir.EnumerateFiles("*", SearchOption.AllDirectories))
             {
                 var fp = fi.FullName;
-                if (fp.Contains("\\logs\\") || fp.EndsWith(".log", StringComparison.OrdinalIgnoreCase))
+                if (fp.Contains("\\logs\\") || fp.EndsWith(".log", StringComparison.OrdinalIgnoreCase)|| fp.EndsWith("session.lock", StringComparison.OrdinalIgnoreCase)|| fp.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)|| fp.EndsWith(".pid", StringComparison.OrdinalIgnoreCase))
                     continue;
                 totalSize += fi.Length;
                 fileEntries.Add((fp, Path.GetRelativePath(sourceFolder, fp).Replace('\\', '/'), fi.Length));
@@ -405,7 +420,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             long processedSize = 0;
 
-            using var fileStream = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan);
+            using var fileStream = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan | FileOptions.Asynchronous);
             using var zstdStream = new CompressionStream(fileStream, new CompressionOptions(3));
             var writerOptions = new TarWriterOptions(CompressionType.None)
             {
@@ -416,13 +431,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             foreach (var (filePath, relativePath, currentFileSize) in fileEntries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var fileInput = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 81920, FileOptions.SequentialScan);
+                await using var fileInput = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 81920, FileOptions.SequentialScan);
                 using var progressStream = new ProgressStream(fileInput, currentFileSize, bytesRead =>
-                {
+                { 
                     long newTotal = Interlocked.Add(ref processedSize, bytesRead);
-                    BackupProgress = (double)newTotal / totalSize * 100;
+                    BackupProgress = Math.Min(100.0, (double)newTotal / totalSize * 100);
                 });
-                await tarWriter.WriteAsync(relativePath, progressStream, DateTime.Now, cancellationToken: cancellationToken);
+                await tarWriter.WriteAsync(relativePath, progressStream, DateTimeOffset.UtcNow.UtcDateTime, cancellationToken: cancellationToken);
             }
         }
         /// <summary>
@@ -440,7 +455,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     StatusMessage = "服务器已停止";
                     StopPerformanceMonitoring();
-                    StopDashboardMonitoring();
                     ResetOnlinePlayersState();
                 }
                 else
@@ -604,7 +618,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             lock (_consoleLock)
             {
-                return _consoleLines.ToArray();
+                return [.. _consoleLines];
             }
         }
 
@@ -631,7 +645,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             IsConsoleFullScreen = false;
             StopPerformanceMonitoring();
-            StopDashboardMonitoring();
             return Task.CompletedTask;
         }
 
@@ -641,7 +654,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <param name="instanceId">实例标识符。</param>
         public void LoadInstance(string instanceId)
         {
-            _ = LoadInstanceAsync(instanceId);
+            SafeFireAndForget(LoadInstanceAsync(instanceId));
         }
 
         /// <summary>
@@ -686,12 +699,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 ResetOnlinePlayersState();
             }
 
-            _ = Task.Run(async () =>
+            _ = Task.Run(() =>
             {
-                try { await Task.Run(() => LoadPlugins()); } catch { }
-                try { await Task.Run(() => LoadServerProperties()); } catch { }
-                try { await Task.Run(() => LoadPlayerManagementData()); } catch { }
-                try { await Task.Run(() => LoadDashboardData()); } catch { }
+                try { LoadPlugins(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadPlugins failed: {ex.Message}"); }
+                try { LoadServerProperties(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadServerProperties failed: {ex.Message}"); }
+                try { LoadPlayerManagementData(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadPlayerManagementData failed: {ex.Message}"); }
+                try { LoadDashboardData(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadDashboardData failed: {ex.Message}"); }
             });
         }
 
@@ -703,11 +716,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             try
             {
                 var installedJdks = JdkManager.GetInstalledJdks();
-                InstalledJdks.Clear();
-                foreach (var jdk in installedJdks)
-                {
-                    InstalledJdks.Add(jdk);
-                }
+                InstalledJdks = new ObservableCollection<InstalledJdk>(installedJdks);
             }
             catch (Exception ex)
             {
@@ -934,6 +943,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private List<OpEntry> ReadOps()
         {
+            if (_opsCache.TryGet(InstanceId, out var cached))
+                return cached!;
+
             try
             {
                 string opsFilePath = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "ops.json");
@@ -943,10 +955,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 }
 
                 var ops = System.Text.Json.JsonSerializer.Deserialize<List<OpEntry>>(File.ReadAllText(opsFilePath));
-                return ops?
+                var result = ops?
                     .Where(op => !string.IsNullOrWhiteSpace(op.Name))
                     .OrderBy(op => op.Name, StringComparer.OrdinalIgnoreCase)
                     .ToList() ?? [];
+                _opsCache.Set(InstanceId, result);
+                return result;
             }
             catch
             {
@@ -1006,7 +1020,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void QueueRunningStateInitialization()
         {
-            _ = InitializeRunningStateAsync();
+            SafeFireAndForget(InitializeRunningStateAsync());
         }
 
         /// <summary>
@@ -1051,12 +1065,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 TotalStorageMb = data.TotalStorageMb;
                 TotalStorage = FormatBytes(data.TotalStorageMb * 1024 * 1024);
 
-                WorldStorageInfo.Clear();
+                // 构建新的存储信息列表，仅在内容变化时替换
+                var newWorldStorage = new List<WorldStorageInfo>();
                 long maxSize = data.WorldStorageMb.Values.DefaultIfEmpty(1).Max();
-
                 foreach (var kvp in data.WorldStorageMb)
                 {
-                    WorldStorageInfo.Add(new WorldStorageInfo
+                    newWorldStorage.Add(new WorldStorageInfo
                     {
                         WorldName = kvp.Key switch
                         {
@@ -1069,6 +1083,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         SizeFormatted = FormatBytes(kvp.Value * 1024 * 1024),
                         SizePercent = maxSize > 0 ? (double)kvp.Value / maxSize * 100 : 0
                     });
+                }
+
+                if (newWorldStorage.Count != WorldStorageInfo.Count ||
+                    !newWorldStorage.SequenceEqual(WorldStorageInfo, WorldStorageInfoComparer.Instance))
+                {
+                    WorldStorageInfo = new ObservableCollection<WorldStorageInfo>(newWorldStorage);
                 }
             });
         }
@@ -1184,7 +1204,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 StatusMessage = "正在启动服务器...";
 
                 // 在后台线程执行启动操作，避免阻塞 UI
-                var (process, success, errorMessage) = await Task.Run(() =>
+                var (process, success, errorMessage) = await Task.Run(async () =>
                 {
                     try
                     {
@@ -1195,7 +1215,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         proc.ErrorReceived += OnProcessErrorReceived;
 
                         // 启动进程（这个操作可能耗时）
-                        proc.StartAsync().GetAwaiter().GetResult();
+                        await proc.StartAsync();
 
                         return (proc, true, (string?)null);
                     }
@@ -1251,7 +1271,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 IsRunning = false;
                 StopPerformanceMonitoring();
-                StopDashboardMonitoring(); // 停止仪表盘监控
                 StatusMessage = "服务器未在运行";
                 return;
             }
@@ -1269,7 +1288,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     {
                         IsRunning = false;
                         StopPerformanceMonitoring();
-                        StopDashboardMonitoring(); // 停止仪表盘监控
                         StatusMessage = "服务器已停止";
                         return;
                     }
@@ -1296,7 +1314,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 IsRunning = false;
                 StopPerformanceMonitoring();
-                StopDashboardMonitoring(); // 停止仪表盘监控
                 StatusMessage = "服务器未在运行";
                 return;
             }
@@ -1306,7 +1323,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 ServerProcessManager.KillAndRemove(InstanceId);
                 IsRunning = false;
                 StopPerformanceMonitoring();
-                StopDashboardMonitoring(); // 停止仪表盘监控
                 StatusMessage = "服务器已被强制终止";
             }
             catch (Exception ex)
@@ -1347,11 +1363,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         public void Dispose()
         {
-            StopDashboardMonitoring();
+            GC.SuppressFinalize(this);
             StopPerformanceMonitoring();
             _consoleThrottler?.Dispose();
             _backupCts?.Dispose();
             ServerProcessManager.InstanceStatusChanged -= OnInstanceStatusChanged;
+            OnlinePlayers.CollectionChanged -= OnOnlinePlayersCollectionChanged;
+            AdminPlayers.CollectionChanged -= OnAdminPlayersCollectionChanged;
+        }
+
+        private void OnOnlinePlayersCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            OnPropertyChanged(nameof(ShowOnlinePlayersHint));
+        }
+
+        private void OnAdminPlayersCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            OnPropertyChanged(nameof(ShowAdminPlayersHint));
         }
 
         /// <summary>
@@ -1428,8 +1456,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 InstanceManager.UpdateInstance(InstanceInfo);
                 SaveServerPropertiesInternal();
                 InstanceManager.EnsureRconConfiguration(InstanceId);
-                UpdateServerAddress();
-                LoadServerPropertiesForDashboard();
+                var props = ServerPropertiesManager.Read(InstanceId);
+                UpdateServerAddressFromDict(props);
+                LoadServerPropertiesFromDict(props);
                 LoadPlayerManagementData();
                 StatusMessage = "设置已保存";
             }
@@ -1696,13 +1725,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             if (string.IsNullOrEmpty(InstanceId)) return;
 
-            // 读取 server.properties
-            LoadServerPropertiesForDashboard();
+            var props = ServerPropertiesManager.Read(InstanceId);
 
-            // 设置服务器地址
-            UpdateServerAddress();
+            LoadServerPropertiesFromDict(props);
+            UpdateServerAddressFromDict(props);
 
-            // 如果服务器正在运行，启动状态轮询
             if (IsRunning)
             {
                 StartServerStatusPolling();
@@ -1714,16 +1741,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-        /// <summary>
-        /// 从 server.properties 加载仪表盘需要的服务器属性。
-        /// </summary>
-        private void LoadServerPropertiesForDashboard()
+        private void LoadServerPropertiesFromDict(Dictionary<string, string> props)
         {
             try
             {
-                var props = ServerPropertiesManager.Read(InstanceId);
-
-                // 读取游戏模式
                 var gameModeValue = props.GetValueOrDefault("gamemode", "survival");
                 GameMode = gameModeValue switch
                 {
@@ -1734,13 +1755,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     _ => gameModeValue
                 };
 
-                // 读取在线模式
                 IsOnlineMode = props.GetValueOrDefault("online-mode", "true").Equals("true", StringComparison.CurrentCultureIgnoreCase);
-
-                // 读取模拟距离
                 SimulationDistance = int.TryParse(props.GetValueOrDefault("simulation-distance", "0"), out var simDist) ? simDist : 0;
-
-                // 读取视距
                 ViewDistance = int.TryParse(props.GetValueOrDefault("view-distance", "0"), out var viewDist) ? viewDist : 0;
             }
             catch (Exception ex)
@@ -1749,25 +1765,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
         }
 
-        /// <summary>
-        /// 更新服务器连接地址文本。
-        /// </summary>
-        private void UpdateServerAddress()
+        private void UpdateServerAddressFromDict(Dictionary<string, string> props)
         {
             try
             {
-                var props = ServerPropertiesManager.Read(InstanceId);
                 var ip = props.GetValueOrDefault("server-ip", "");
                 var port = props.GetValueOrDefault("server-port", "25565");
 
                 if (string.IsNullOrWhiteSpace(ip))
-                {
                     ServerAddress = $"localhost:{port}";
-                }
                 else
-                {
                     ServerAddress = $"{ip}:{port}";
-                }
             }
             catch (Exception ex)
             {
@@ -1886,7 +1894,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _serverStatusTimer?.Dispose();
             _serverStatusTimer = new Timer(_ =>
             {
-                _ = RefreshOnlinePlayersAsync();
+                SafeFireAndForget(RefreshOnlinePlayersAsync());
             }, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
         }
 
@@ -1912,48 +1920,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>
         /// 启动仪表盘的性能监控（CPU 和内存）。
         /// </summary>
-        public void StartDashboardPerformanceMonitoring()
-        {
-            try
-            {
-                _dashboardPerformanceMonitor?.Dispose();
-                _dashboardPerformanceMonitor = new PerformanceMonitor(InstanceId);
-                _dashboardPerformanceMonitor.DataUpdated += OnDashboardPerformanceDataUpdated;
-                _dashboardPerformanceMonitor.Start();
-            }
-            catch (Exception ex)
-            {
-                RunOnUiThread(() =>
-                {
-                    StatusMessage = $"仪表盘性能监控启动失败: {ex.Message}";
-                });
-            }
-        }
-
-        /// <summary>
-        /// 仪表盘性能数据更新回调。
-        /// </summary>
-        private void OnDashboardPerformanceDataUpdated(object? sender, PerformanceData data)
-        {
-            RunOnUiThread(() =>
-            {
-                CpuUsage = data.CpuUsage;
-                MemoryUsage = data.MemoryUsageMb;
-                TotalStorageMb = data.TotalStorageMb;
-                TotalStorage = FormatBytes(data.TotalStorageMb * 1024 * 1024);
-            });
-        }
-
-        /// <summary>
-        /// 停止仪表盘相关的所有定时器和监控。
-        /// </summary>
-        public void StopDashboardMonitoring()
-        {
-            _serverStatusTimer?.Dispose();
-            _uptimeTimer?.Stop();
-            _uptimeTimer = null;
-            _dashboardPerformanceMonitor?.Dispose();
-        }
 
         /// <summary>
         /// 将服务器地址复制到剪贴板。
@@ -2342,6 +2308,26 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public string SizeFormatted { get; set; } = "";
         public double SizePercent { get; set; }
     }
+
+    internal sealed class WorldStorageInfoComparer : IEqualityComparer<WorldStorageInfo>
+    {
+        public static readonly WorldStorageInfoComparer Instance = new();
+
+        public bool Equals(WorldStorageInfo? x, WorldStorageInfo? y)
+        {
+            if (ReferenceEquals(x, y)) return true;
+            if (x is null || y is null) return false;
+            return x.WorldName == y.WorldName &&
+                   x.SizeMb == y.SizeMb &&
+                   x.SizeFormatted == y.SizeFormatted &&
+                   x.SizePercent.Equals(y.SizePercent);
+        }
+
+        public int GetHashCode(WorldStorageInfo obj)
+        {
+            return HashCode.Combine(obj.WorldName, obj.SizeMb, obj.SizeFormatted, obj.SizePercent);
+        }
+    }
     /// <summary>
     /// 带进度回调的包装流，用于在读取数据时报告进度。
     /// </summary>
@@ -2353,7 +2339,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>进度报告回调。</summary>
         private readonly Action<long> _reportProgress = reportProgress;
 
-        // ✅ 新增：重写基于 Memory 的 ReadAsync（现代 .NET 的核心路径）
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             int bytesRead = await _innerStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
@@ -2395,6 +2380,20 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public override void Write(byte[] buffer, int offset, int count) => _innerStream.Write(buffer, offset, count);
         public override long Seek(long offset, SeekOrigin origin) => _innerStream.Seek(offset, origin);
         public override void SetLength(long value) => _innerStream.SetLength(value);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _innerStream.Dispose();
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            GC.SuppressFinalize(this);
+            await _innerStream.DisposeAsync().ConfigureAwait(false);
+            await base.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }
 

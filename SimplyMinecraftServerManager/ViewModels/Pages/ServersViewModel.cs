@@ -23,6 +23,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private readonly IContentDialogService _contentDialogService;
         private readonly INavigationService _navigationService;
         private readonly NavigationParameterService _navigationParameterService;
+        private Dictionary<string, InstanceDisplayItem> _instanceItemMap = new();
+
+        private static async void SafeFireAndForget(Task task)
+        {
+            try { await task; }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[ServersViewModel] Background task failed: {ex.Message}"); }
+        }
 
         /// <summary>
         /// 初始化服务器视图模型的新实例。
@@ -47,8 +54,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             RunOnUiThread(() =>
             {
-                var item = Instances.FirstOrDefault(i => i.InstanceId == e.InstanceId);
-                if (item != null && item.IsRunning != e.IsRunning)
+                if (_instanceItemMap.TryGetValue(e.InstanceId, out var item) && item.IsRunning != e.IsRunning)
                 {
                     item.IsRunning = e.IsRunning;
                     item.IsStarting = false;
@@ -347,7 +353,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 ServerProcessManager.CleanupStoppedProcesses();
 
-                var instances = await Task.Run(() => InstanceManager.GetAll().ToList());
+                var instances = await Task.Run(() => InstanceManager.GetAll());
 
                 var items = new List<InstanceDisplayItem>();
                 foreach (var inst in instances)
@@ -360,10 +366,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     items.Add(item);
                 }
 
-                foreach (var item in items)
-                {
-                    Instances.Add(item);
-                }
+                Instances = new ObservableCollection<InstanceDisplayItem>(items);
+                _instanceItemMap = items.ToDictionary(i => i.InstanceId);
 
                 StatusMessage = $"共 {instances.Count} 个实例";
             }
@@ -478,7 +482,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 StatusMessage = "正在启动服务器...";
 
                 // 在后台线程执行启动操作，避免阻塞 UI
-                var (process, success, errorMessage) = await Task.Run(() =>
+                var (process, success, errorMessage) = await Task.Run(async () =>
                 {
                     try
                     {
@@ -494,7 +498,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         };
 
                         // 启动进程（这个操作可能耗时）
-                        proc.StartAsync().GetAwaiter().GetResult();
+                        await proc.StartAsync();
 
                         return (proc, true, (string?)null);
                     }
@@ -636,7 +640,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [RelayCommand]
         private void RefreshInstances()
         {
-            _ = LoadInstancesAsync();
+            SafeFireAndForget(LoadInstancesAsync());
         }
     }
 
@@ -662,7 +666,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         private readonly StringBuilder _consoleBuffer = new(4096);
         private string _cachedConsoleOutput = "";
-        private const int MaxConsoleBufferSize = 50000;
+        private const int MaxConsoleBufferSize = 32768;
+        private const int ConsoleFlushThreshold = 16;
+        private int _pendingLineCount;
         private string? _cachedServerAddress;
 
         public string ConsoleOutput => _cachedConsoleOutput;
@@ -671,6 +677,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             _consoleBuffer.Clear();
             _cachedConsoleOutput = "";
+            _pendingLineCount = 0;
             OnPropertyChanged(nameof(ConsoleOutput));
         }
 
@@ -682,8 +689,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 _consoleBuffer.Remove(0, _consoleBuffer.Length - MaxConsoleBufferSize);
             }
-            _cachedConsoleOutput = _consoleBuffer.ToString();
-            OnPropertyChanged(nameof(ConsoleOutput));
+            _pendingLineCount++;
+            if (_pendingLineCount >= ConsoleFlushThreshold)
+            {
+                _cachedConsoleOutput = _consoleBuffer.ToString();
+                OnPropertyChanged(nameof(ConsoleOutput));
+                _pendingLineCount = 0;
+            }
+        }
+
+        public void FlushConsole()
+        {
+            if (_pendingLineCount > 0)
+            {
+                _cachedConsoleOutput = _consoleBuffer.ToString();
+                OnPropertyChanged(nameof(ConsoleOutput));
+                _pendingLineCount = 0;
+            }
         }
 
         public ServerProcess? ServerProcess { get; set; }
@@ -725,6 +747,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             OnPropertyChanged(nameof(StatusText));
             OnPropertyChanged(nameof(StatusColor));
+            if (!value) FlushConsole();
         }
 
         partial void OnIsStartingChanged(bool value)

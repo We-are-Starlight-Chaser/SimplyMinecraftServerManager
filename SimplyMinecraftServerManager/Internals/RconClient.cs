@@ -1,6 +1,7 @@
 // Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
+using System.Buffers.Binary;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
@@ -74,10 +75,21 @@ namespace SimplyMinecraftServerManager.Internals
                     responses.Add(packet.Payload);
                 }
 
-                if (_stream == null || !_stream.DataAvailable)
+                // 用短暂等待替代 DataAvailable 检查，避免 TCP 包未到达 kernel buffer 时的竞态
+                using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                waitCts.CancelAfter(TimeSpan.FromMilliseconds(50));
+                try
                 {
-                    break;
+                    var nextPacket = await ReadPacketAsync(waitCts.Token);
+                    if (nextPacket.RequestId == requestId)
+                    {
+                        if (!string.IsNullOrEmpty(nextPacket.Payload))
+                            responses.Add(nextPacket.Payload);
+                        continue;
+                    }
                 }
+                catch (OperationCanceledException) { }
+                break;
             }
 
             return string.Join(Environment.NewLine, responses)
@@ -109,15 +121,21 @@ namespace SimplyMinecraftServerManager.Internals
             await SendPacketAsync(requestId, 3, _password, cancellationToken);
 
             bool authenticated = false;
-            while (true)
+            using var authCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            authCts.CancelAfter(TimeSpan.FromSeconds(5));
+            try
             {
-                var packet = await ReadPacketAsync(cancellationToken);
-                if (packet.Type == 2)
+                while (true)
                 {
-                    authenticated = packet.RequestId == requestId;
-                    break;
+                    var packet = await ReadPacketAsync(authCts.Token);
+                    if (packet.Type == 2)
+                    {
+                        authenticated = packet.RequestId == requestId;
+                        break;
+                    }
                 }
             }
+            catch (OperationCanceledException) { }
 
             if (!authenticated)
             {
@@ -147,6 +165,8 @@ namespace SimplyMinecraftServerManager.Internals
             await _stream.FlushAsync(cancellationToken);
         }
 
+        private readonly byte[] _lengthBuffer = new byte[4];
+
         private async Task<RconPacket> ReadPacketAsync(CancellationToken cancellationToken)
         {
             if (_stream == null)
@@ -154,9 +174,8 @@ namespace SimplyMinecraftServerManager.Internals
                 throw new InvalidOperationException("RCON 连接未建立。");
             }
 
-            var lengthBuffer = new byte[4];
-            await ReadExactAsync(_stream, lengthBuffer, cancellationToken);
-            int length = BitConverter.ToInt32(lengthBuffer, 0);
+            await ReadExactAsync(_stream, _lengthBuffer, cancellationToken);
+            int length = BinaryPrimitives.ReadInt32LittleEndian(_lengthBuffer);
 
             if (length < 10 || length > 1024 * 1024)
             {
@@ -166,8 +185,8 @@ namespace SimplyMinecraftServerManager.Internals
             var bodyBuffer = new byte[length];
             await ReadExactAsync(_stream, bodyBuffer, cancellationToken);
 
-            int requestId = BitConverter.ToInt32(bodyBuffer, 0);
-            int type = BitConverter.ToInt32(bodyBuffer, 4);
+            int requestId = BinaryPrimitives.ReadInt32LittleEndian(bodyBuffer);
+            int type = BinaryPrimitives.ReadInt32LittleEndian(bodyBuffer.AsSpan(4));
             string payload = Encoding.UTF8.GetString(bodyBuffer, 8, Math.Max(0, length - 10));
 
             return new RconPacket(requestId, type, payload);
@@ -190,7 +209,7 @@ namespace SimplyMinecraftServerManager.Internals
 
         private static void WriteInt32(byte[] buffer, int offset, int value)
         {
-            BitConverter.GetBytes(value).CopyTo(buffer, offset);
+            BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset), value);
         }
 
         private int GetNextRequestId()

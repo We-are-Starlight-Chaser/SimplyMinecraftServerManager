@@ -3,6 +3,7 @@
 
 using System.Net.Http;
 using System.Text.Json;
+using SimplyMinecraftServerManager.Helpers;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
 {
@@ -15,6 +16,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         private readonly string _project;
         private readonly string _baseUrl;
         private readonly HttpClient _http;
+        private static readonly MemoryCache<IReadOnlyList<string>> _versionsCache = new(TimeSpan.FromMinutes(5), 10);
 
         /// <summary>
         /// 平台标识（由构造函数传入的 project 决定）。
@@ -74,6 +76,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         /// <returns>版本号只读列表</returns>
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {
+            string cacheKey = $"{_project}:versions";
+            if (_versionsCache.TryGet(cacheKey, out var cached))
+                return cached;
+
             using var response = await _http.GetAsync(_baseUrl, ct);
             if (!response.IsSuccessStatusCode)
             {
@@ -98,7 +104,9 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 }
             }
 
-            return versions.AsReadOnly();
+            var result = versions.AsReadOnly();
+            _versionsCache.Set(cacheKey, result);
+            return result;
         }
 
         // ────────── 获取构建列表 ──────────

@@ -8,7 +8,6 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <StartupObject></StartupObject>
     
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     
@@ -19,7 +18,6 @@
     
     <WpfDisableXamlLineInfo>true</WpfDisableXamlLineInfo>
     <WpfEnableNullableReferenceTypes>true</WpfEnableNullableReferenceTypes>
-    <Optimize>true</Optimize>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     
     <PublishReadyToRun>true</PublishReadyToRun>
@@ -28,7 +26,6 @@
     <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
     <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
     <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
-    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
     
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <RetainVM>false</RetainVM>
@@ -49,6 +46,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
+	<Optimize>true</Optimize>
+	<MetadataUpdaterSupport>false</MetadataUpdaterSupport>
   </PropertyGroup>
 
   <ItemGroup>

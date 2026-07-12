@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 namespace SimplyMinecraftServerManager.Helpers
 {
@@ -11,81 +12,107 @@ namespace SimplyMinecraftServerManager.Helpers
     /// <typeparam name="T">缓存值的类型。</typeparam>
     internal class MemoryCache<T>(TimeSpan defaultExpiration, int maxEntries = 1000)
     {
-        private readonly ConcurrentDictionary<string, LinkedListNode<CacheEntry<T>>> _cache = new();
-        private readonly LinkedList<CacheEntry<T>> _accessOrder = new();
+        private readonly ConcurrentDictionary<string, LinkedListNode<CacheEntry>> _cache = new();
+        private readonly LinkedList<CacheEntry> _accessOrder = new();
         private readonly Lock _evictLock = new();
+        private readonly TimeSpan _defaultTtl = defaultExpiration;
+        private readonly int _maxCapacity = maxEntries;
 
         /// <summary>
-        /// 获取缓存值，如果键不存在或已过期则返回默认值。
+        /// 当前缓存有效条目总数
         /// </summary>
-        /// <param name="key">要获取的缓存键。</param>
-        /// <returns>缓存的值，如果键不存在或已过期则返回 default。</returns>
-        public T? Get(string key) => TryGet(key, out var value) ? value : default;
+        public int Count => _cache.Count;
 
         /// <summary>
-        /// 尝试获取缓存值，如果键存在且未过期则返回 true 并更新访问顺序。
+        /// 获取缓存值，不存在/过期返回 default(T)
         /// </summary>
-        /// <param name="key">要获取的缓存键。</param>
-        /// <param name="value">输出参数，包含缓存的值。</param>
-        /// <returns>如果键存在且未过期则返回 true，否则返回 false。</returns>
+        public T? Get(string key) => TryGet(key, out var val) ? val : default;
+
+        /// <summary>
+        /// 尝试获取缓存，命中则自动刷新访问时序与过期续期
+        /// </summary>
         public bool TryGet(string key, out T? value)
         {
-            if (_cache.TryGetValue(key, out var node))
-            {
-                if (node.Value.ExpiresAt > DateTime.UtcNow)
-                {
-                    Touch(node);
-                    value = node.Value.Value;
-                    return true;
-                }
-                RemoveFromList(key, node);
-            }
             value = default;
-            return false;
+            if (!_cache.TryGetValue(key, out var node))
+                return false;
+
+            var entry = node.Value;
+            if (entry.ExpiresAt <= DateTime.UtcNow)
+            {
+                RemoveInternal(key, node);
+                return false;
+            }
+
+            Touch(node);
+            value = entry.Value;
+            return true;
         }
 
         /// <summary>
-        /// 设置缓存值，如果缓存已满则触发淘汰策略。
+        /// 写入/更新缓存，支持自定义过期时长
         /// </summary>
-        /// <param name="key">缓存键。</param>
-        /// <param name="value">要缓存的值。</param>
-        /// <param name="expiration">可选的过期时间，如果为 null 则使用默认过期时间。</param>
         public void Set(string key, T value, TimeSpan? expiration = null)
         {
-            if (_cache.Count >= maxEntries)
-                EvictOne();
+            var ttl = expiration ?? _defaultTtl;
+            if (ttl <= TimeSpan.Zero)
+                return;
 
-            var entry = new CacheEntry<T>
+            var newEntry = new CacheEntry
             {
                 Key = key,
                 Value = value,
-                ExpiresAt = DateTime.UtcNow + (expiration ?? defaultExpiration),
+                ExpiresAt = DateTime.UtcNow + ttl
             };
 
             lock (_evictLock)
             {
-                var node = _accessOrder.AddLast(entry);
-                if (_cache.TryAdd(key, node))
-                    return;
-                _accessOrder.RemoveLast();
+                // 存在旧条目先彻底移除
+                if (_cache.TryGetValue(key, out var oldNode))
+                {
+                    _accessOrder.Remove(oldNode);
+                    _cache.TryRemove(key, out _);
+                }
+
+                // 容量超限循环淘汰
+                while (_cache.Count >= _maxCapacity)
+                    EvictOne();
+
+                var newNode = _accessOrder.AddLast(newEntry);
+                _cache.TryAdd(key, newNode);
             }
         }
 
         /// <summary>
-        /// 移除指定键的缓存条目。
+        /// 不存在则通过工厂创建并存入缓存，存在直接返回已有值
         /// </summary>
-        /// <param name="key">要移除的缓存键。</param>
+        public T GetOrCreate(string key, Func<T> factory, TimeSpan? expiration = null)
+        {
+            if (TryGet(key, out var existValue))
+                return existValue!;
+
+            var newValue = factory();
+            Set(key, newValue, expiration);
+            return newValue;
+        }
+
+        /// <summary>
+        /// 手动删除指定Key缓存
+        /// </summary>
         public void Remove(string key)
         {
             if (_cache.TryRemove(key, out var node))
             {
                 lock (_evictLock)
-                    _accessOrder.Remove(node);
+                {
+                    if (node.List != null)
+                        _accessOrder.Remove(node);
+                }
             }
         }
 
         /// <summary>
-        /// 清空所有缓存条目。
+        /// 清空全部缓存
         /// </summary>
         public void Clear()
         {
@@ -95,24 +122,44 @@ namespace SimplyMinecraftServerManager.Helpers
         }
 
         /// <summary>
-        /// 获取当前缓存中的条目数量。
+        /// 批量清理所有已过期缓存（建议定时/切换页面时调用）
         /// </summary>
-        public int Count => _cache.Count;
-
-        private void Touch(LinkedListNode<CacheEntry<T>> node)
+        public void CleanExpired()
         {
-            if (node.Next == null)
-                return;
+            var now = DateTime.UtcNow;
+            List<string> expiredKeys = new();
+
+            foreach (var pair in _cache)
+            {
+                if (pair.Value.Value.ExpiresAt <= now)
+                    expiredKeys.Add(pair.Key);
+            }
+
+            foreach (var k in expiredKeys)
+                Remove(k);
+        }
+
+        /// <summary>
+        /// 将命中节点移至链表尾部，刷新访问时序 + 自动续期过期时间
+        /// </summary>
+        private void Touch(LinkedListNode<CacheEntry> node)
+        {
             lock (_evictLock)
             {
-                if (node.List == null)
+                if (node.List != _accessOrder)
                     return;
+
+                // 访问自动续期过期时间
+                node.Value.ExpiresAt = DateTime.UtcNow + _defaultTtl;
                 _accessOrder.Remove(node);
                 _accessOrder.AddLast(node);
             }
         }
 
-        private void RemoveFromList(string key, LinkedListNode<CacheEntry<T>> node)
+        /// <summary>
+        /// 内部统一移除缓存条目（字典+链表同步删除）
+        /// </summary>
+        private void RemoveInternal(string key, LinkedListNode<CacheEntry> node)
         {
             _cache.TryRemove(key, out _);
             lock (_evictLock)
@@ -122,40 +169,44 @@ namespace SimplyMinecraftServerManager.Helpers
             }
         }
 
+        /// <summary>
+        /// 淘汰一条缓存：优先删除过期，无过期则删除最久未使用头部节点
+        /// </summary>
         private void EvictOne()
         {
             lock (_evictLock)
             {
-                var node = _accessOrder.First;
-                while (node != null)
+                var ptr = _accessOrder.First;
+                while (ptr != null)
                 {
-                    var next = node.Next;
-                    if (node.Value.ExpiresAt <= DateTime.UtcNow)
+                    var next = ptr.Next;
+                    if (ptr.Value.ExpiresAt <= DateTime.UtcNow)
                     {
-                        _cache.TryRemove(node.Value.Key, out _);
-                        _accessOrder.Remove(node);
+                        _cache.TryRemove(ptr.Value.Key, out _);
+                        _accessOrder.Remove(ptr);
                         return;
                     }
-                    node = next;
+                    ptr = next;
                 }
 
-                node = _accessOrder.First;
-                if (node != null)
+                // 无过期数据，淘汰LRU表头
+                var lruNode = _accessOrder.First;
+                if (lruNode != null)
                 {
-                    _cache.TryRemove(node.Value.Key, out _);
-                    _accessOrder.Remove(node);
+                    _cache.TryRemove(lruNode.Value.Key, out _);
+                    _accessOrder.Remove(lruNode);
                 }
             }
         }
 
         /// <summary>
-        /// 缓存条目，包含键、值和过期时间。
+        /// 缓存条目，过期时间支持修改实现访问续期
         /// </summary>
-        private sealed class CacheEntry<TValue>
+        private sealed class CacheEntry
         {
             public required string Key { get; init; }
-            public required TValue Value { get; init; }
-            public DateTime ExpiresAt { get; init; }
+            public required T Value { get; init; }
+            public DateTime ExpiresAt { get; set; }
         }
     }
 }

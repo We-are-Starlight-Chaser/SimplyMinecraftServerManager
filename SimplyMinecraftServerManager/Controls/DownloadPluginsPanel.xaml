@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <UserControl
@@ -183,10 +183,15 @@
 
         <TextBlock Grid.Row="0" Text="{Binding PluginSearchStatus}" Margin="0,0,0,12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-          <StackPanel>
-            <ItemsControl ItemsSource="{Binding PluginSearchResults}">
-              <ItemsControl.ItemTemplate>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
+          <Grid>
+          <ItemsControl ItemsSource="{Binding PluginSearchResults}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel VirtualizingStackPanel.VirtualizationMode="Recycling"/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
                 <DataTemplate>
                   <ui:Card Margin="0,0,0,14" Padding="14">
                     <Grid>
@@ -303,7 +308,7 @@
                 TextAlignment="Center"
               />
             </StackPanel>
-          </StackPanel>
+          </Grid>
         </ScrollViewer>
 
         <Grid Grid.Row="2" Margin="0,16,0,0" Visibility="{Binding HasMorePlugins, Converter={StaticResource BooleanToVisibilityConverter}}">

@@ -100,10 +100,22 @@ namespace SimplyMinecraftServerManager.Internals
             try
             {
                 using var archive = ZipFile.OpenRead(jarPath);
-                var manifestText = ReadEntryText(archive, "META-INF/MANIFEST.MF");
-                var versionJsonText = ReadEntryText(archive, "version.json");
-                var installPropertiesText = ReadEntryText(archive, "install.properties");
-                var fabricLaunchProperties = ReadEntryText(archive, "fabric-server-launch.properties");
+                var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
+                foreach (var entry in archive.Entries)
+                    entries.TryAdd(entry.FullName, entry);
+
+                string? GetEntryText(string name)
+                {
+                    if (!entries.TryGetValue(name, out var entry)) return null;
+                    using var stream = entry.Open();
+                    using var reader = new StreamReader(stream, Encoding.UTF8, true);
+                    return reader.ReadToEnd();
+                }
+
+                var manifestText = GetEntryText("META-INF/MANIFEST.MF");
+                var versionJsonText = GetEntryText("version.json");
+                var installPropertiesText = GetEntryText("install.properties");
+                var fabricLaunchProperties = GetEntryText("fabric-server-launch.properties");
 
                 if (string.IsNullOrWhiteSpace(detectedType))
                 {
@@ -299,19 +311,6 @@ namespace SimplyMinecraftServerManager.Internals
             }
 
             return DetectMinecraftVersion(text);
-        }
-
-        private static string? ReadEntryText(ZipArchive archive, string entryName)
-        {
-            var entry = archive.Entries.FirstOrDefault(e => e.FullName.Equals(entryName, StringComparison.OrdinalIgnoreCase));
-            if (entry == null)
-            {
-                return null;
-            }
-
-            using var stream = entry.Open();
-            using var reader = new StreamReader(stream, Encoding.UTF8, true);
-            return reader.ReadToEnd();
         }
 
         [GeneratedRegex(@"(?<!\d)(?:1\.\d{1,2}(?:\.\d+)?|\d{2}(?:\.\d+){1,2})(?!\d)")]

@@ -126,17 +126,16 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="16,0,0,0">
                                     <!-- 暂停/继续按钮（仅下载中或暂停时显示） -->
-                                    <ui:Button 
+                                    <Button 
                                         Command="{Binding DataContext.ViewModel.PauseTaskCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                         CommandParameter="{Binding}"
-                                        Appearance="Secondary"
                                         Height="32" Width="32"
                                         Padding="0"
                                         Margin="0,0,4,0"
                                         ToolTip="暂停下载"
                                         Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <ui:SymbolIcon Symbol="Pause24" FontSize="14"/>
-                                    </ui:Button>
+                                    </Button>
                                     <ui:Button 
                                         Command="{Binding DataContext.ViewModel.ResumeTaskCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                         CommandParameter="{Binding}"
@@ -176,7 +175,7 @@
                 FontSize="16" 
                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                 HorizontalAlignment="Center" Margin="0,16,0,0"/>
-            <TextBlock Text="前往「下载」页面开始下载服务端、插件或JDK" 
+            <TextBlock Text="前往「下载」页面开始下载服务端、插件，或「运行时管理」页面下载JDK" 
                 FontSize="12" 
                 Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                 HorizontalAlignment="Center" Margin="0,8,0,0"/>

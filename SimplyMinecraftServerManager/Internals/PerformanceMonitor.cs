@@ -46,6 +46,7 @@ public class PerformanceMonitor(string instanceId) : IDisposable
         private Dictionary<string, long> _cachedWorldSizes = [];
         private DateTime _lastStorageCacheTime = DateTime.MinValue;
         private readonly int _storageCacheIntervalMs = 30000;
+        private readonly Lock _cacheLock = new();
 
         /// <summary>
         /// 当性能数据更新时触发。
@@ -155,18 +156,21 @@ private void CollectData()
                     }
                     else
                     {
-                        var now = DateTime.Now;
-                        var totalProcessorTime = process.TotalProcessorTime;
-                        var timeDiff = (now - _lastCpuTime).TotalMilliseconds;
-                        var cpuDiff = (totalProcessorTime - _lastTotalProcessorTime).TotalMilliseconds;
-
-                        if (timeDiff > 0)
+                        lock (_lock)
                         {
-                            cpuUsage = (cpuDiff / timeDiff / Environment.ProcessorCount) * 100;
-                        }
+                            var now = DateTime.Now;
+                            var totalProcessorTime = process.TotalProcessorTime;
+                            var timeDiff = (now - _lastCpuTime).TotalMilliseconds;
+                            var cpuDiff = (totalProcessorTime - _lastTotalProcessorTime).TotalMilliseconds;
 
-                        _lastCpuTime = now;
-                        _lastTotalProcessorTime = totalProcessorTime;
+                            if (timeDiff > 0)
+                            {
+                                cpuUsage = (cpuDiff / timeDiff / Environment.ProcessorCount) * 100;
+                            }
+
+                            _lastCpuTime = now;
+                            _lastTotalProcessorTime = totalProcessorTime;
+                        }
                     }
                 }
                 catch { }
@@ -202,16 +206,22 @@ private void CollectData()
 
                 if (Directory.Exists(instanceDir))
                 {
-                    totalBytes = GetDirectorySizeFast(instanceDir);
-
+                    var worldPaths = new Dictionary<string, string>(3);
                     foreach (var worldName in s_worldFolders)
                     {
                         string worldPath = Path.Combine(instanceDir, worldName);
                         if (Directory.Exists(worldPath))
                         {
-                            long sizeBytes = GetDirectorySizeFast(worldPath);
-                            worldSizes[worldName] = sizeBytes / (1024 * 1024);
+                            worldPaths[worldName] = worldPath;
                         }
+                    }
+
+                    totalBytes = GetDirectorySizeExcluding(instanceDir, worldPaths.Values);
+
+                    foreach (var (worldName, worldPath) in worldPaths)
+                    {
+                        long sizeBytes = GetDirectorySizeFast(worldPath);
+                        worldSizes[worldName] = sizeBytes / (1024 * 1024);
                     }
                 }
             }
@@ -220,28 +230,25 @@ private void CollectData()
             return (totalBytes / (1024 * 1024), worldSizes);
         }
 
-        private static readonly string[] s_worldFolders = ["world", "world_nether", "world_the_end"];
-
-        private (long TotalMb, Dictionary<string, long> WorldSizes) GetStorageUsageCached()
+        private static long GetDirectorySizeExcluding(string path, IEnumerable<string> excludePaths)
         {
-            var now = DateTime.Now;
-            if ((now - _lastStorageCacheTime).TotalMilliseconds >= _storageCacheIntervalMs)
-            {
-                (_cachedStorageMb, _cachedWorldSizes) = GetStorageUsage();
-                _lastStorageCacheTime = now;
-            }
-            return (_cachedStorageMb, _cachedWorldSizes);
-        }
-
-        private static long GetDirectorySize(string path)
-        {
+            var excluded = new HashSet<string>(excludePaths.Select(p => Path.GetFullPath(p)), StringComparer.OrdinalIgnoreCase);
             long size = 0;
             try
             {
                 var dir = new DirectoryInfo(path);
-                foreach (var file in dir.EnumerateFiles("*", SearchOption.AllDirectories))
+                foreach (var fi in dir.EnumerateFiles("*", new EnumerationOptions
                 {
-                    try { size += file.Length; }
+                    RecurseSubdirectories = true,
+                    IgnoreInaccessible = true,
+                    AttributesToSkip = FileAttributes.ReparsePoint
+                }))
+                {
+                    try
+                    {
+                        if (!excluded.Any(e => Path.GetFullPath(fi.FullName).StartsWith(e, StringComparison.OrdinalIgnoreCase)))
+                            size += fi.Length;
+                    }
                     catch { }
                 }
             }
@@ -249,9 +256,41 @@ private void CollectData()
             return size;
         }
 
+        private static readonly string[] s_worldFolders = ["world", "world_nether", "world_the_end"];
+
+        private (long TotalMb, Dictionary<string, long> WorldSizes) GetStorageUsageCached()
+        {
+            lock (_cacheLock)
+            {
+                var now = DateTime.Now;
+                if ((now - _lastStorageCacheTime).TotalMilliseconds >= _storageCacheIntervalMs)
+                {
+                    (_cachedStorageMb, _cachedWorldSizes) = GetStorageUsage();
+                    _lastStorageCacheTime = now;
+                }
+                return (_cachedStorageMb, _cachedWorldSizes);
+            }
+        }
+
         private static long GetDirectorySizeFast(string path)
         {
-            return GetDirectorySize(path);
+            long size = 0;
+            try
+            {
+                var dir = new DirectoryInfo(path);
+                foreach (var fi in dir.EnumerateFiles("*", new EnumerationOptions
+                {
+                    RecurseSubdirectories = true,
+                    IgnoreInaccessible = true,
+                    AttributesToSkip = FileAttributes.ReparsePoint
+                }))
+                {
+                    try { size += fi.Length; }
+                    catch { }
+                }
+            }
+            catch { }
+            return size;
         }
 
         public void Dispose()

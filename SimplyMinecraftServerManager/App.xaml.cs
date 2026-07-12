@@ -111,7 +111,10 @@ namespace SimplyMinecraftServerManager
                 await Task.Run(() => InstanceManager.Load());
                 
                 await Task.Run(() => PreloadNonCriticalData());
-                
+
+                int zstdThreads = Math.Max(1, Environment.ProcessorCount / 2);
+                Environment.SetEnvironmentVariable("ZSTD_NBTHREADS", zstdThreads.ToString());
+
                 Log("Application started successfully");
             }
             catch (Exception ex)

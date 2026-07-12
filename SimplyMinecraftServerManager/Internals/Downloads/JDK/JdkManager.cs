@@ -1,6 +1,7 @@
 // Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
+using System.Collections.ObjectModel;
 using System.IO;
 using System.IO.Compression;
 
@@ -40,14 +41,14 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
     /// JDK 下载、解压、管理器。
     /// 所有 JDK 安装在 %appdata%/smsm/jdks/{distribution}-{major}-{arch}/
     /// </summary>
-    public static class JdkManager
+    public static partial class JdkManager
     {
         private static IReadOnlyList<InstalledJdk>? _cachedJdks;
         private static DateTime _lastCacheTime = DateTime.MinValue;
         private static readonly TimeSpan _cacheTtl = TimeSpan.FromSeconds(10);
-        private static readonly object _cacheLock = new();
+        private static readonly Lock _cacheLock = new();
 
-        private static IReadOnlyList<InstalledJdk> GetInstalledJdksUncached()
+        private static ReadOnlyCollection<InstalledJdk> GetInstalledJdksUncached()
         {
             string jdksRoot = PathHelper.JdksRoot;
             if (!Directory.Exists(jdksRoot))
@@ -324,13 +325,32 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
         }
 
         /// <summary>
-        /// 根据 Minecraft 版本推荐 JDK 主版本号。
+        /// 根据 Minecraft 版本号推荐合适的 JDK 版本。
+        /// 支持旧格式 (1.21.4) 和新格式 (26.1.0, YY.D.H)。
         /// </summary>
+        /// <param name="minecraftVersion">Minecraft 版本字符串</param>
+        /// <returns>推荐的 JDK 主版本号</returns>
         public static int RecommendJdkVersion(string minecraftVersion)
         {
-            // 解析主版本 "1.21.4" → 21, "1.17" → 17, "1.16.5" → 16
+            if (string.IsNullOrWhiteSpace(minecraftVersion))
+                return 8; // 默认兜底
+
+            int targetYear = 0;
             int mcMinor = 0;
-            if (minecraftVersion.StartsWith("1."))
+            bool isNewFormat = false;
+            if (MinecraftVersionRegex().IsMatch(minecraftVersion))
+            {
+                isNewFormat = true;
+                string[] parts = minecraftVersion.Split('.');
+                if (parts.Length >= 1 && int.TryParse(parts[0], out int yy))
+                {
+                    // 假设 YY 是 20YY 年。例如 26 -> 2026
+                    // 为了防止歧义，如果 YY < 50 认为是 20xx，否则可能是 19xx
+                    targetYear = 2000 + yy;
+                }
+            }
+            // 尝试解析旧版本格式: 1.XX.YY (例如 "1.21.4")
+            else if (minecraftVersion.StartsWith("1."))
             {
                 string after = minecraftVersion[2..];
                 int dot = after.IndexOf('.');
@@ -338,14 +358,28 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
                 int.TryParse(minorStr, out mcMinor);
             }
 
-            return mcMinor switch
+            // 决策逻辑
+            if (isNewFormat)
             {
-                >= 21 => 21,   // 1.21+ → JDK 21
-                >= 20 => 17,   // 1.20.5+ 实际需要 JDK 21，但 20.1~20.4 用 17
-                >= 17 => 17,   // 1.17 ~ 1.20 → JDK 17
-                >= 12 => 11,   // 1.12 ~ 1.16 → JDK 11 (或 8)
-                _ => 8     // 1.7 ~ 1.11 → JDK 8
-            };
+                // 新格式处理 (2026年起)
+                // 2026 (26.x.x) 及以后
+                if (targetYear >= 2026)
+                {
+                    return 25;
+                }
+                return 21;
+            }
+            else
+            {
+                // 旧格式处理 (1.x)
+                return mcMinor switch
+                {
+                    >= 21 => 21,   // 1.21+ → JDK 21
+                    >= 17 => 17,   // 1.17 ~ 1.20 → JDK 17
+                    >= 12 => 11,   // 1.12 ~ 1.16 → JDK 11 (或 8)
+                    _ => 8         // 1.7 ~ 1.11 → JDK 8
+                };
+            }
         }
 
         // ════════════════════════════════════════════════
@@ -617,5 +651,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads.JDK
 
             return null;
         }
+
+        [System.Text.RegularExpressions.GeneratedRegex(@"^\d{2}\.\d+")]
+        private static partial System.Text.RegularExpressions.Regex MinecraftVersionRegex();
     }
 }

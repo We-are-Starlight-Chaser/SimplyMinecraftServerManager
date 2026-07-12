@@ -20,6 +20,8 @@ namespace SimplyMinecraftServerManager.Internals
         private static bool _loaded;
         private static readonly ConcurrentDictionary<string, InstanceInfo> _idCache = new();
         private static readonly ConcurrentDictionary<string, List<InstanceInfo>> _searchCache = new();
+        private static readonly HashSet<int> _usedServerPorts = [];
+        private static readonly HashSet<int> _usedRconPorts = [];
         private static readonly Timer _saveDebounceTimer = new(_ => FlushSave());
         private static volatile bool _pendingSave;
         private static readonly Lock _saveLock = new();
@@ -86,9 +88,34 @@ namespace SimplyMinecraftServerManager.Internals
         {
             _idCache.Clear();
             _searchCache.Clear();
+            _usedServerPorts.Clear();
+            _usedRconPorts.Clear();
             foreach (var instance in _instances)
             {
                 _idCache[instance.Id] = instance;
+            }
+            RebuildPortCaches();
+        }
+
+        private static void RebuildPortCaches()
+        {
+            _usedServerPorts.Clear();
+            _usedRconPorts.Clear();
+            foreach (var instance in _instances)
+            {
+                try
+                {
+                    var port = ServerPropertiesManager.GetInt(instance.Id, "server-port", 0);
+                    if (port > 0) _usedServerPorts.Add(port);
+                }
+                catch { }
+
+                try
+                {
+                    var rconPort = ServerPropertiesManager.GetInt(instance.Id, "rcon.port", 0);
+                    if (rconPort > 0) _usedRconPorts.Add(rconPort);
+                }
+                catch { }
             }
         }
 
@@ -117,32 +144,14 @@ namespace SimplyMinecraftServerManager.Internals
 
         private static int GetNextAvailablePort()
         {
-            var usedPorts = new HashSet<int>();
-
-            foreach (var instance in _instances)
-            {
-                try
-                {
-                    var port = ServerPropertiesManager.GetInt(instance.Id, "server-port", 25565);
-                    if (port > 0)
-                    {
-                        usedPorts.Add(port);
-                    }
-                }
-                catch
-                {
-                }
-            }
-
             const int basePort = 25565;
             for (var port = basePort; port <= 65535; port++)
             {
-                if (!usedPorts.Contains(port))
+                if (!_usedServerPorts.Contains(port))
                 {
                     return port;
                 }
             }
-
             return basePort;
         }
 
@@ -179,7 +188,7 @@ namespace SimplyMinecraftServerManager.Internals
             lock (_lock)
             {
                 EnsureLoaded();
-                return _instances.ToList().AsReadOnly();
+                return _instances.AsReadOnly();
             }
         }
 
@@ -188,11 +197,8 @@ namespace SimplyMinecraftServerManager.Internals
         /// <returns>找到的实例信息，未找到则返回 null</returns>
         public static InstanceInfo? GetById(string id)
         {
-            lock (_lock)
-            {
-                EnsureLoaded();
-                return _idCache.TryGetValue(id, out var info) ? info : null;
-            }
+            EnsureLoaded();
+            return _idCache.TryGetValue(id, out var info) ? info : null;
         }
 
         /// <summary>按名称关键字搜索实例</summary>
@@ -303,6 +309,14 @@ namespace SimplyMinecraftServerManager.Internals
                 _instances.Add(info);
                 _idCache[info.Id] = info;
                 _searchCache.Clear();
+                try
+                {
+                    var port = ServerPropertiesManager.GetInt(info.Id, "server-port", 0);
+                    if (port > 0) _usedServerPorts.Add(port);
+                    var rconPort = ServerPropertiesManager.GetInt(info.Id, "rcon.port", 0);
+                    if (rconPort > 0) _usedRconPorts.Add(rconPort);
+                }
+                catch { }
                 DebouncedSave();
 
                 return info;
@@ -382,6 +396,8 @@ public static void SetJdkPath(string instanceId, string jdkPath)
         /// <returns>是否成功删除</returns>
         public static bool DeleteInstance(string instanceId, bool deleteFiles = true)
         {
+            string? dirToDelete = null;
+            
             lock (_lock)
             {
                 EnsureLoaded();
@@ -393,6 +409,7 @@ public static void SetJdkPath(string instanceId, string jdkPath)
 
                 _idCache.TryRemove(instanceId, out _);
                 _searchCache.Clear();
+                RebuildPortCaches();
                 DebouncedSave();
 
                 if (deleteFiles)
@@ -400,12 +417,21 @@ public static void SetJdkPath(string instanceId, string jdkPath)
                     string dir = PathHelper.GetInstanceDir(instanceId);
                     if (Directory.Exists(dir))
                     {
-                        Directory.Delete(dir, recursive: true);
+                        dirToDelete = dir;
                     }
                 }
-
-                return true;
             }
+
+            if (dirToDelete != null)
+            {
+                try
+                {
+                    Directory.Delete(dirToDelete, recursive: true);
+                }
+                catch { }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -542,36 +568,14 @@ public static void SetJdkPath(string instanceId, string jdkPath)
 
         private static int GetNextAvailableRconPort(string instanceId, int preferredPort)
         {
-            var usedPorts = new HashSet<int>();
-
-            foreach (var instance in _instances)
-            {
-                if (string.Equals(instance.Id, instanceId, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    int port = ServerPropertiesManager.GetInt(instance.Id, "rcon.port", 0);
-                    if (port > 0)
-                    {
-                        usedPorts.Add(port);
-                    }
-                }
-                catch
-                {
-                }
-            }
-
-            if (preferredPort > 0 && preferredPort <= 65535 && !usedPorts.Contains(preferredPort))
+            if (preferredPort > 0 && preferredPort <= 65535 && !_usedRconPorts.Contains(preferredPort))
             {
                 return preferredPort;
             }
 
             for (int port = 25575; port <= 65535; port++)
             {
-                if (!usedPorts.Contains(port))
+                if (!_usedRconPorts.Contains(port))
                 {
                     return port;
                 }

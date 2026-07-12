@@ -1,6 +1,7 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -61,11 +62,17 @@ namespace SimplyMinecraftServerManager.Helpers
             return map;
         });
 
+        private static readonly ConcurrentDictionary<uint, SolidColorBrush> _brushCache = new();
+
         private static SolidColorBrush Freeze(Color color)
         {
-            var brush = new SolidColorBrush(color);
-            brush.Freeze();
-            return brush;
+            uint key = (uint)((color.R << 16) | (color.G << 8) | color.B);
+            return _brushCache.GetOrAdd(key, _ =>
+            {
+                var brush = new SolidColorBrush(color);
+                brush.Freeze();
+                return brush;
+            });
         }
 
         /// <summary>
@@ -199,7 +206,14 @@ namespace SimplyMinecraftServerManager.Helpers
                 if (char.ToLowerInvariant(codeChar) == 'x' ||
                     (raw.Length > 2 && char.ToLowerInvariant(raw[1]) == 'x'))
                 {
-                    string hex = new([.. raw.Skip(2).Where(c => "0123456789abcdefABCDEF".Contains(c))]);
+                    var hexBuilder = new System.Text.StringBuilder(6);
+                    for (int i = 2; i < raw.Length; i++)
+                    {
+                        char hc = raw[i];
+                        if ((hc >= '0' && hc <= '9') || (hc >= 'a' && hc <= 'f') || (hc >= 'A' && hc <= 'F'))
+                            hexBuilder.Append(hc);
+                    }
+                    string hex = hexBuilder.ToString();
                     if (hex.Length == 6 && TryParseHex(hex, out var color))
                         currentFg = Freeze(color);
                     continue;

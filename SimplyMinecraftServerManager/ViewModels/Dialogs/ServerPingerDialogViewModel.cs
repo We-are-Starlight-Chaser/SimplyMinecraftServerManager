@@ -1,6 +1,7 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
+using SimplyMinecraftServerManager.Helpers;
 using SimplyMinecraftServerManager.Internals;
 using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
@@ -50,9 +51,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Dialogs
                     StatusText = "Ping失败：服务器无响应或超时";
                     return;
                 }
-                Players.Clear();
-                foreach (var p in result.Players)
-                    Players.Add(p);
+                Players = new ObservableCollection<MinecraftServerPing.Player>(result.Players);
 
                 Motd = result.Motd;
                 VersionName = result.VersionName;
@@ -60,7 +59,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Dialogs
                 OnlinePlayers = result.OnlinePlayers;
                 MaxPlayers = result.MaxPlayers;
                 LatencyMs = result.LatencyMs;
-                ServerIconSource = ParseBase64Icon(result.Icon);
+                ServerIconSource = ParseBase64Icon(result.Icon, $"{trimmedIp}:{port}");
 
                 StatusText = $"成功 - 在线玩家: {result.OnlinePlayers}/{result.MaxPlayers}";
             }
@@ -81,10 +80,14 @@ namespace SimplyMinecraftServerManager.ViewModels.Dialogs
                 });
             }
         }
-        private static BitmapImage? ParseBase64Icon(string? icon)
+        private static BitmapImage? ParseBase64Icon(string? icon, string cacheKey)
         {
             if (string.IsNullOrEmpty(icon) || !icon.StartsWith("data:image/png;base64,"))
                 return null;
+
+            var cached = ImageCache.Get(cacheKey);
+            if (cached is BitmapImage cachedBitmap)
+                return cachedBitmap;
 
             try
             {
@@ -96,6 +99,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Dialogs
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.EndInit();
                 bitmap.Freeze();
+                ImageCache.Set(cacheKey, bitmap);
                 return bitmap;
             }
             catch

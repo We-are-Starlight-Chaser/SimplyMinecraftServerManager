@@ -3,6 +3,7 @@
 
 using System.Net.Http;
 using System.Text.Json;
+using SimplyMinecraftServerManager.Helpers;
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
 {
@@ -15,6 +16,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     {
         private const string BaseUrl = "https://api.leafmc.one/v2/projects/leaf";
         private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
+        private static readonly MemoryCache<IReadOnlyList<string>> _versionsCache = new(TimeSpan.FromMinutes(5), 10);
 
         /// <inheritdoc />
         public ServerPlatform Platform => ServerPlatform.Leaf;
@@ -26,6 +28,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         /// <returns>一个包含所有可用版本字符串的只读列表，按版本倒序排列。</returns>
         public async Task<IReadOnlyList<string>> GetVersionsAsync(CancellationToken ct = default)
         {
+            string cacheKey = "leaf:versions";
+            if (_versionsCache.TryGet(cacheKey, out var cached))
+                return cached;
+
             string json = await _http.GetStringAsync(BaseUrl, ct);
             using var doc = JsonDocument.Parse(json);
 
@@ -36,7 +42,9 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 .ToList();
 
             versions.Reverse();
-            return versions.AsReadOnly();
+            var result = versions.AsReadOnly();
+            _versionsCache.Set(cacheKey, result);
+            return result;
         }
 
         /// <summary>
@@ -102,7 +110,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             string minecraftVersion, CancellationToken ct = default)
         {
             var builds = await GetBuildsAsync(minecraftVersion, ct);
-            return builds[0];
+            return builds.Count > 0 ? builds[0] : null;
         }
 
         /// <summary>

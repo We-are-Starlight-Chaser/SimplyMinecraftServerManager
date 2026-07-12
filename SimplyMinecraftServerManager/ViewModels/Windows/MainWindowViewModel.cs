@@ -187,7 +187,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
 
             while (MenuItems.Count > 4)
             {
-                MenuItems.RemoveAt(4);
+                MenuItems.RemoveAt(MenuItems.Count - 1);
             }
 
             foreach (var item in newItems)

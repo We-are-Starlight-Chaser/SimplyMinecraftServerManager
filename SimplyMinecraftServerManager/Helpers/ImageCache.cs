@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -9,12 +11,15 @@ using System.Windows.Media.Imaging;
 namespace SimplyMinecraftServerManager.Helpers
 {
     /// <summary>
-    /// 图像缓存类，用于缓存图像源以避免重复加载，使用线程安全的并发字典实现。
+    /// 图像缓存类，用于缓存图像源以避免重复加载，使用 LRU 策略的线程安全实现。
     /// </summary>
     internal static class ImageCache
     {
-        private static readonly ConcurrentDictionary<string, ImageSource> _cache = new();
+        private static readonly ConcurrentDictionary<string, (ImageSource Image, DateTime LastAccess)> _cache = new();
+        private static readonly ConcurrentQueue<string> _accessOrder = new();
+        private static readonly Lock _evictionLock = new();
         private const int MaxCacheSize = 50;
+        private static readonly TimeSpan ExpirationTime = TimeSpan.FromMinutes(10);
 
         /// <summary>
         /// 从缓存中获取指定键的图像源。
@@ -23,25 +28,58 @@ namespace SimplyMinecraftServerManager.Helpers
         /// <returns>缓存中的图像源，如果不存在则返回 null。</returns>
         public static ImageSource? Get(string key)
         {
-            _cache.TryGetValue(key, out var image);
-            return image;
+            if (_cache.TryGetValue(key, out var entry))
+            {
+                // 未过期：更新访问时间、入队时序
+                if (DateTime.UtcNow - entry.LastAccess < ExpirationTime)
+                {
+                    _cache[key] = (entry.Image, DateTime.UtcNow);
+                    _accessOrder.Enqueue(key);
+                    return entry.Image;
+                }
+                // 过期直接删除，不再入队无效key
+                _cache.TryRemove(key, out _);
+            }
+            return null;
         }
 
         /// <summary>
-        /// 将图像源存入缓存，如果缓存已满则移除最早的缓存项。
+        /// 将图像源存入缓存，如果缓存已满则移除最近最少使用的缓存项。
         /// </summary>
         /// <param name="key">图像的缓存键。</param>
         /// <param name="image">要缓存的图像源。</param>
         public static void Set(string key, ImageSource image)
         {
-            if (_cache.Count >= MaxCacheSize)
+            // 存在旧key，先更新时间并记录访问，不新增重复队列节点
+            if (_cache.ContainsKey(key))
             {
-                var keys = _cache.Keys.ToArray();
-                int toRemove = Math.Max(1, keys.Length - MaxCacheSize + 1);
-                for (int i = 0; i < toRemove && i < keys.Length; i++)
-                    _cache.TryRemove(keys[i], out _);
+                _cache[key] = (image, DateTime.UtcNow);
+                _accessOrder.Enqueue(key);
+                return;
             }
-            _cache[key] = image;
+
+            // 容量超限循环淘汰空位
+            while (_cache.Count >= MaxCacheSize)
+            {
+                EvictOldest();
+            }
+
+            _cache[key] = (image, DateTime.UtcNow);
+            _accessOrder.Enqueue(key);
+        }
+
+        private static void EvictOldest()
+        {
+            lock (_evictionLock)
+            {
+                // 持续弹出，直到找到真实存在的缓存项删除
+                while (_accessOrder.TryDequeue(out var candidate))
+                {
+                    if (_cache.TryRemove(candidate, out _))
+                        return;
+                    // 已过期/已删除的无效key直接丢弃，继续下一个
+                }
+            }
         }
 
         /// <summary>
@@ -52,8 +90,8 @@ namespace SimplyMinecraftServerManager.Helpers
         /// <returns>缓存或新创建的图像源。</returns>
         public static ImageSource GetOrCreate(string key, Func<ImageSource> factory)
         {
-            if (_cache.TryGetValue(key, out var existing))
-                return existing;
+            var existing = Get(key);
+            if (existing != null) return existing;
             var image = factory();
             Set(key, image);
             return image;
@@ -62,7 +100,39 @@ namespace SimplyMinecraftServerManager.Helpers
         /// <summary>
         /// 清空图像缓存中的所有项。
         /// </summary>
-        public static void Clear() => _cache.Clear();
+        public static void Clear()
+        {
+            _cache.Clear();
+            lock (_evictionLock)
+            {
+                while (_accessOrder.TryDequeue(out _)) { }
+            }
+        }
+
+        /// <summary>
+        /// 清理已过期的缓存项。
+        /// </summary>
+        public static void CleanupExpired()
+        {
+            var now = DateTime.UtcNow;
+            var expiredKeys = new List<string>();
+            foreach (var kvp in _cache)
+            {
+                if (now - kvp.Value.LastAccess >= ExpirationTime)
+                    expiredKeys.Add(kvp.Key);
+            }
+
+            foreach (var key in expiredKeys)
+            {
+                _cache.TryRemove(key, out _);
+            }
+
+            // 清空队列所有冗余无效key，彻底释放内存
+            lock (_evictionLock)
+            {
+                while (_accessOrder.TryDequeue(out _)) { }
+            }
+        }
     }
 
     /// <summary>
@@ -71,6 +141,10 @@ namespace SimplyMinecraftServerManager.Helpers
     internal static class VisualCache
     {
         private static readonly ConcurrentDictionary<string, WeakReference<Visual>> _cache = new();
+        private static int _cleanupCounter;
+        private const int CleanupInterval = 50;
+        // 增加缓存上限，防止无限膨胀
+        private const int MaxVisualCacheCount = 200;
 
         /// <summary>
         /// 从缓存中获取指定键的可视化对象。
@@ -80,6 +154,8 @@ namespace SimplyMinecraftServerManager.Helpers
         /// <returns>缓存中的可视化对象，如果不存在或已被回收则返回 null。</returns>
         public static T? Get<T>(string key) where T : Visual
         {
+            // 每次读取顺带触发一次清理
+            Cleanup();
             if (_cache.TryGetValue(key, out var weakRef) && weakRef.TryGetTarget(out var visual) && visual is T t)
                 return t;
             return null;
@@ -92,6 +168,52 @@ namespace SimplyMinecraftServerManager.Helpers
         /// <param name="key">可视化的缓存键。</param>
         /// <param name="visual">要缓存的可视化对象。</param>
         public static void Set<T>(string key, T visual) where T : Visual
-            => _cache[key] = new WeakReference<Visual>(visual);
+        {
+            // 存入前先清理失效项，控制总量
+            Cleanup();
+            // 超上限则随机移除一条旧数据
+            if (_cache.Count >= MaxVisualCacheCount)
+            {
+                var first = _cache.Keys.FirstOrDefault();
+                if (first != null)
+                    _cache.TryRemove(first, out _);
+            }
+            _cache[key] = new WeakReference<Visual>(visual);
+        }
+
+        /// <summary>
+        /// 主动强制清理所有失效弱引用条目
+        /// </summary>
+        public static void ForceCleanup()
+        {
+            var deadKeys = new List<string>();
+            foreach (var kvp in _cache)
+            {
+                if (!kvp.Value.TryGetTarget(out _))
+                    deadKeys.Add(kvp.Key);
+            }
+            foreach (var key in deadKeys)
+            {
+                _cache.TryRemove(key, out _);
+            }
+        }
+
+        /// <summary>
+        /// 清理已被垃圾回收器回收的弱引用条目。
+        /// </summary>
+        public static void Cleanup()
+        {
+            if (Interlocked.Increment(ref _cleanupCounter) % CleanupInterval != 0)
+                return;
+            ForceCleanup();
+        }
+
+        /// <summary>
+        /// 清空全部可视化缓存
+        /// </summary>
+        public static void Clear()
+        {
+            _cache.Clear();
+        }
     }
 }

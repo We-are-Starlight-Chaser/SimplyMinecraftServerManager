@@ -15,7 +15,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     /// <summary>
     /// 下载任务管理页面的视图模型，负责展示、控制和通知所有下载任务。
     /// </summary>
-    public partial class DownloadsViewModel : ObservableObject, INavigationAware
+    public partial class DownloadsViewModel : ObservableObject, INavigationAware, IDisposable
     {
         /// <summary>下载任务列表，用于界面绑定。</summary>
         [ObservableProperty]
@@ -34,8 +34,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         public event EventHandler<int>? TaskCountChanged;
 
+        /// <summary>任务ID到UI项的映射，用于O(1)查找。</summary>
+        private readonly Dictionary<string, DownloadTaskItem> _taskItemMap = new();
+
         /// <summary>应用通知服务，用于显示下载任务的提示消息。</summary>
         private readonly AppNotificationService _notificationService;
+
+        private bool _disposed;
+        private bool _countsDirty;
+        private DispatcherTimer? _countsRefreshTimer;
 
         /// <summary>
         /// 初始化下载任务视图模型并订阅下载管理器事件。
@@ -46,15 +53,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _notificationService = notificationService;
 
             // 订阅下载管理器事件
-            DownloadManager.Default.TaskQueued -= OnDownloadTaskQueued;
             DownloadManager.Default.TaskQueued += OnDownloadTaskQueued;
-            DownloadManager.Default.ProgressChanged -= OnDownloadProgress;
             DownloadManager.Default.ProgressChanged += OnDownloadProgress;
-            DownloadManager.Default.TaskCompleted -= OnDownloadTaskCompleted;
             DownloadManager.Default.TaskCompleted += OnDownloadTaskCompleted;
-            DownloadManager.Default.TaskFailed -= OnDownloadTaskFailed;
             DownloadManager.Default.TaskFailed += OnDownloadTaskFailed;
-            DownloadManager.Default.TaskInstalled -= OnDownloadTaskInstalled;
             DownloadManager.Default.TaskInstalled += OnDownloadTaskInstalled;
         }
 
@@ -78,13 +80,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private void RefreshDownloadTasks()
         {
             DownloadTasks.Clear();
+            _taskItemMap.Clear();
             foreach (var task in DownloadManager.Default.AllTasks)
             {
                 var item = new DownloadTaskItem(task);
                 item.RequestRemove += OnTaskRequestRemove;
                 DownloadTasks.Add(item);
+                _taskItemMap[task.Id] = item;
             }
-            UpdateCounts();
+            RefreshCounts();
         }
 
         /// <summary>
@@ -94,12 +98,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             Application.Current?.Dispatcher.BeginInvoke(() =>
             {
-                var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                if (item == null)
+                if (!_taskItemMap.TryGetValue(task.Id, out var item))
                 {
                     var newItem = new DownloadTaskItem(task);
                     newItem.RequestRemove += OnTaskRequestRemove;
                     DownloadTasks.Insert(0, newItem);
+                    _taskItemMap[task.Id] = newItem;
+                    item = newItem;
                 }
 
                 if (task.NotifyOnCreated)
@@ -109,7 +114,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         $"开始下载 {task.DisplayName}..."));
                 }
 
-                UpdateCounts();
+                MarkCountsDirty();
             });
         }
 
@@ -123,8 +128,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 if (Application.Current == null) return;
-                var item = DownloadTasks.FirstOrDefault(t => t.TaskId == e.TaskId);
-                if (item != null)
+                if (_taskItemMap.TryGetValue(e.TaskId, out var item))
                 {
                     item.UpdateProgress(e);
                 }
@@ -133,8 +137,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     var newItem = new DownloadTaskItem(e);
                     newItem.RequestRemove += OnTaskRequestRemove;
                     DownloadTasks.Insert(0, newItem);
+                    _taskItemMap[e.TaskId] = newItem;
                 }
-                UpdateCounts();
+                MarkCountsDirty();
             });
         }
 
@@ -145,8 +150,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             Application.Current?.Dispatcher.BeginInvoke(() =>
             {
-                var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                item?.UpdateFromTask(task);
+                if (_taskItemMap.TryGetValue(task.Id, out var item))
+                {
+                    item.UpdateFromTask(task);
+                }
 
                 if (task.InstallationStatus != InstallationStatus.Installed)
                 {
@@ -158,7 +165,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     }
                 }
 
-                UpdateCounts();
+                MarkCountsDirty();
             });
         }
 
@@ -169,8 +176,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             Application.Current?.Dispatcher.BeginInvoke(() =>
             {
-                var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                item?.UpdateFromTask(task);
+                if (_taskItemMap.TryGetValue(task.Id, out var item))
+                {
+                    item.UpdateFromTask(task);
+                }
 
                 if (task.Status != DownloadStatus.Cancelled)
                 {
@@ -184,7 +193,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     }
                 }
 
-                UpdateCounts();
+                MarkCountsDirty();
             });
         }
 
@@ -195,8 +204,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             Application.Current?.Dispatcher.BeginInvoke(() =>
             {
-                var item = DownloadTasks.FirstOrDefault(t => t.Id == task.Id);
-                item?.UpdateFromTask(task);
+                if (_taskItemMap.TryGetValue(task.Id, out var item))
+                {
+                    item.UpdateFromTask(task);
+                }
 
                 if (task.NotifyOnCompleted)
                 {
@@ -204,7 +215,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     ShowTaskNotification(task.CompletedNotification ?? fallbackMessage);
                 }
 
-                UpdateCounts();
+                MarkCountsDirty();
             });
         }
 
@@ -217,9 +228,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 Application.Current?.Dispatcher.BeginInvoke(() =>
                 {
-                    item.CancelAutoRemove();
+                    item.Dispose();
                     DownloadTasks.Remove(item);
-                    UpdateCounts();
+                    _taskItemMap.Remove(item.TaskId);
+                    RefreshCounts();
                 });
             }
         }
@@ -227,7 +239,25 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>
         /// 更新活跃和已完成任务计数，并触发任务数变化事件。
         /// </summary>
-        private void UpdateCounts()
+        private void MarkCountsDirty()
+        {
+            if (_countsDirty) return;
+            _countsDirty = true;
+            _countsRefreshTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _countsRefreshTimer.Tick += (_, _) =>
+            {
+                _countsRefreshTimer.Stop();
+                _countsRefreshTimer = null;
+                _countsDirty = false;
+                RefreshCounts();
+            };
+            _countsRefreshTimer.Start();
+        }
+
+        /// <summary>
+        /// 立即刷新活跃和已完成任务计数。
+        /// </summary>
+        private void RefreshCounts()
         {
             int active = 0;
             int completed = 0;
@@ -235,7 +265,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 if (t.IsCompleted || t.IsFailed)
                     completed++;
-                else if (t.IsActive || t.IsPaused || (!t.IsCompleted && !t.IsFailed))
+                else if (t.IsActive || t.IsPaused)
                     active++;
             }
             ActiveCount = active;
@@ -277,7 +307,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             DownloadManager.Default.Cancel(item.TaskId);
             item.Status = "已取消";
             item.IsFailed = true;
-            UpdateCounts();
+            RefreshCounts();
         }
 
         /// <summary>
@@ -292,7 +322,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 item.Status = "已取消";
                 item.IsFailed = true;
             }
-            UpdateCounts();
+            RefreshCounts();
         }
 
         /// <summary>
@@ -306,7 +336,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             item.IsPaused = true;
             item.IsActive = false;
             item.Status = "已暂停";
-            UpdateCounts();
+            RefreshCounts();
         }
 
         /// <summary>
@@ -320,7 +350,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             item.IsPaused = false;
             item.IsActive = true;
             item.Status = "下载中";
-            UpdateCounts();
+            RefreshCounts();
         }
 
         /// <summary>
@@ -336,7 +366,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 item.IsActive = false;
                 item.Status = "已暂停";
             }
-            UpdateCounts();
+            RefreshCounts();
         }
 
         /// <summary>
@@ -352,7 +382,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 item.IsActive = true;
                 item.Status = "下载中";
             }
-            UpdateCounts();
+            RefreshCounts();
         }
 
         /// <summary>
@@ -375,9 +405,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             // 如果DownloadManager中没有找到任务，或者移除成功，从UI列表中移除
             if (removed || !DownloadManager.Default.AllTasks.Any(t => t.Id == item.TaskId))
             {
-                item.CancelAutoRemove();
+                item.Dispose();
                 DownloadTasks.Remove(item);
-                UpdateCounts();
+                _taskItemMap.Remove(item.TaskId);
+                RefreshCounts();
             }
         }
 
@@ -393,17 +424,43 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             // 再从 UI 列表中移除
             foreach (var item in DownloadTasks.Where(t => t.IsCompleted || t.IsFailed).ToList())
             {
-                item.CancelAutoRemove();
+                item.Dispose();
                 DownloadTasks.Remove(item);
+                _taskItemMap.Remove(item.TaskId);
             }
-            UpdateCounts();
+            RefreshCounts();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            _countsRefreshTimer?.Stop();
+            _countsRefreshTimer = null;
+
+            DownloadManager.Default.TaskQueued -= OnDownloadTaskQueued;
+            DownloadManager.Default.ProgressChanged -= OnDownloadProgress;
+            DownloadManager.Default.TaskCompleted -= OnDownloadTaskCompleted;
+            DownloadManager.Default.TaskFailed -= OnDownloadTaskFailed;
+            DownloadManager.Default.TaskInstalled -= OnDownloadTaskInstalled;
+
+            foreach (var item in DownloadTasks)
+            {
+                item.RequestRemove -= OnTaskRequestRemove;
+                item.Dispose();
+            }
+            DownloadTasks.Clear();
+            _taskItemMap.Clear();
+
+            GC.SuppressFinalize(this);
         }
     }
 
     /// <summary>
     /// 下载任务项，封装单个下载任务的界面显示数据和状态。
     /// </summary>
-    public partial class DownloadTaskItem : ObservableObject
+    public partial class DownloadTaskItem : ObservableObject, IDisposable
     {
         /// <summary>任务唯一标识符。</summary>
         public string Id { get; }
@@ -453,6 +510,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>自动移除计时器，任务完成后一段时间自动从列表移除。</summary>
         private DispatcherTimer? _autoRemoveTimer;
 
+        /// <summary>缓存上次格式化的下载大小，避免重复分配字符串。</summary>
+        private long _lastFormattedDownloaded;
+        private long _lastFormattedTotal;
+        private string _lastFormattedSpeed = "";
+
         /// <summary>请求从列表中移除此任务项的事件。</summary>
         public event EventHandler? RequestRemove;
 
@@ -489,12 +551,21 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             if (task.TotalBytes > 0)
             {
                 Progress = (double)task.BytesDownloaded / task.TotalBytes * 100;
-                SizeInfo = $"{FormatSize(task.BytesDownloaded)} / {FormatSize(task.TotalBytes)}";
+                if (task.BytesDownloaded != _lastFormattedDownloaded || task.TotalBytes != _lastFormattedTotal)
+                {
+                    SizeInfo = $"{FormatSize(task.BytesDownloaded)} / {FormatSize(task.TotalBytes)}";
+                    _lastFormattedDownloaded = task.BytesDownloaded;
+                    _lastFormattedTotal = task.TotalBytes;
+                }
             }
             else
             {
                 Progress = 0;
-                SizeInfo = FormatSize(task.BytesDownloaded);
+                if (task.BytesDownloaded != _lastFormattedDownloaded)
+                {
+                    SizeInfo = FormatSize(task.BytesDownloaded);
+                    _lastFormattedDownloaded = task.BytesDownloaded;
+                }
             }
 
             IsCompleted = task.Status == DownloadStatus.Completed;
@@ -536,12 +607,21 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             if (info.TotalBytes > 0)
             {
                 Progress = info.ProgressPercent >= 0 ? info.ProgressPercent : 0;
-                SizeInfo = $"{FormatSize(info.BytesDownloaded)} / {FormatSize(info.TotalBytes)}";
+                if (info.BytesDownloaded != _lastFormattedDownloaded || info.TotalBytes != _lastFormattedTotal)
+                {
+                    SizeInfo = $"{FormatSize(info.BytesDownloaded)} / {FormatSize(info.TotalBytes)}";
+                    _lastFormattedDownloaded = info.BytesDownloaded;
+                    _lastFormattedTotal = info.TotalBytes;
+                }
             }
             else
             {
                 Progress = 0;
-                SizeInfo = FormatSize(info.BytesDownloaded);
+                if (info.BytesDownloaded != _lastFormattedDownloaded)
+                {
+                    SizeInfo = FormatSize(info.BytesDownloaded);
+                    _lastFormattedDownloaded = info.BytesDownloaded;
+                }
             }
 
             IsCompleted = info.IsCompleted;
@@ -578,9 +658,14 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             else
             {
                 Status = "下载中";
-                Speed = info.SpeedBytesPerSecond > 0
+                string newSpeed = info.SpeedBytesPerSecond > 0
                     ? $"{FormatSize(info.SpeedBytesPerSecond)}/s"
                     : "";
+                if (newSpeed != _lastFormattedSpeed)
+                {
+                    Speed = newSpeed;
+                    _lastFormattedSpeed = newSpeed;
+                }
             }
         }
 
@@ -636,6 +721,15 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             _autoRemoveTimer?.Stop();
             _autoRemoveTimer = null;
+        }
+
+        /// <summary>
+        /// 释放资源，停止自动移除计时器。
+        /// </summary>
+        public void Dispose()
+        {
+            CancelAutoRemove();
+            GC.SuppressFinalize(this);
         }
     }
 }

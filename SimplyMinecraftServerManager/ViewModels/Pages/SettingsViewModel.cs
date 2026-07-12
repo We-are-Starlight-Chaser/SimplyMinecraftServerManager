@@ -14,7 +14,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     /// <summary>
     /// 设置页面的视图模型，管理应用程序配置
     /// </summary>
-    public partial class SettingsViewModel : ObservableObject, INavigationAware
+    public partial class SettingsViewModel : ObservableObject, INavigationAware, IDisposable
     {
         /// <summary>
         /// 是否已完成初始化
@@ -297,15 +297,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         private void LoadConsoleFontFamilies()
         {
-            ConsoleFontFamilies.Clear();
-
-            foreach (var fontFamily in Fonts.SystemFontFamilies
-                .Select(static family => family.Source)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(static family => family))
-            {
-                ConsoleFontFamilies.Add(fontFamily);
-            }
+            ConsoleFontFamilies = new ObservableCollection<string>(
+                Fonts.SystemFontFamilies
+                    .Select(static family => family.Source)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static family => family));
         }
 
         /// <summary>
@@ -316,6 +312,19 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString()
                 ?? String.Empty;
+        }
+
+        /// <summary>
+        /// 释放资源，停止自动保存定时器。
+        /// </summary>
+        public void Dispose()
+        {
+            if (_autoSaveTimer != null)
+            {
+                _autoSaveTimer.Stop();
+                _autoSaveTimer = null;
+            }
+            GC.SuppressFinalize(this);
         }
 
         /// <summary>

@@ -48,7 +48,9 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         {
             lock (_defaultLock)
             {
+                var old = _default;
                 _default = new DownloadManager(maxConcurrentDownloads);
+                old?.Dispose();
             }
         }
 
@@ -76,8 +78,8 @@ private readonly HttpClient _httpClient;
 
 
 
-        private static readonly string[] AllowedHosts =
-        [
+        private static readonly HashSet<string> AllowedHosts = new(StringComparer.OrdinalIgnoreCase)
+        {
             "api.papermc.io",
             "papermc.io",
             "download.mojang.com",
@@ -91,7 +93,7 @@ private readonly HttpClient _httpClient;
             "adoptium.net",
             "azul.com",
             "zulu.org"
-        ];
+        };
 
         private static readonly ConcurrentDictionary<string, Func<HashAlgorithm>> HashAlgorithmFactories = new()
         {
@@ -142,9 +144,13 @@ private readonly HttpClient _httpClient;
             if (certificate == null) return false;
 
             string host = message.RequestUri?.Host ?? "";
-            bool isAllowedHost = AllowedHosts.Any(h =>
-                host.Equals(h, StringComparison.OrdinalIgnoreCase) ||
-                host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase));
+            bool isAllowedHost = AllowedHosts.Contains(host);
+            if (!isAllowedHost)
+            {
+                int dotIndex = host.IndexOf('.');
+                if (dotIndex > 0)
+                    isAllowedHost = AllowedHosts.Contains(host[(dotIndex + 1)..]);
+            }
 
             if (!isAllowedHost)
             {
@@ -179,11 +185,20 @@ private readonly HttpClient _httpClient;
         // 查询
 
         private volatile IReadOnlyList<DownloadTask>? _allTasksCache;
+        private readonly Lock _allTasksLock = new();
 
         /// <summary>获取所有下载任务的只读列表</summary>
         public IReadOnlyList<DownloadTask> AllTasks
         {
             get
+            {
+                return _allTasksCache ??= GenerateAllTasksCache();
+            }
+        }
+
+        private IReadOnlyList<DownloadTask> GenerateAllTasksCache()
+        {
+            lock (_allTasksLock)
             {
                 return _allTasksCache ??= _tasks.Values.ToList().AsReadOnly();
             }
@@ -219,7 +234,12 @@ private readonly HttpClient _httpClient;
             InvalidateAllTasksCache();
             TaskQueued?.Invoke(this, downloadTask);
             var semaphore = _semaphore;
-            _ = Task.Run(() => ExecuteAsync(downloadTask, semaphore));
+            _ = Task.Run(() => ExecuteAsync(downloadTask, semaphore))
+                .ContinueWith(t =>
+                {
+                    if (t.Exception != null)
+                        System.Diagnostics.Debug.WriteLine($"Download failed: {t.Exception.InnerException?.Message}");
+                }, TaskContinuationOptions.OnlyOnFaulted);
             return downloadTask;
         }
 
@@ -322,7 +342,12 @@ private readonly HttpClient _httpClient;
                 task.Cts = new CancellationTokenSource();
                 
                 var semaphore = _semaphore;
-                _ = Task.Run(() => ExecuteAsync(task, semaphore));
+                _ = Task.Run(() => ExecuteAsync(task, semaphore))
+                    .ContinueWith(t =>
+                    {
+                        if (t.Exception != null)
+                            System.Diagnostics.Debug.WriteLine($"Download resume failed: {t.Exception.InnerException?.Message}");
+                    }, TaskContinuationOptions.OnlyOnFaulted);
             }
         }
 
@@ -338,7 +363,12 @@ private readonly HttpClient _httpClient;
                 task.Cts = new CancellationTokenSource();
                 
                 var semaphore = _semaphore;
-                _ = Task.Run(() => ExecuteAsync(task, semaphore));
+                _ = Task.Run(() => ExecuteAsync(task, semaphore))
+                    .ContinueWith(t =>
+                    {
+                        if (t.Exception != null)
+                            System.Diagnostics.Debug.WriteLine($"Download resume all failed: {t.Exception.InnerException?.Message}");
+                    }, TaskContinuationOptions.OnlyOnFaulted);
             }
         }
 
@@ -432,7 +462,6 @@ private readonly HttpClient _httpClient;
                 await using var contentStream =
                     await response.Content.ReadAsStreamAsync(task.Cts.Token);
 
-                {
 // 如果支持断点续传且有暂停位置，则追加写入；否则创建新文件
                     var fileMode = (supportsResume && task.PausedPosition > 0) ? FileMode.Append : FileMode.Create;
                     await using var fileStream = new FileStream(
@@ -444,7 +473,9 @@ private readonly HttpClient _httpClient;
                     long lastReportTime = 0;
                     long speed = 0;
 
-                    byte[] buffer = new byte[BufferSize];
+                    byte[] buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(BufferSize);
+                    try
+                    {
                     int bytesRead;
                     while ((bytesRead = await contentStream.ReadAsync(
                         buffer.AsMemory(0, BufferSize), task.Cts.Token)) > 0)
@@ -478,7 +509,11 @@ private readonly HttpClient _httpClient;
                     }
 
                     await fileStream.FlushAsync(task.Cts.Token);
-                }
+                    }
+                    finally
+                    {
+                        System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+                    }
 
                 if (!string.IsNullOrEmpty(task.ExpectedHash))
                 {
@@ -618,6 +653,7 @@ private readonly HttpClient _httpClient;
             foreach (var task in _tasks.Values)
             {
                 task.Cts.Cancel();
+                task.Cts.Dispose();
                 if (task.Status is DownloadStatus.Pending or DownloadStatus.Downloading)
                     task.Status = DownloadStatus.Cancelled;
             }

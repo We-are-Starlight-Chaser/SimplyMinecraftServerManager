@@ -12,8 +12,19 @@ namespace SimplyMinecraftServerManager.Internals
     public static partial class SecurityHelper
     {
         private static readonly Regex ValidInstanceNameRegex = ValidInstanceName();
-
         private static readonly Regex SafePathRegex = SafePath();
+        private static readonly char[] s_invalidFileNameChars = Path.GetInvalidFileNameChars();
+        private static readonly string[] DangerousJvmPatterns =
+        [
+            "--add-opens",
+            "--add-exports",
+            "-XX:+IgnoreUnrecognizedVMOptions",
+            "-Djava.ext.dirs",
+            "-Djava.class.path",
+            "--module-path",
+            "-cp ",
+            "-classpath"
+        ];
 
         /// <summary>
         /// 验证实例名称是否有效。
@@ -35,7 +46,7 @@ namespace SimplyMinecraftServerManager.Internals
             if (string.IsNullOrWhiteSpace(fileName)) return false;
             if (fileName.Length > 255) return false;
 
-            char[] invalidChars = Path.GetInvalidFileNameChars();
+            char[] invalidChars = s_invalidFileNameChars;
             foreach (char c in fileName)
             {
                 if (Array.IndexOf(invalidChars, c) >= 0) return false;
@@ -54,20 +65,8 @@ namespace SimplyMinecraftServerManager.Internals
             if (string.IsNullOrWhiteSpace(args)) return true;
             if (args.Length > 4096) return false;
 
-            string[] dangerousPatterns =
-            [
-                "--add-opens",
-                "--add-exports",
-                "-XX:+IgnoreUnrecognizedVMOptions",
-                "-Djava.ext.dirs",
-                "-Djava.class.path",
-                "--module-path",
-                "-cp ",
-                "-classpath"
-            ];
-
             string lowerArgs = args.ToLowerInvariant();
-            foreach (var pattern in dangerousPatterns)
+            foreach (var pattern in DangerousJvmPatterns)
             {
                 if (lowerArgs.Contains(pattern, StringComparison.InvariantCultureIgnoreCase))
                 {

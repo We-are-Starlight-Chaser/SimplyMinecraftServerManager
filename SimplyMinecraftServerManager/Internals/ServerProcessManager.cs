@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Collections.Concurrent;
@@ -12,6 +12,7 @@ namespace SimplyMinecraftServerManager.Internals
     {
         private static readonly ConcurrentDictionary<string, ServerProcess> _processes = new();
         private static readonly ConcurrentDictionary<string, DateTime> _startTimeCache = new();
+        private static readonly ConcurrentDictionary<string, EventHandler<int>> _exitHandlers = new();
 
         /// <summary>
         /// 当实例运行状态改变时触发（实例ID, 是否运行中）。
@@ -56,20 +57,25 @@ namespace SimplyMinecraftServerManager.Internals
         /// </summary>
         public static void Register(string instanceId, ServerProcess process)
         {
-            // 清理旧进程
             CleanupExistingProcess(instanceId);
 
-            // 订阅进程退出事件
-            process.Exited += (_, _) =>
+            if (_exitHandlers.TryRemove(instanceId, out var oldHandler))
             {
-                // 从字典中移除已退出的进程
+                process.Exited -= oldHandler;
+            }
+
+            EventHandler<int> handler = (_, _) =>
+            {
                 if (_processes.TryGetValue(instanceId, out var existing) && ReferenceEquals(existing, process))
                 {
                     _processes.TryRemove(instanceId, out _);
                     _startTimeCache.TryRemove(instanceId, out _);
+                    _exitHandlers.TryRemove(instanceId, out _);
                     InstanceStatusChanged?.Invoke(null, (instanceId, false));
                 }
             };
+            _exitHandlers[instanceId] = handler;
+            process.Exited += handler;
 
             _processes[instanceId] = process;
             _startTimeCache[instanceId] = DateTime.Now;
@@ -108,8 +114,20 @@ namespace SimplyMinecraftServerManager.Internals
                         process.Stop();
                 }
                 catch { }
+
+                if (process.IsRunning)
+                {
+                    if (!process.WaitForExit(5000))
+                    {
+                        try
+                        {
+                            process.Kill();
+                            process.WaitForExit(3000);
+                        }
+                        catch { }
+                    }
+                }
             }
-            // 注意：进程退出事件会自动从字典中移除
         }
 
         /// <summary>

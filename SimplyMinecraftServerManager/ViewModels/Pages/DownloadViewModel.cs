@@ -317,7 +317,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             
             // 计算要加载的版本范围
             var endIndex = Math.Min(startIndex + count, _allVersions.Count);
-            var versionsToLoad = _allVersions.Skip(startIndex).Take(endIndex - startIndex).ToList();
+            var versionsToLoad = _allVersions.GetRange(startIndex, endIndex - startIndex);
             
             if (versionsToLoad.Count == 0) return;
 
@@ -631,20 +631,20 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>
         /// 获取当前选中索引对应的服务端平台提供者。
         /// </summary>
+        private static readonly ServerPlatform[] s_platforms = [
+            ServerPlatform.Paper,
+            ServerPlatform.Folia,
+            ServerPlatform.Purpur,
+            ServerPlatform.Leaves,
+            ServerPlatform.Leaf
+        ];
+
         private IServerProvider? GetSelectedServerPlatform()
         {
-            var platforms = new[] {
-                ServerPlatform.Paper,
-                ServerPlatform.Folia,
-                ServerPlatform.Purpur,
-                ServerPlatform.Leaves,
-                ServerPlatform.Leaf
-            };
-
             int idx = SelectedServerPlatformIndex;
-            if (idx < 0 || idx >= platforms.Length) return null;
+            if (idx < 0 || idx >= s_platforms.Length) return null;
 
-            return _serverProviders.TryGetValue(platforms[idx], out var p) ? p : null;
+            return _serverProviders.TryGetValue(s_platforms[idx], out var p) ? p : null;
         }
 
         /// <summary>
@@ -666,7 +666,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         partial void OnSelectedServerPlatformIndexChanged(int value)
         {
-            _ = LoadServerVersionsAsync();
+            _ = LoadServerVersionsAsync().ContinueWith(t =>
+            {
+                if (t.Exception != null)
+                    System.Diagnostics.Debug.WriteLine($"LoadServerVersions failed: {t.Exception.InnerException?.Message}");
+            }, TaskContinuationOptions.OnlyOnFaulted);
         }
 
         #endregion
@@ -716,7 +720,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             if (!string.IsNullOrWhiteSpace(PluginSearchQuery))
             {
-                _ = SearchPluginsAsync();
+                _ = SearchPluginsAsync().ContinueWith(t =>
+                {
+                    if (t.Exception != null)
+                        System.Diagnostics.Debug.WriteLine($"SearchPlugins failed: {t.Exception.InnerException?.Message}");
+                }, TaskContinuationOptions.OnlyOnFaulted);
             }
         }
 
@@ -1057,10 +1065,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 versions = await provider.GetVersionsAsync(project.ProjectId);
             }
 
-            return await Task.Run(() => versions
+            return versions
                 .Where(static version => version.PrimaryFile != null)
                 .OrderByDescending(static version => PluginVersionListItem.ParsePublishedDate(version.DatePublished))
-                .ToList());
+                .ToList();
         }
 
         /// <summary>

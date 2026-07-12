@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
     
 <ui:ContentDialog x:Class="SimplyMinecraftServerManager.Views.Pages.ServerPingerDialog"
@@ -51,12 +51,12 @@
             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,24">
                 <ui:TextBox Width="200" Padding="8" Margin="0,0,12,0"
                             PlaceholderText="127.0.0.1"
-                            Text="{Binding ViewModel.Ip, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            Text="{Binding ViewModel.Ip, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                             VerticalAlignment="Center"/>
 
                 <ui:TextBox Width="100" Padding="8" Margin="0,0,12,0"
                             PlaceholderText="25565"
-                            Text="{Binding ViewModel.Port, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            Text="{Binding ViewModel.Port, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                             VerticalAlignment="Center"/>
                 <ui:Button Appearance="Primary"
                            Content="连接" 

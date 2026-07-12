@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using System.Diagnostics;
@@ -46,12 +46,6 @@ namespace SimplyMinecraftServerManager.Helpers
 
             try
             {
-                Debug.WriteLine($"[McColorBinder] MOTD raw: \"{motd}\"");
-                Debug.WriteLine($"[McColorBinder] MOTD length: {motd?.Length}, contains §: {motd?.Contains('§')}, contains &: {motd?.Contains('&')}");
-                var testRuns = McColorParser.Parse(motd);
-                Debug.WriteLine($"[McColorBinder] Parsed runs count: {testRuns.Count}");
-                for (int i = 0; i < Math.Min(testRuns.Count, 5); i++)
-                    Debug.WriteLine($"  Run[{i}]: text=\"{testRuns[i].Text}\", fg={testRuns[i].Foreground}");
                 tb.Inlines.Clear();
 
                 if (!string.IsNullOrEmpty(motd))

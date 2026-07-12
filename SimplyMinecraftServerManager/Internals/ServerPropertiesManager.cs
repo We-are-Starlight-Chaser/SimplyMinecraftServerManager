@@ -23,7 +23,7 @@ namespace SimplyMinecraftServerManager.Internals
         public static Dictionary<string, string> Read(string instanceId)
         {
             if (_propsCache.TryGet(instanceId, out var cached))
-                return cached;
+                return new Dictionary<string, string>(cached!, StringComparer.OrdinalIgnoreCase);
 
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             if (!File.Exists(path))
@@ -31,26 +31,19 @@ namespace SimplyMinecraftServerManager.Internals
 
             var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            FileLock.EnterReadLock();
-            try
+            var lines = ReadAllLinesWithRetry(path);
+            foreach (string line in lines)
             {
-                foreach (string line in ReadAllLinesWithRetry(path))
-                {
-                    string trimmed = line.Trim();
-                    if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
-                        continue;
+                string trimmed = line.Trim();
+                if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
+                    continue;
 
-                    int eq = trimmed.IndexOf('=');
-                    if (eq < 0) continue;
+                int eq = trimmed.IndexOf('=');
+                if (eq < 0) continue;
 
-                    string key = trimmed[..eq].Trim();
-                    string value = trimmed[(eq + 1)..];
-                    result[key] = value;
-                }
-            }
-            finally
-            {
-                FileLock.ExitReadLock();
+                string key = trimmed[..eq].Trim();
+                string value = trimmed[(eq + 1)..];
+                result[key] = value;
             }
 
             _propsCache.Set(instanceId, result);
@@ -123,38 +116,39 @@ namespace SimplyMinecraftServerManager.Internals
         public static void SetValue(string instanceId, string key, string value)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
+            
+            var lines = File.Exists(path)
+                ? ReadAllLinesWithRetry(path).ToList()
+                : [];
+
+            bool found = false;
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                string trimmed = lines[i].TrimStart();
+                if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
+                    continue;
+
+                int eq = trimmed.IndexOf('=');
+                if (eq < 0) continue;
+
+                string k = trimmed[..eq].Trim();
+                if (k.Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    lines[i] = $"{key}={value}";
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                lines.Add($"{key}={value}");
+            }
+
             FileLock.EnterWriteLock();
             try
             {
-                var lines = File.Exists(path)
-                    ? ReadAllLinesWithRetry(path).ToList()
-                    : [];
-
-                bool found = false;
-
-                for (int i = 0; i < lines.Count; i++)
-                {
-                    string trimmed = lines[i].TrimStart();
-                    if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
-                        continue;
-
-                    int eq = trimmed.IndexOf('=');
-                    if (eq < 0) continue;
-
-                    string k = trimmed[..eq].Trim();
-                    if (k.Equals(key, StringComparison.OrdinalIgnoreCase))
-                    {
-                        lines[i] = $"{key}={value}";
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found)
-                {
-                    lines.Add($"{key}={value}");
-                }
-
                 WriteAllLinesWithRetry(path, lines);
             }
             finally
@@ -172,36 +166,37 @@ namespace SimplyMinecraftServerManager.Internals
         public static void SetValues(string instanceId, Dictionary<string, string> values)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
+            
+            var lines = File.Exists(path)
+                ? ReadAllLinesWithRetry(path).ToList()
+                : [];
+
+            var remaining = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < lines.Count && remaining.Count > 0; i++)
+            {
+                string trimmed = lines[i].TrimStart();
+                if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
+                    continue;
+
+                int eq = trimmed.IndexOf('=');
+                if (eq < 0) continue;
+
+                string k = trimmed[..eq].Trim();
+
+                if (remaining.TryGetValue(k, out string? newVal))
+                {
+                    lines[i] = $"{k}={newVal}";
+                    remaining.Remove(k);
+                }
+            }
+
+            foreach (var kvp in remaining)
+                lines.Add($"{kvp.Key}={kvp.Value}");
+
             FileLock.EnterWriteLock();
             try
             {
-                var lines = File.Exists(path)
-                    ? ReadAllLinesWithRetry(path).ToList()
-                    : [];
-
-                var remaining = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
-
-                for (int i = 0; i < lines.Count && remaining.Count > 0; i++)
-                {
-                    string trimmed = lines[i].TrimStart();
-                    if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
-                        continue;
-
-                    int eq = trimmed.IndexOf('=');
-                    if (eq < 0) continue;
-
-                    string k = trimmed[..eq].Trim();
-
-                    if (remaining.TryGetValue(k, out string? newVal))
-                    {
-                        lines[i] = $"{k}={newVal}";
-                        remaining.Remove(k);
-                    }
-                }
-
-                foreach (var kvp in remaining)
-                    lines.Add($"{kvp.Key}={kvp.Value}");
-
                 WriteAllLinesWithRetry(path, lines);
             }
             finally
@@ -290,7 +285,7 @@ namespace SimplyMinecraftServerManager.Internals
                         lines.Add(reader.ReadLine() ?? string.Empty);
                     }
 
-                    return [.. lines];
+                    return lines.ToArray();
                 }
                 catch (IOException) when (attempt < retryCount)
                 {

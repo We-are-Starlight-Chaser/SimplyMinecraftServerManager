@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <Page
@@ -707,8 +707,13 @@
                         </ui:Button>
                     </StackPanel>
 
-                    <ScrollViewer Grid.Row="1" Margin="16,0,16,16">
+                    <ScrollViewer Grid.Row="1" Margin="16,0,16,16" CanContentScroll="True">
                         <ItemsControl ItemsSource="{Binding ViewModel.Plugins, ElementName=PageRoot}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel VirtualizingStackPanel.VirtualizationMode="Recycling"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Background="{DynamicResource ControlFillColorDefaultBrush}" 
