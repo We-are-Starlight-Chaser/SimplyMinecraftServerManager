@@ -108,14 +108,20 @@ namespace SimplyMinecraftServerManager.Internals
                     var port = ServerPropertiesManager.GetInt(instance.Id, "server-port", 0);
                     if (port > 0) _usedServerPorts.Add(port);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[InstanceManager] Failed to read server-port for {instance.Id}: {ex.Message}");
+                }
 
                 try
                 {
                     var rconPort = ServerPropertiesManager.GetInt(instance.Id, "rcon.port", 0);
                     if (rconPort > 0) _usedRconPorts.Add(rconPort);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[InstanceManager] Failed to read rcon.port for {instance.Id}: {ex.Message}");
+                }
             }
         }
 
@@ -139,7 +145,10 @@ namespace SimplyMinecraftServerManager.Internals
 
         private static void EnsureLoaded()
         {
-            if (!_loaded) Load();
+            lock (_lock)
+            {
+                if (!_loaded) Load();
+            }
         }
 
         private static int GetNextAvailablePort()
@@ -316,7 +325,10 @@ namespace SimplyMinecraftServerManager.Internals
                     var rconPort = ServerPropertiesManager.GetInt(info.Id, "rcon.port", 0);
                     if (rconPort > 0) _usedRconPorts.Add(rconPort);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[InstanceManager] Failed to read ports for new instance {info.Id}: {ex.Message}");
+                }
                 DebouncedSave();
 
                 return info;
@@ -353,6 +365,17 @@ namespace SimplyMinecraftServerManager.Internals
         /// <param name="jdkPath">JDK 完整路径</param>
 public static void SetJdkPath(string instanceId, string jdkPath)
         {
+            if (string.IsNullOrWhiteSpace(jdkPath))
+                throw new ArgumentException("JDK path cannot be empty.", nameof(jdkPath));
+
+            if (!Path.IsPathRooted(jdkPath))
+                throw new ArgumentException("JDK path must be an absolute path.", nameof(jdkPath));
+
+            jdkPath = Path.GetFullPath(jdkPath);
+
+            if (!File.Exists(jdkPath))
+                throw new FileNotFoundException("JDK executable not found.", jdkPath);
+
             lock (_lock)
             {
                 EnsureLoaded();
@@ -370,10 +393,21 @@ public static void SetJdkPath(string instanceId, string jdkPath)
         /// 设置指定实例的内存分配。
         /// </summary>
         /// <param name="instanceId">实例 ID</param>
-        /// <param name="minMb">最小内存 (MB)</param>
-        /// <param name="maxMb">最大内存 (MB)</param>
+        /// <param name="minMb">最小内存 (MB)，必须为正数且为 4 的倍数</param>
+        /// <param name="maxMb">最大内存 (MB)，必须为正数、不小于 minMb 且为 4 的倍数</param>
         public static void SetMemory(string instanceId, int minMb, int maxMb)
         {
+            if (minMb <= 0)
+                throw new ArgumentOutOfRangeException(nameof(minMb), minMb, "Minimum memory must be positive.");
+            if (maxMb <= 0)
+                throw new ArgumentOutOfRangeException(nameof(maxMb), maxMb, "Maximum memory must be positive.");
+            if (minMb % 4 != 0)
+                throw new ArgumentOutOfRangeException(nameof(minMb), minMb, "Minimum memory must be a multiple of 4.");
+            if (maxMb % 4 != 0)
+                throw new ArgumentOutOfRangeException(nameof(maxMb), maxMb, "Maximum memory must be a multiple of 4.");
+            if (maxMb < minMb)
+                throw new ArgumentOutOfRangeException(nameof(maxMb), maxMb, "Maximum memory must not be less than minimum memory.");
+
             lock (_lock)
             {
                 EnsureLoaded();
@@ -428,7 +462,10 @@ public static void SetJdkPath(string instanceId, string jdkPath)
                 {
                     Directory.Delete(dirToDelete, recursive: true);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[InstanceManager] Failed to delete instance directory {dirToDelete}: {ex.Message}");
+                }
             }
 
             return true;

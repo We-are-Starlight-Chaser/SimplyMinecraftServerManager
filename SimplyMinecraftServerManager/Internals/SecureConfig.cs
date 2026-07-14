@@ -32,8 +32,9 @@ namespace SimplyMinecraftServerManager.Internals
                     DataProtectionScope.CurrentUser);
                 return Prefix + Convert.ToBase64String(encryptedBytes);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[SecureConfig] Encryption failed, storing as plaintext: {ex.Message}");
                 return plainText;
             }
         }
@@ -60,8 +61,9 @@ namespace SimplyMinecraftServerManager.Internals
                     DataProtectionScope.CurrentUser);
                 return Encoding.UTF8.GetString(plainBytes);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[SecureConfig] Decryption failed: {ex.Message}");
                 return encryptedText;
             }
         }

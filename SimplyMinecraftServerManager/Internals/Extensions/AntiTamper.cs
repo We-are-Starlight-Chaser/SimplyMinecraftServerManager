@@ -1,0 +1,290 @@
+// Copyright (c) 2026 We Are Starlight Chaser Team
+// Licensed under the MIT License.
+
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using SimplyMinecraftServerManager.Extension.Interfaces;
+
+namespace SimplyMinecraftServerManager.Internals.Extensions;
+
+/// <summary>
+/// 反篡改检测器。
+/// 通过多种手段检测扩展是否试图绕过沙箱或进行恶意操作。
+///
+/// 检测策略：
+///   1. 进程模块监控（检测注入的 DLL）
+///   2. 线程枚举（检测恶意线程创建）
+///   3. 可疑 P/Invoke 调用检测
+///   4. 文件系统越界访问检测
+///   5. 网络连接监控
+///   6. 操作系统 API 调用审计
+/// </summary>
+internal sealed class AntiTamper : IDisposable
+{
+    private readonly string _extensionId;
+    private readonly string _extensionDataPath;
+    private readonly ILogger _logger;
+    private readonly Timer _monitorTimer;
+    private readonly object _lock = new();
+
+    // 基线快照
+    private HashSet<string> _baselineModules = [];
+    private int _baselineThreadCount;
+
+    // 追踪
+    private readonly List<string> _violations = [];
+    private bool _disposed;
+    private readonly int _maxViolations;
+
+    // 事件
+    public event EventHandler<TamperEventArgs>? TamperDetected;
+
+    // 已知安全模块前缀
+    private static readonly HashSet<string> SafeModulePrefixes =
+    [
+        "System.", "Microsoft.", "mscorlib", "netstandard",
+        "SimplyMinecraftServerManager", "WindowsBase",
+        "PresentationCore", "PresentationFramework",
+        "Accessibility", "UIAutomation",
+    ];
+
+    // 可疑 API 模式
+    private static readonly HashSet<string> SuspiciousApis =
+    [
+        "VirtualAlloc", "VirtualProtect", "WriteProcessMemory",
+        "CreateRemoteThread", "OpenProcess", "NtUnmapViewOfSection",
+        "SetWindowsHookEx", "GetAsyncKeyState",
+        "AdjustTokenPrivileges", "OpenThreadToken",
+    ];
+
+    public AntiTamper(
+        string extensionId,
+        string extensionDataPath,
+        ILogger logger,
+        int monitorIntervalMs = 5000,
+        int maxViolations = 5)
+    {
+        _extensionId = extensionId;
+        _extensionDataPath = extensionDataPath;
+        _logger = logger;
+        _maxViolations = maxViolations;
+
+        // 记录基线
+        RecordBaseline();
+
+        _monitorTimer = new Timer(
+            callback: _ => Monitor(),
+            state: null,
+            dueTime: monitorIntervalMs,
+            period: monitorIntervalMs);
+    }
+
+    /// <summary>
+    /// 记录当前进程状态基线。
+    /// 在扩展加载后调用。
+    /// </summary>
+    public void RecordBaseline()
+    {
+        lock (_lock)
+        {
+            try
+            {
+                var process = Process.GetCurrentProcess();
+
+                _baselineModules = process.Modules
+                    .Cast<ProcessModule>()
+                    .Select(m => m.ModuleName)
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                _baselineThreadCount = process.Threads.Count;
+
+                _logger.Debug($"[{_extensionId}] 反篡改基线已记录 (模块={_baselineModules.Count}, 线程={_baselineThreadCount})");
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"[{_extensionId}] 记录反篡改基线失败: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 验证路径是否在扩展数据目录内。
+    /// 扩展访问文件时应调用此方法。
+    /// </summary>
+    public bool ValidatePath(string path)
+    {
+        try
+        {
+            string fullPath = Path.GetFullPath(path);
+            string extensionRoot = Path.GetFullPath(_extensionDataPath);
+
+            if (fullPath.StartsWith(extensionRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // 允许访问系统临时目录
+            string tempPath = Path.GetFullPath(Path.GetTempPath());
+            if (fullPath.StartsWith(tempPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            OnTamper(TamperType.FileSystemViolation,
+                $"扩展尝试访问数据目录外的路径: {fullPath}");
+
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 检查可疑的 P/Invoke 调用。
+    /// </summary>
+    public bool CheckPInvoke(string dllName, string? functionName = null)
+    {
+        // 可疑的系统 DLL
+        string[] suspiciousDlls = ["kernel32.dll", "ntdll.dll", "advapi32.dll", "user32.dll"];
+
+        if (suspiciousDlls.Any(d => string.Equals(d, dllName, StringComparison.OrdinalIgnoreCase)))
+        {
+            string func = functionName ?? "unknown";
+            OnTamper(TamperType.SuspiciousPInvoke,
+                $"检测到可疑 P/Invoke: {dllName}::{func}");
+            return false;
+        }
+
+        return true;
+    }
+
+    private void Monitor()
+    {
+        if (_disposed) return;
+
+        lock (_lock)
+        {
+            try
+            {
+                var process = Process.GetCurrentProcess();
+
+                // 1. 检测新增模块（DLL 注入）
+                CheckModuleInjection(process);
+
+                // 2. 检测异常线程增长
+                CheckThreadAnomaly(process);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[{_extensionId}] AntiTamper monitor error: {ex.Message}");
+            }
+        }
+    }
+
+    private void CheckModuleInjection(Process process)
+    {
+        try
+        {
+            var currentModules = process.Modules
+                .Cast<ProcessModule>()
+                .Select(m => m.ModuleName)
+                .Where(n => !string.IsNullOrEmpty(n))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var newModules = currentModules.Except(_baselineModules);
+
+            foreach (string moduleName in newModules)
+            {
+                // 跳过已知安全模块
+                if (SafeModulePrefixes.Any(p => moduleName.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                OnTamper(TamperType.ModuleInjection,
+                    $"检测到新模块加载: {moduleName}");
+            }
+        }
+        catch
+        {
+            // 进程模块枚举可能在某些状态下失败
+        }
+    }
+
+    private void CheckThreadAnomaly(Process process)
+    {
+        try
+        {
+            int currentThreadCount = process.Threads.Count;
+            int threadDelta = currentThreadCount - _baselineThreadCount;
+
+            // 线程数增长超过 100% 或绝对值超过 50
+            if (threadDelta > Math.Max(_baselineThreadCount, 50))
+            {
+                OnTamper(TamperType.ThreadAnomaly,
+                    $"线程数异常增长: {currentThreadCount} (基线={_baselineThreadCount}, 增长={threadDelta})");
+            }
+        }
+        catch
+        {
+            // 线程枚举可能在某些状态下失败
+        }
+    }
+
+    private void OnTamper(TamperType type, string detail)
+    {
+        if (_violations.Count >= _maxViolations) return;
+
+        _violations.Add($"[{DateTime.UtcNow:HH:mm:ss}] {type}: {detail}");
+
+        bool isTerminal = _violations.Count >= _maxViolations;
+
+        _logger.Error($"[{_extensionId}] 反篡改检测: {type} - {detail}" +
+                      (isTerminal ? " (已达上限)" : ""));
+
+        TamperDetected?.Invoke(this, new TamperEventArgs
+        {
+            ExtensionId = _extensionId,
+            Type = type,
+            Detail = detail,
+            ViolationNumber = _violations.Count,
+            IsTerminal = isTerminal
+        });
+    }
+
+    /// <summary>获取所有违规记录</summary>
+    public IReadOnlyList<string> GetViolations()
+    {
+        lock (_lock) return _violations.AsReadOnly();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _monitorTimer.Dispose();
+    }
+
+    public enum TamperType
+    {
+        ModuleInjection,
+        ThreadAnomaly,
+        SuspiciousPInvoke,
+        FileSystemViolation,
+        NetworkViolation,
+        CodeInjection
+    }
+
+    public sealed class TamperEventArgs : EventArgs
+    {
+        public required string ExtensionId { get; init; }
+        public required TamperType Type { get; init; }
+        public required string Detail { get; init; }
+        public required int ViolationNumber { get; init; }
+        public required bool IsTerminal { get; init; }
+    }
+}

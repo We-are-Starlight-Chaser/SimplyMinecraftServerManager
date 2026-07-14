@@ -128,12 +128,16 @@ private void CollectData()
         {
             Process? process;
             PerformanceCounter? cpuCounter;
+            DateTime lastCpuTime;
+            TimeSpan lastTotalProcessorTime;
 
             lock (_lock)
             {
                 if (_disposed) return;
                 process = _targetProcess;
                 cpuCounter = _cpuCounter;
+                lastCpuTime = _lastCpuTime;
+                lastTotalProcessorTime = _lastTotalProcessorTime;
                 if (process == null) return;
 
                 if (process.HasExited)
@@ -158,6 +162,8 @@ private void CollectData()
                     {
                         lock (_lock)
                         {
+                            if (_disposed || _targetProcess == null) return;
+                            
                             var now = DateTime.Now;
                             var totalProcessorTime = process.TotalProcessorTime;
                             var timeDiff = (now - _lastCpuTime).TotalMilliseconds;
@@ -175,7 +181,7 @@ private void CollectData()
                 }
                 catch { }
 
-                cpuUsage = Math.Clamp(cpuUsage, 0, 100 * Environment.ProcessorCount);
+                cpuUsage = Math.Clamp(cpuUsage, 0, 100);
 
                 var (TotalMb, WorldSizes) = GetStorageUsageCached();
 

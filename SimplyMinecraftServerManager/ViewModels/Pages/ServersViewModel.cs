@@ -6,6 +6,7 @@ using SimplyMinecraftServerManager.Internals.Downloads;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Views.Pages;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
@@ -23,7 +24,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         private readonly IContentDialogService _contentDialogService;
         private readonly INavigationService _navigationService;
         private readonly NavigationParameterService _navigationParameterService;
-        private Dictionary<string, InstanceDisplayItem> _instanceItemMap = new();
+        private ConcurrentDictionary<string, InstanceDisplayItem> _instanceItemMap = new();
 
         private static async void SafeFireAndForget(Task task)
         {
@@ -367,7 +368,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 }
 
                 Instances = new ObservableCollection<InstanceDisplayItem>(items);
-                _instanceItemMap = items.ToDictionary(i => i.InstanceId);
+                _instanceItemMap = new ConcurrentDictionary<string, InstanceDisplayItem>(items.ToDictionary(i => i.InstanceId));
 
                 StatusMessage = $"共 {instances.Count} 个实例";
             }

@@ -312,8 +312,9 @@ namespace SimplyMinecraftServerManager.Internals
                             EmptyWorkingSet(hProcess);
                             cleanedCount++;
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
+                            System.Diagnostics.Debug.WriteLine($"[MemoryCleaner] Failed to clean working set for process {processIds[i]}: {ex.Message}");
                         }
                         finally
                         {

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SimplyMinecraftServerManager.Internals;
+using SimplyMinecraftServerManager.Internals.Extensions;
 using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.ViewModels.Pages;
 using SimplyMinecraftServerManager.ViewModels.Windows;
@@ -98,8 +99,8 @@ namespace SimplyMinecraftServerManager
                 var version = Environment.OSVersion.Version;
                 int major = version.Major;
                 int minor = version.Minor;
-                bool isTargetSystem = !OperatingSystem.IsWindowsVersionAtLeast(10);//(major == 6 && minor >= 0 && minor <= 3);
-                if (isTargetSystem)
+                bool isUnsupportedSystem = !OperatingSystem.IsWindowsVersionAtLeast(10);
+                if (isUnsupportedSystem)
                 {
                     MessageBox.Show("本程序不支持旧版的TLS协议，请升级系统或安装补丁！", "SMSM");
                 }
@@ -109,6 +110,10 @@ namespace SimplyMinecraftServerManager
                 await _host.StartAsync();
                 
                 await Task.Run(() => InstanceManager.Load());
+
+                var extLogger = new ExtensionLogger("host");
+                _extensionLoader = new ExtensionLoader(extLogger);
+                await _extensionLoader.LoadAllAsync();
                 
                 await Task.Run(() => PreloadNonCriticalData());
 
@@ -131,7 +136,10 @@ namespace SimplyMinecraftServerManager
             {
                 var config = ConfigManager.Current;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log($"Failed to preload non-critical data: {ex.Message}");
+            }
         }
 
         private async void OnExit(object sender, ExitEventArgs e)
@@ -139,6 +147,8 @@ namespace SimplyMinecraftServerManager
             try
             {
                 Log("Application shutting down...");
+                await _extensionLoader!.UnloadAllAsync();
+                _extensionLoader.Dispose();
                 ServerProcessManager.KillAll();
                 InstanceManager.Shutdown();
                 await _host.StopAsync();
@@ -191,6 +201,7 @@ namespace SimplyMinecraftServerManager
 
         private static readonly Lock _logLock = new();
         private static System.IO.StreamWriter? _logWriter;
+        private static ExtensionLoader? _extensionLoader;
 
         private static void Log(string message)
         {

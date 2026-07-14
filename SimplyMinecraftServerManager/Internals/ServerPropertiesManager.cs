@@ -271,7 +271,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        private static string[] ReadAllLinesWithRetry(string path, int retryCount = 6, int delayMs = 40)
+        private static string[] ReadAllLinesWithRetry(string path, int retryCount = 3, int delayMs = 20)
         {
             for (int attempt = 0; ; attempt++)
             {
@@ -294,7 +294,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        private static void WriteAllLinesWithRetry(string path, IEnumerable<string> lines, int retryCount = 6, int delayMs = 40)
+        private static void WriteAllLinesWithRetry(string path, IEnumerable<string> lines, int retryCount = 3, int delayMs = 20)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 

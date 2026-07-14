@@ -48,8 +48,9 @@ namespace SimplyMinecraftServerManager.Internals
                     _cached = Toml.ToModel<AppConfig>(toml);
                     DecryptSensitiveFields();
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    System.Diagnostics.Debug.WriteLine($"[ConfigManager] Failed to load config: {ex.Message}");
                     _cached = new AppConfig();
                     Save(_cached);
                 }

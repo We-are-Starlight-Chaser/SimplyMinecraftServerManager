@@ -70,7 +70,7 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
             [15] = Color.FromRgb(0xFF, 0xFF, 0xFF)
         };
 
-        private static readonly Dictionary<Color, SolidColorBrush> _brushCache = [];
+        private static readonly ConcurrentDictionary<Color, SolidColorBrush> _brushCache = new();
         private static SolidColorBrush? _timestampBrush;
         private static SolidColorBrush? _searchHighlightBrush;
         private static SolidColorBrush? _defaultForegroundBrush;
@@ -487,13 +487,12 @@ private SolidColorBrush CreateTimestampBrush()
 
         private static SolidColorBrush GetCachedBrush(Color color)
         {
-            if (!_brushCache.TryGetValue(color, out var brush))
+            return _brushCache.GetOrAdd(color, c =>
             {
-                brush = new SolidColorBrush(color);
+                var brush = new SolidColorBrush(c);
                 brush.Freeze();
-                _brushCache[color] = brush;
-            }
-            return brush;
+                return brush;
+            });
         }
 
         private static SolidColorBrush WhiteBrush => _whiteBrush ??= GetCachedBrush(Colors.White);

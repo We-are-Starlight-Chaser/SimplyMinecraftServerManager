@@ -37,7 +37,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             Platform = platform;
             _project = project;
             _baseUrl = $"https://fill.papermc.io/v3/projects/{_project}";
-            _http = httpClient ?? CreateDefaultClient();
+            _http = httpClient ?? HttpHelper.CreateDefaultClient();
         }
 
         // ────────── 快捷静态工厂 ──────────
@@ -234,20 +234,5 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return await mgr.EnqueueAsync(task);
         }
 
-        /// <summary>
-        /// 创建默认的 HttpClient 实例，超时时间 30 分钟。
-        /// </summary>
-        private static HttpClient CreateDefaultClient()
-        {
-            var handler = new SocketsHttpHandler
-            {
-                AutomaticDecompression = System.Net.DecompressionMethods.All
-            };
-            var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(30) };
-            client.DefaultRequestHeaders.TryAddWithoutValidation(
-                "User-Agent", "SimplyMinecraftServerManager/1.0 (https://github.com/We-are-Starlight-Chaser/SimplyMinecraftServerManager)");
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
-            return client;
-        }
     }
 }

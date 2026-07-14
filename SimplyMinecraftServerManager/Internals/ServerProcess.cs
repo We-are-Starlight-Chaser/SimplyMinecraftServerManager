@@ -6,6 +6,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace SimplyMinecraftServerManager.Internals
 {
@@ -120,12 +121,20 @@ namespace SimplyMinecraftServerManager.Internals
                 throw new InvalidOperationException($"Failed to create job object: {GetLastError()}");
             }
 
+            // 获取实例配置的内存限制
+            var instanceInfo = InstanceManager.GetById(InstanceId);
+            long memoryLimitBytes = instanceInfo?.MaxMemoryMb > 0
+                ? (long)instanceInfo.MaxMemoryMb * 1024 * 1024
+                : 8L * 1024 * 1024 * 1024; // 默认 8GB
+
             var limitInfo = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION
             {
                 BasicLimitInformation = new JOBOBJECT_BASIC_LIMIT_INFORMATION
                 {
-                    LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-                }
+                    LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_MEMORY,
+                    ActiveProcessLimit = 100, // 限制进程数，防止 fork 炸弹
+                },
+                JobMemoryLimit = (UIntPtr)memoryLimitBytes,
             };
 
             int size = Marshal.SizeOf(limitInfo);
@@ -228,7 +237,7 @@ namespace SimplyMinecraftServerManager.Internals
             _process.ErrorDataReceived += _errorHandler;
             _process.Exited += OnProcessExited;
 
-            var started = await Task.Run(() => _process.Start(), cancellationToken);
+            var started = _process.Start();
             if (!started)
             {
                 throw new InvalidOperationException("Failed to start Java process.");
@@ -358,6 +367,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
             catch
             {
+                /* RCON client reset is best-effort */
             }
 
             _rconClient = null;
@@ -372,7 +382,7 @@ namespace SimplyMinecraftServerManager.Internals
                 {
                     _process.Kill(entireProcessTree: true);
                 }
-                catch { }
+                catch { /* process may have already exited */ }
             }
         }
 
@@ -390,8 +400,8 @@ namespace SimplyMinecraftServerManager.Internals
         /// <summary>释放服务器进程及相关资源</summary>
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
+            if (Interlocked.CompareExchange(ref _disposed, true, false) != false)
+                return;
 
             try
             {
@@ -401,22 +411,23 @@ namespace SimplyMinecraftServerManager.Internals
                 {
                     Task.Run(async () =>
                     {
-                        try { await client.DisposeAsync(); } catch { }
-                    }).GetAwaiter().GetResult();
+                        try { await client.DisposeAsync(); } catch { /* best effort */ }
+                    }).Wait(TimeSpan.FromSeconds(5));
                 }
             }
             catch
             {
+                /* RCON client cleanup is best-effort */
             }
 
             try
             {
                 if (_process != null && !_process.HasExited)
                 {
-                    try { _process.Kill(entireProcessTree: true); } catch { }
+                    try { _process.Kill(entireProcessTree: true); } catch { /* process may have already exited */ }
                 }
             }
-            catch { }
+            catch { /* kill is best-effort during dispose */ }
 
             try
             {
@@ -427,19 +438,19 @@ namespace SimplyMinecraftServerManager.Internals
                     _process.Exited -= OnProcessExited;
                 }
             }
-            catch { }
+            catch { /* event unsubscription is best-effort */ }
 
             try
             {
                 _process?.Dispose();
             }
-            catch { }
+            catch { /* process disposal is best-effort */ }
             _process = null;
             _processId = 0;
 
             if (_jobHandle != IntPtr.Zero)
             {
-                try { CloseHandle(_jobHandle); } catch { }
+                try { CloseHandle(_jobHandle); } catch { /* handle cleanup is best-effort */ }
                 _jobHandle = IntPtr.Zero;
             }
 
@@ -449,6 +460,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
             catch
             {
+                /* semaphore disposal is best-effort */
             }
 
             GC.SuppressFinalize(this);
@@ -457,8 +469,8 @@ namespace SimplyMinecraftServerManager.Internals
         /// <summary>异步释放服务器进程及相关资源</summary>
         public async ValueTask DisposeAsync()
         {
-            if (_disposed) return;
-            _disposed = true;
+            if (Interlocked.CompareExchange(ref _disposed, true, false) != false)
+                return;
 
             try
             {
@@ -466,16 +478,17 @@ namespace SimplyMinecraftServerManager.Internals
             }
             catch
             {
+                /* RCON client reset is best-effort */
             }
 
             try
             {
                 if (_process != null && !_process.HasExited)
                 {
-                    try { _process.Kill(entireProcessTree: true); } catch { }
+                    try { _process.Kill(entireProcessTree: true); } catch { /* process may have already exited */ }
                 }
             }
-            catch { }
+            catch { /* kill is best-effort during dispose */ }
 
             try
             {
@@ -486,19 +499,19 @@ namespace SimplyMinecraftServerManager.Internals
                     _process.Exited -= OnProcessExited;
                 }
             }
-            catch { }
+            catch { /* event unsubscription is best-effort */ }
 
             try
             {
                 _process?.Dispose();
             }
-            catch { }
+            catch { /* process disposal is best-effort */ }
             _process = null;
             _processId = 0;
 
             if (_jobHandle != IntPtr.Zero)
             {
-                try { CloseHandle(_jobHandle); } catch { }
+                try { CloseHandle(_jobHandle); } catch { /* handle cleanup is best-effort */ }
                 _jobHandle = IntPtr.Zero;
             }
 
@@ -508,6 +521,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
             catch
             {
+                /* semaphore disposal is best-effort */
             }
 
             GC.SuppressFinalize(this);
@@ -517,7 +531,7 @@ namespace SimplyMinecraftServerManager.Internals
         {
             if (_disposed) return;
             int code = -1;
-            try { code = _process?.ExitCode ?? -1; } catch { }
+            try { code = _process?.ExitCode ?? -1; } catch { /* process may have already been disposed */ }
             Exited?.Invoke(this, code);
         }
 

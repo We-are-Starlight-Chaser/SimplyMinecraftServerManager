@@ -78,6 +78,36 @@ namespace SimplyMinecraftServerManager.Internals
         }
 
         /// <summary>
+        /// 验证 Minecraft 玩家名称是否有效。
+        /// </summary>
+        /// <param name="playerName">要验证的玩家名称。</param>
+        /// <returns>如果玩家名称有效则返回 true，否则返回 false。</returns>
+        public static bool IsValidPlayerName(string playerName)
+        {
+            if (string.IsNullOrWhiteSpace(playerName)) return false;
+            if (playerName.Length < 3 || playerName.Length > 16) return false;
+            return ValidPlayerNameRegex().IsMatch(playerName);
+        }
+
+        /// <summary>
+        /// 清理玩家名称，移除不安全字符。
+        /// </summary>
+        /// <param name="playerName">要清理的玩家名称。</param>
+        /// <returns>清理后的安全玩家名称，如果无效则返回 null。</returns>
+        public static string? SanitizePlayerName(string playerName)
+        {
+            if (string.IsNullOrWhiteSpace(playerName)) return null;
+            
+            playerName = playerName.Trim();
+            playerName = SanitizePlayerNameRegex().Replace(playerName, "");
+            
+            if (playerName.Length < 3 || playerName.Length > 16) return null;
+            if (!ValidPlayerNameRegex().IsMatch(playerName)) return null;
+            
+            return playerName;
+        }
+
+        /// <summary>
         /// 清理实例名称，移除不安全字符并截断至最大长度。
         /// </summary>
         /// <param name="name">要清理的实例名称。</param>
@@ -137,5 +167,9 @@ namespace SimplyMinecraftServerManager.Internals
         private static partial Regex ValidInstanceName();
         [GeneratedRegex(@"[^a-zA-Z0-9_\-\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af ]")]
         private static partial Regex SanitizeInstanceName();
+        [GeneratedRegex(@"^[a-zA-Z0-9_]{3,16}$", RegexOptions.Compiled)]
+        private static partial Regex ValidPlayerNameRegex();
+        [GeneratedRegex(@"[^a-zA-Z0-9_]")]
+        private static partial Regex SanitizePlayerNameRegex();
     }
 }

@@ -2036,6 +2036,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 return;
             }
 
+            if (!SecurityHelper.IsValidPlayerName(player.Name))
+            {
+                StatusMessage = "无效的玩家名称";
+                return;
+            }
+
             try
             {
                 await ExecutePlayerRconCommandAsync($"kick {player.Name}");
@@ -2057,6 +2063,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             if (player == null)
             {
+                return;
+            }
+
+            if (!SecurityHelper.IsValidPlayerName(player.Name))
+            {
+                StatusMessage = "无效的玩家名称";
                 return;
             }
 
@@ -2084,6 +2096,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 return;
             }
 
+            if (!SecurityHelper.IsValidPlayerName(player.Name))
+            {
+                StatusMessage = "无效的玩家名称";
+                return;
+            }
+
             try
             {
                 await ExecutePlayerRconCommandAsync($"ban-ip {player.Name}");
@@ -2105,6 +2123,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             if (player == null)
             {
+                return;
+            }
+
+            if (!SecurityHelper.IsValidPlayerName(player.Name))
+            {
+                StatusMessage = "无效的玩家名称";
                 return;
             }
 

@@ -68,6 +68,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SimplyMinecraftServerManager.Extension\SimplyMinecraftServerManager.Extension.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="Assets\Pictures\SMSM-icon-1024.jpg" />
     <None Remove="Assets\Pictures\SMSM-icon-256.jpg" />
   </ItemGroup>

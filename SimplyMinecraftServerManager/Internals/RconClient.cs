@@ -234,6 +234,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
             catch
             {
+                /* stream disposal is best-effort */
             }
 
             try
@@ -242,6 +243,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
             catch
             {
+                /* TCP client disposal is best-effort */
             }
 
             _stream = null;

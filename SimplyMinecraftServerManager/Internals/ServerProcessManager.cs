@@ -91,12 +91,18 @@ namespace SimplyMinecraftServerManager.Internals
                     if (oldProcess.IsRunning)
                         oldProcess.Kill();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to kill old process for {instanceId}: {ex.Message}");
+                }
                 try
                 {
                     oldProcess.Dispose();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to dispose old process for {instanceId}: {ex.Message}");
+                }
             }
             _startTimeCache.TryRemove(instanceId, out _);
         }
@@ -113,7 +119,10 @@ namespace SimplyMinecraftServerManager.Internals
                     if (process.IsRunning)
                         process.Stop();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to stop process for {instanceId}: {ex.Message}");
+                }
 
                 if (process.IsRunning)
                 {
@@ -124,7 +133,10 @@ namespace SimplyMinecraftServerManager.Internals
                             process.Kill();
                             process.WaitForExit(3000);
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to kill process for {instanceId}: {ex.Message}");
+                        }
                     }
                 }
             }
@@ -142,12 +154,18 @@ namespace SimplyMinecraftServerManager.Internals
                     if (process.IsRunning)
                         process.Kill();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to kill process for {instanceId}: {ex.Message}");
+                }
                 try
                 {
                     process.Dispose();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to dispose process for {instanceId}: {ex.Message}");
+                }
                 _startTimeCache.TryRemove(instanceId, out _);
                 InstanceStatusChanged?.Invoke(null, (instanceId, false));
             }
@@ -183,7 +201,10 @@ namespace SimplyMinecraftServerManager.Internals
                     if (kvp.Value.IsRunning)
                         kvp.Value.Stop();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to stop process for {kvp.Key}: {ex.Message}");
+                }
             }
         }
 
@@ -199,12 +220,18 @@ namespace SimplyMinecraftServerManager.Internals
                     if (kvp.Value.IsRunning)
                         kvp.Value.Kill();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to kill process for {kvp.Key}: {ex.Message}");
+                }
                 try
                 {
                     kvp.Value.Dispose();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to dispose process for {kvp.Key}: {ex.Message}");
+                }
             }
             _processes.Clear();
             _startTimeCache.Clear();

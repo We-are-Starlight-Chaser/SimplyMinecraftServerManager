@@ -34,6 +34,7 @@ namespace SimplyMinecraftServerManager.Internals
         private sealed record CacheEntry(DateTime LastWriteTimeUtc, ServerJarMetadata Metadata);
 
         private static readonly ConcurrentDictionary<string, CacheEntry> Cache = new(StringComparer.OrdinalIgnoreCase);
+        private const int MaxCacheSize = 100;
 
         /// <summary>
         /// 从实例信息中读取服务器 JAR 元数据。
@@ -68,8 +69,9 @@ namespace SimplyMinecraftServerManager.Internals
             {
                 jarPath = PathHelper.GetServerJarPath(instanceId, serverJar);
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[ServerJarMetadataReader] Failed to resolve JAR path for {instanceId}/{serverJar}: {ex.Message}");
                 return new ServerJarMetadata();
             }
 
@@ -88,6 +90,20 @@ namespace SimplyMinecraftServerManager.Internals
 
             var metadata = ReadInternal(fullPath);
             Cache[fullPath] = new CacheEntry(lastWriteTimeUtc, metadata);
+            
+            // 限制缓存大小，避免内存泄漏
+            if (Cache.Count > MaxCacheSize)
+            {
+                var oldestKeys = Cache.OrderBy(kvp => kvp.Value.LastWriteTimeUtc)
+                    .Take(Cache.Count - MaxCacheSize)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+                foreach (var key in oldestKeys)
+                {
+                    Cache.TryRemove(key, out _);
+                }
+            }
+            
             return metadata;
         }
 
@@ -286,8 +302,9 @@ namespace SimplyMinecraftServerManager.Internals
                     return idElement.GetString();
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[ServerJarMetadataReader] Failed to parse version.json: {ex.Message}");
             }
 
             return DetectMinecraftVersion(json);

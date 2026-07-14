@@ -14,7 +14,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     public class PurpurProvider(HttpClient? httpClient = null) : IServerProvider
     {
         private const string BaseUrl = "https://api.purpurmc.org/v2/purpur";
-        private readonly HttpClient _http = httpClient ?? CreateDefaultClient();
+        private readonly HttpClient _http = httpClient ?? HttpHelper.CreateDefaultClient();
         private static readonly MemoryCache<IReadOnlyList<string>> _versionsCache = new(TimeSpan.FromMinutes(5), 10);
 
         /// <summary>
@@ -132,7 +132,10 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 md5 = buildDoc.RootElement.TryGetProperty("md5", out var m)
                     ? m.GetString() : null;
             }
-            catch { /* optional */ }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PurpurProvider] Failed to fetch MD5 for {minecraftVersion}#{buildNum}: {ex.Message}");
+            }
 
             string fileName = $"purpur-{minecraftVersion}-{buildNum}.jar";
             string downloadUrl = $"{BaseUrl}/{minecraftVersion}/{buildNum}/download";
@@ -178,15 +181,5 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             return await mgr.EnqueueAsync(task);
         }
 
-        /// <summary>
-        /// 创建默认的 HttpClient 实例，超时时间 30 分钟。
-        /// </summary>
-        private static HttpClient CreateDefaultClient()
-        {
-            var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("SimplyMinecraftServerManager/1.0 (https://github.com/We-are-Starlight-Chaser/SimplyMinecraftServerManager)");
-            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-            return client;
-        }
     }
 }

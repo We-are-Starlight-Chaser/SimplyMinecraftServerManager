@@ -170,8 +170,9 @@ private readonly HttpClient _httpClient;
                     chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
                     chain.Build(certificate);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    System.Diagnostics.Debug.WriteLine($"[DownloadManager] Certificate chain build failed for {host}: {ex.Message}");
                 }
             }
 
@@ -338,8 +339,10 @@ private readonly HttpClient _httpClient;
                 _pausedTasks.TryRemove(taskId, out _);  // 移除暂停标记
                 
                 // 创建新的 CancellationTokenSource 以便可以再次取消
-                task.Cts.Dispose();
-                task.Cts = new CancellationTokenSource();
+                var oldCts = task.Cts;
+                var newCts = new CancellationTokenSource();
+                task.Cts = newCts;
+                oldCts.Dispose();
                 
                 var semaphore = _semaphore;
                 _ = Task.Run(() => ExecuteAsync(task, semaphore))
@@ -359,8 +362,10 @@ private readonly HttpClient _httpClient;
             var pausedTasks = _tasks.Values.Where(t => t.Status == DownloadStatus.Paused).ToList();
             foreach (var task in pausedTasks)
             {
-                task.Cts.Dispose();
-                task.Cts = new CancellationTokenSource();
+                var oldCts = task.Cts;
+                var newCts = new CancellationTokenSource();
+                task.Cts = newCts;
+                oldCts.Dispose();
                 
                 var semaphore = _semaphore;
                 _ = Task.Run(() => ExecuteAsync(task, semaphore))
