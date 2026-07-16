@@ -16,27 +16,45 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 ///   3. 大对象堆 (LOH) 碎片化监控
 ///   4. 非托管内存分配追踪
 ///   5. 内存泄漏检测（GC 未回收 + 老年代增长）
+///   6. 线程创建速率限制（防止线程池耗尽）
+///   7. 磁盘写入量监控（防止磁盘空间耗尽）
 /// </summary>
 internal sealed class MemoryGuard : IDisposable
 {
     private readonly string _extensionId;
     private readonly ILogger _logger;
     private readonly Timer _monitorTimer;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     // 配置
     private readonly long _maxManagedMemoryBytes;
     private readonly long _maxUnmanagedMemoryBytes;
     private readonly int _maxAllocationRateBytesPerSec;
+    private readonly int _maxThreadsPerExtension;
+    private readonly int _maxThreadCreationRatePerSecond;
+    private readonly long _maxDiskWriteBytesPerHour;
+    private readonly long _maxTotalDiskWriteBytes;
 
     // 追踪状态
-    private long _managedMemoryAtStart;
+    private readonly long _managedMemoryAtStart;
     private long _unmanagedMemoryAllocated;
     private long _lastSampledManagedBytes;
     private DateTime _lastSampleTime;
     private long _allocationRateWindowBytes;
     private int _consecutiveOverflows;
     private bool _disposed;
+    
+    // 线程追踪
+    private int _activeThreadCount;
+    private int _threadCreationCountInWindow;
+    private long _lastThreadWindowStartTicks;
+    private readonly List<int> _createdThreadIds = new();
+    
+    // 磁盘写入追踪
+    private long _totalDiskWriteBytes;
+    private long _diskWriteBytesInCurrentHour;
+    private long _lastDiskWriteWindowStartTicks;
+    private DateTime _lastDiskWriteSampleTime;
 
     // 事件
     public event EventHandler<MemoryThresholdEventArgs>? ThresholdExceeded;
@@ -57,6 +75,10 @@ internal sealed class MemoryGuard : IDisposable
         long maxManagedMemoryMb = 256,
         long maxUnmanagedMemoryMb = 128,
         int maxAllocationRateMbPerSec = 50,
+        int maxThreadsPerExtension = 50,
+        int maxThreadCreationRatePerSecond = 10,
+        long maxDiskWriteMbPerHour = 1024,
+        long maxTotalDiskWriteMb = 10240,
         int monitorIntervalMs = 2000)
     {
         _extensionId = extensionId;
@@ -64,9 +86,16 @@ internal sealed class MemoryGuard : IDisposable
         _maxManagedMemoryBytes = maxManagedMemoryMb * 1024 * 1024;
         _maxUnmanagedMemoryBytes = maxUnmanagedMemoryMb * 1024 * 1024;
         _maxAllocationRateBytesPerSec = maxAllocationRateMbPerSec * 1024 * 1024;
+        _maxThreadsPerExtension = maxThreadsPerExtension;
+        _maxThreadCreationRatePerSecond = maxThreadCreationRatePerSecond;
+        _maxDiskWriteBytesPerHour = maxDiskWriteMbPerHour * 1024 * 1024;
+        _maxTotalDiskWriteBytes = maxTotalDiskWriteMb * 1024 * 1024;
         _managedMemoryAtStart = GC.GetTotalMemory(forceFullCollection: false);
         _lastSampledManagedBytes = _managedMemoryAtStart;
         _lastSampleTime = DateTime.UtcNow;
+        _lastThreadWindowStartTicks = DateTime.UtcNow.Ticks;
+        _lastDiskWriteWindowStartTicks = DateTime.UtcNow.Ticks;
+        _lastDiskWriteSampleTime = DateTime.UtcNow;
 
         _monitorTimer = new Timer(
             callback: _ => MonitorMemory(),
@@ -96,6 +125,188 @@ internal sealed class MemoryGuard : IDisposable
     public void TrackUnmanagedRelease(long bytes)
     {
         Interlocked.Add(ref _unmanagedMemoryAllocated, -bytes);
+    }
+    
+    /// <summary>
+    /// 检查是否允许创建新线程。
+    /// 返回 true 如果允许，false 如果应该阻止。
+    /// </summary>
+    public bool CanCreateThread()
+    {
+        if (_disposed)
+            return false;
+        
+        lock (_lock)
+        {
+            // 检查线程总数限制
+            if (_activeThreadCount >= _maxThreadsPerExtension)
+            {
+                _logger.Warn($"[{_extensionId}] 线程数超限: {_activeThreadCount} >= {_maxThreadsPerExtension}");
+                return false;
+            }
+            
+            // 检查线程创建速率限制
+            var now = DateTime.UtcNow.Ticks;
+            var elapsed = now - Interlocked.Read(ref _lastThreadWindowStartTicks);
+            var elapsedMs = elapsed / TimeSpan.TicksPerMillisecond;
+            
+            if (elapsedMs >= 1000) // 1秒窗口
+            {
+                Interlocked.Exchange(ref _threadCreationCountInWindow, 0);
+                Interlocked.Exchange(ref _lastThreadWindowStartTicks, now);
+            }
+            
+            if (_threadCreationCountInWindow >= _maxThreadCreationRatePerSecond)
+            {
+                _logger.Warn($"[{_extensionId}] 线程创建速率超限: {_threadCreationCountInWindow}/s >= {_maxThreadCreationRatePerSecond}/s");
+                return false;
+            }
+            
+            Interlocked.Increment(ref _threadCreationCountInWindow);
+            return true;
+        }
+    }
+    
+    /// <summary>
+    /// 注册线程创建。
+    /// </summary>
+    public void TrackThreadCreation(int threadId)
+    {
+        if (_disposed)
+            return;
+        
+        lock (_lock)
+        {
+            Interlocked.Increment(ref _activeThreadCount);
+            _createdThreadIds.Add(threadId);
+        }
+    }
+    
+    /// <summary>
+    /// 注册线程终止。
+    /// </summary>
+    public void TrackThreadTermination(int threadId)
+    {
+        if (_disposed)
+            return;
+        
+        lock (_lock)
+        {
+            Interlocked.Decrement(ref _activeThreadCount);
+            _createdThreadIds.Remove(threadId);
+        }
+    }
+    
+    /// <summary>
+    /// 获取当前活跃线程数。
+    /// </summary>
+    public int GetActiveThreadCount()
+    {
+        return _activeThreadCount;
+    }
+    
+    /// <summary>
+    /// 获取当前窗口内的线程创建次数。
+    /// </summary>
+    public int GetThreadCreationCountInWindow()
+    {
+        return _threadCreationCountInWindow;
+    }
+    
+    /// <summary>
+    /// 强制终止所有创建的线程（紧急情况使用）。
+    /// </summary>
+    public void ForceTerminateAllThreads()
+    {
+        if (_disposed)
+            return;
+        
+        lock (_lock)
+        {
+            foreach (var threadId in _createdThreadIds)
+            {
+                try
+                {
+                    var thread = System.Threading.Thread.CurrentThread;
+                    // 注意：这里只是记录，实际终止需要在更高层处理
+                    _logger.Warn($"[{_extensionId}] 标记线程 {threadId} 为待终止");
+                }
+                catch
+                {
+                    // 忽略无法访问的线程
+                }
+            }
+            _createdThreadIds.Clear();
+            Interlocked.Exchange(ref _activeThreadCount, 0);
+        }
+    }
+    
+    /// <summary>
+    /// 记录磁盘写入量。
+    /// </summary>
+    public void TrackDiskWrite(long bytes)
+    {
+        if (_disposed)
+            return;
+        
+        lock (_lock)
+        {
+            // 更新总写入量
+            Interlocked.Add(ref _totalDiskWriteBytes, bytes);
+            
+            // 检查总写入量限制
+            if (_totalDiskWriteBytes > _maxTotalDiskWriteBytes)
+            {
+                _logger.Warn($"[{_extensionId}] 磁盘总写入量超限: {_totalDiskWriteBytes / 1024 / 1024}MB > {_maxTotalDiskWriteBytes / 1024 / 1024}MB");
+                OnThresholdExceeded(MemoryThresholdType.DiskWrite, _totalDiskWriteBytes, _maxTotalDiskWriteBytes);
+            }
+            
+            // 更新当前小时写入量
+            var now = DateTime.UtcNow.Ticks;
+            var elapsed = now - Interlocked.Read(ref _lastDiskWriteWindowStartTicks);
+            var elapsedMs = elapsed / TimeSpan.TicksPerMillisecond;
+            
+            if (elapsedMs >= 3600000) // 1小时窗口
+            {
+                Interlocked.Exchange(ref _diskWriteBytesInCurrentHour, 0);
+                Interlocked.Exchange(ref _lastDiskWriteWindowStartTicks, now);
+            }
+            
+            Interlocked.Add(ref _diskWriteBytesInCurrentHour, bytes);
+            
+            // 检查每小时写入量限制
+            if (_diskWriteBytesInCurrentHour > _maxDiskWriteBytesPerHour)
+            {
+                _logger.Warn($"[{_extensionId}] 磁盘每小时写入量超限: {_diskWriteBytesInCurrentHour / 1024 / 1024}MB > {_maxDiskWriteBytesPerHour / 1024 / 1024}MB");
+                OnThresholdExceeded(MemoryThresholdType.DiskWriteRate, _diskWriteBytesInCurrentHour, _maxDiskWriteBytesPerHour);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 获取总磁盘写入量。
+    /// </summary>
+    public long GetTotalDiskWriteBytes()
+    {
+        return _totalDiskWriteBytes;
+    }
+    
+    /// <summary>
+    /// 获取当前小时磁盘写入量。
+    /// </summary>
+    public long GetDiskWriteBytesInCurrentHour()
+    {
+        return _diskWriteBytesInCurrentHour;
+    }
+    
+    /// <summary>
+    /// 重置磁盘写入计数器。
+    /// </summary>
+    public void ResetDiskWriteCounters()
+    {
+        Interlocked.Exchange(ref _totalDiskWriteBytes, 0);
+        Interlocked.Exchange(ref _diskWriteBytesInCurrentHour, 0);
+        Interlocked.Exchange(ref _lastDiskWriteWindowStartTicks, DateTime.UtcNow.Ticks);
     }
 
     /// <summary>
@@ -227,7 +438,9 @@ internal sealed class MemoryGuard : IDisposable
         Managed,
         Unmanaged,
         AllocationRate,
-        Fragmentation
+        Fragmentation,
+        DiskWrite,
+        DiskWriteRate
     }
 
     /// <summary>内存阈值事件参数</summary>

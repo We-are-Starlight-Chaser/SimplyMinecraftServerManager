@@ -31,6 +31,19 @@ internal sealed class ExtensionLoader : IDisposable
 
     public IReadOnlyCollection<string> LoadedExtensionIds => [.. _extensions.Keys];
 
+    /// <summary>
+    /// 主程序 SDK 版本，用于扩展兼容性校验。
+    /// 从 SimplyMinecraftServerManager.Extension 程序集版本获取。
+    /// </summary>
+    public Version HostSdkVersion { get; } = GetHostSdkVersion();
+
+    /// <summary>
+    /// 单个扩展目录的最大允许大小（字节）。
+    /// 超过此大小的扩展将被自动跳过，不加载。
+    /// 默认 10MB。
+    /// </summary>
+    public const long MaxExtensionSizeBytes = 10 * 1024 * 1024;
+
     public ExtensionLoader(ILogger logger)
     {
         _logger = logger;
@@ -79,12 +92,22 @@ internal sealed class ExtensionLoader : IDisposable
             string extensionId = Path.GetFileName(dir);
             try
             {
+                // 检查扩展目录大小
+                long dirSize = GetDirectorySize(dir);
+                double sizeMB = dirSize / (1024.0 * 1024.0);
+                if (dirSize > MaxExtensionSizeBytes)
+                {
+                    double limitMB = MaxExtensionSizeBytes / (1024.0 * 1024.0);
+                    _logger.Warn($"跳过扩展 '{extensionId}': 目录大小 {sizeMB:F1}MB 超过上限 {limitMB:F0}MB");
+                    continue;
+                }
+
                 var (dllPath, metadata) = await DiscoverExtensionAsync(dir, cancellationToken)
                     .ConfigureAwait(false);
                 if (metadata is not null)
                 {
                     candidates[extensionId] = (dllPath, metadata);
-                    _logger.Info($"发现扩展: {metadata.Name} v{metadata.Version} ({extensionId})");
+                    _logger.Info($"发现扩展: {metadata.Name} v{metadata.Version} ({extensionId}) [大小: {sizeMB:F1}MB]");
                 }
             }
             catch (Exception ex)
@@ -104,9 +127,11 @@ internal sealed class ExtensionLoader : IDisposable
             kv => kv.Key,
             kv => kv.Value.Metadata);
 
+        _logger.Info($"主程序 SDK 版本: {HostSdkVersion}");
+
         var resolver = new DependencyResolver(metadataDict, _logger);
 
-        var incompatible = resolver.CheckHostCompatibility(new Version(1, 0, 0));
+        var incompatible = resolver.CheckHostCompatibility(HostSdkVersion);
         foreach (string id in incompatible)
         {
             _logger.Warn($"移除不兼容扩展: {id}");
@@ -122,25 +147,83 @@ internal sealed class ExtensionLoader : IDisposable
             metadataDict.Remove(id);
         }
 
-        List<string> loadOrder;
-        try
-        {
-            loadOrder = resolver.Resolve();
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.Error($"依赖解析失败: {ex.Message}");
-            return;
-        }
+        // 第三阶段：按扩展数量决定加载策略
+        const int TieredLoadingThreshold = 16;
 
-        // 第三阶段：按依赖顺序加载
-        foreach (string extensionId in loadOrder)
+        if (candidates.Count > TieredLoadingThreshold)
         {
-            if (!candidates.TryGetValue(extensionId, out var candidate)) continue;
+            // 超过 16 个扩展：分层并行加载
+            List<List<string>> tiers;
+            try
+            {
+                tiers = resolver.ResolveTiers();
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.Error($"依赖解析失败: {ex.Message}");
+                return;
+            }
 
-            cancellationToken.ThrowIfCancellationRequested();
-            await LoadExtensionAsync(extensionId, candidate.Path, candidate.Metadata, cancellationToken)
-                .ConfigureAwait(false);
+            _logger.Info($"扩展数量 ({candidates.Count}) 超过 {TieredLoadingThreshold}，启用分层并行加载: " +
+                          $"共 {tiers.Count} 层, " +
+                          string.Join(", ", tiers.Select((t, i) => $"Tier{i}={t.Count}个")));
+
+            for (int tierIndex = 0; tierIndex < tiers.Count; tierIndex++)
+            {
+                var tier = tiers[tierIndex];
+                cancellationToken.ThrowIfCancellationRequested();
+
+                _logger.Debug($"加载 Tier {tierIndex}: [{string.Join(", ", tier)}]");
+
+                if (tier.Count == 1)
+                {
+                    string extensionId = tier[0];
+                    if (candidates.TryGetValue(extensionId, out var candidate))
+                    {
+                        await LoadExtensionAsync(extensionId, candidate.Path, candidate.Metadata, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    var loadTasks = tier.Select(extensionId =>
+                    {
+                        if (!candidates.TryGetValue(extensionId, out var candidate))
+                            return Task.CompletedTask;
+
+                        return LoadExtensionAsync(extensionId, candidate.Path, candidate.Metadata, cancellationToken);
+                    });
+
+                    await Task.WhenAll(loadTasks).ConfigureAwait(false);
+                }
+
+                _logger.Info($"Tier {tierIndex} 加载完成: {tier.Count} 个扩展");
+            }
+        }
+        else
+        {
+            // 16 个及以下：顺序加载
+            List<string> loadOrder;
+            try
+            {
+                loadOrder = resolver.Resolve();
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.Error($"依赖解析失败: {ex.Message}");
+                return;
+            }
+
+            _logger.Info($"扩展数量 ({candidates.Count}) <= {TieredLoadingThreshold}，顺序加载");
+
+            foreach (string extensionId in loadOrder)
+            {
+                if (!candidates.TryGetValue(extensionId, out var candidate)) continue;
+
+                cancellationToken.ThrowIfCancellationRequested();
+                await LoadExtensionAsync(extensionId, candidate.Path, candidate.Metadata, cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
 
         _logger.Info($"扩展加载完成: {_extensions.Count} 个扩展已加载。");
@@ -160,6 +243,17 @@ internal sealed class ExtensionLoader : IDisposable
         var loadContext = new ExtensionLoadContext(extensionId);
         try
         {
+            // 安全检查：检测扩展是否私自携带了 SDK DLL
+            var bundledDlls = loadContext.DetectBundledSdkDlls();
+            if (bundledDlls.Count > 0)
+            {
+                foreach (string bundledDll in bundledDlls)
+                {
+                    _logger.Warn($"扩展 '{extensionId}' 私自携带了 SDK DLL: {Path.GetFileName(bundledDll)}，" +
+                                 "该 DLL 将被忽略，使用主程序提供的 SDK 版本。");
+                }
+            }
+
             Assembly assembly = loadContext.LoadFromAssemblyPath(dllPath);
 
             // 读取 ExtensionAttribute
@@ -239,6 +333,10 @@ internal sealed class ExtensionLoader : IDisposable
             var processGuard = new ProcessGuard(extensionId, new ExtensionLogger(extensionId));
             var pInvokeGuard = new PInvokeGuard(extensionId, new ExtensionLogger(extensionId));
             var moduleMonitor = new ModuleMonitor(extensionId, new ExtensionLogger(extensionId));
+            var networkGuard = new NetworkGuard(extensionId, new ExtensionLogger(extensionId));
+            var reflectionGuard = new ReflectionGuard(extensionId, logger: new ExtensionLogger(extensionId));
+            var serializationGuard = new SerializationGuard(extensionId, new ExtensionLogger(extensionId));
+            var handleMonitor = new HandleMonitor(extensionId, new ExtensionLogger(extensionId));
             var capabilityGuard = new CapabilityGuard(instance.RequiredCapabilities);
 
             entry.MemoryGuard = memGuard;
@@ -247,6 +345,10 @@ internal sealed class ExtensionLoader : IDisposable
             entry.ProcessGuard = processGuard;
             entry.PInvokeGuard = pInvokeGuard;
             entry.ModuleMonitor = moduleMonitor;
+            entry.NetworkGuard = networkGuard;
+            entry.ReflectionGuard = reflectionGuard;
+            entry.SerializationGuard = serializationGuard;
+            entry.HandleMonitor = handleMonitor;
 
             // 记录完整性基线
             integrityChecker.RecordBaseline(extensionType);
@@ -285,8 +387,23 @@ internal sealed class ExtensionLoader : IDisposable
                 }
             };
 
+            networkGuard.ConnectionBlocked += (_, e) =>
+            {
+                if (e.IsTerminal)
+                {
+                    _logger.Error($"[{extensionId}] 网络违规达上限，强制终止");
+                    _ = UnloadAsync(extensionId);
+                }
+            };
+            
+            handleMonitor.CriticalHandleLeak += (_, _) =>
+            {
+                _logger.Error($"[{extensionId}] 严重句柄泄漏，强制终止");
+                _ = UnloadAsync(extensionId);
+            };
+
             _logger.Info($"扩展 '{extensionId}' 声明能力: {instance.RequiredCapabilities}");
-            _logger.Info($"扩展 '{extensionId}' 安全防护已启用 (内存=256MB, 完整性=10s, 反篡改=5s, 模块监控=100ms, 进程守卫=启用, P/Invoke守卫=启用)");
+            _logger.Info($"扩展 '{extensionId}' 安全防护已启用 (内存=256MB, 完整性=10s, 反篡改=5s, 模块监控=100ms, 进程守卫=启用, P/Invoke守卫=启用, 网络守卫=启用, 反射守卫=启用, 序列化守卫=启用, 句柄监控=启用)");
 
             // Initializing
             lifecycle.TryTransitionTo(ExtensionState.Initializing);
@@ -297,6 +414,7 @@ internal sealed class ExtensionLoader : IDisposable
             // 创建文件访问守卫和文件服务
             IReadOnlyList<FileAccessScope> fileScopes = GetFileScopesFromExtension(instance);
             var fileGuard = new FileAccessGuard(extensionId, logger, fileScopes, _extensionDataPath);
+            entry.FileAccessGuard = fileGuard;
             var fileService = new FileServiceImpl(fileGuard, logger);
             var folderService = new FolderServiceImpl(fileGuard, logger);
 
@@ -316,6 +434,7 @@ internal sealed class ExtensionLoader : IDisposable
                 fileService,
                 folderService,
                 _extensionDataPath,
+                HostSdkVersion,
                 processGuard,
                 pInvokeGuard);
 
@@ -381,6 +500,10 @@ internal sealed class ExtensionLoader : IDisposable
             entry.ProcessGuard?.Dispose();
             entry.PInvokeGuard?.Dispose();
             entry.ModuleMonitor?.Dispose();
+            entry.NetworkGuard?.Dispose();
+            entry.ReflectionGuard?.Dispose();
+            entry.SerializationGuard?.Dispose();
+            entry.HandleMonitor?.Dispose();
 
             entry.Extension?.OnShutdown();
             entry.Extension?.Dispose();
@@ -483,6 +606,65 @@ internal sealed class ExtensionLoader : IDisposable
         TriggerManager.Dispose();
     }
 
+    /// <summary>
+    /// 从 SimplyMinecraftServerManager.Extension 程序集获取 SDK 版本。
+    /// </summary>
+    private static Version GetHostSdkVersion()
+    {
+        try
+        {
+            // Extension SDK 程序集应在 Default ALC 中加载
+            var sdkAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name == "SimplyMinecraftServerManager.Extension");
+
+            if (sdkAssembly is not null)
+            {
+                return sdkAssembly.GetName().Version ?? new Version(1, 0, 0);
+            }
+
+            // 备选：直接读取 DLL 文件版本
+            string sdkDllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SimplyMinecraftServerManager.Extension.dll");
+            if (File.Exists(sdkDllPath))
+            {
+                var assemblyName = System.Reflection.AssemblyName.GetAssemblyName(sdkDllPath);
+                return assemblyName.Version ?? new Version(1, 0, 0);
+            }
+        }
+        catch
+        {
+            // 失败时使用默认版本
+        }
+
+        return new Version(1, 0, 0);
+    }
+
+    /// <summary>
+    /// 计算目录下所有文件的总大小（字节）。
+    /// </summary>
+    private static long GetDirectorySize(string directory)
+    {
+        long totalSize = 0;
+        try
+        {
+            foreach (string file in Directory.GetFiles(directory, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    totalSize += new FileInfo(file).Length;
+                }
+                catch
+                {
+                    // 文件可能被占用，跳过
+                }
+            }
+        }
+        catch
+        {
+            // 目录可能不可访问
+        }
+        return totalSize;
+    }
+
     /// <summary>扩展条目</summary>
     private sealed class ExtensionEntry
     {
@@ -498,13 +680,18 @@ internal sealed class ExtensionLoader : IDisposable
         public ProcessGuard? ProcessGuard { get; set; }
         public PInvokeGuard? PInvokeGuard { get; set; }
         public ModuleMonitor? ModuleMonitor { get; set; }
+        public NetworkGuard? NetworkGuard { get; set; }
+        public ReflectionGuard? ReflectionGuard { get; set; }
+        public SerializationGuard? SerializationGuard { get; set; }
+        public HandleMonitor? HandleMonitor { get; set; }
+        public FileAccessGuard? FileAccessGuard { get; set; }
     }
 
     /// <summary>
     /// 默认文件访问范围：每个扩展至少可以访问自己的数据目录（读写）。
     /// 扩展可以通过 IFileScopeProvider 接口声明额外范围。
     /// </summary>
-    private static IReadOnlyList<FileAccessScope> GetFileScopesFromExtension(IExtension extension)
+    private static List<FileAccessScope> GetFileScopesFromExtension(IExtension extension)
     {
         var scopes = new List<FileAccessScope>
         {

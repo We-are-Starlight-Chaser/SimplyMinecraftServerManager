@@ -11,54 +11,39 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 /// IExtensionContext 实现。
 /// 为扩展提供日志、服务访问、导航注册等能力，并注入 CapabilityGuard 进行安全校验。
 /// </summary>
-internal sealed class ExtensionContext : IExtensionContext
+internal sealed class ExtensionContext(
+    string extensionId,
+    ExtensionCapability capabilities,
+    ILogger logger,
+    IInstanceService instances,
+    IServerService server,
+    IDownloadService download,
+    IEventBus eventBus,
+    IFileService file,
+    IFolderService folder,
+    string extensionDataPath,
+    Version hostSdkVersion,
+    ProcessGuard? processGuard = null,
+    PInvokeGuard? pInvokeGuard = null) : IExtensionContext
 {
-    private readonly CapabilityGuard _guard;
+    private readonly CapabilityGuard _guard = new(capabilities);
+    private readonly string _extensionDataPath = extensionDataPath;
+    private readonly string _extensionId = extensionId;
 
-    public ExtensionContext(
-        string extensionId,
-        ExtensionCapability capabilities,
-        ILogger logger,
-        IInstanceService instances,
-        IServerService server,
-        IDownloadService download,
-        IEventBus eventBus,
-        IFileService file,
-        IFolderService folder,
-        string extensionDataPath,
-        ProcessGuard? processGuard = null,
-        PInvokeGuard? pInvokeGuard = null)
-    {
-        _guard = new CapabilityGuard(capabilities);
-        Logger = logger;
-        Instances = instances;
-        Server = server;
-        Download = download;
-        EventBus = eventBus;
-        File = file;
-        Folder = folder;
-        _extensionDataPath = extensionDataPath;
-        _extensionId = extensionId;
-        ProcessGuard = processGuard;
-        PInvokeGuard = pInvokeGuard;
-    }
-
-    private readonly string _extensionDataPath;
-    private readonly string _extensionId;
-
-    public ILogger Logger { get; }
-    public IInstanceService Instances { get; }
-    public IServerService Server { get; }
-    public IDownloadService Download { get; }
-    public IEventBus EventBus { get; }
-    public IFileService File { get; }
-    public IFolderService Folder { get; }
+    public Version HostSdkVersion { get; } = hostSdkVersion;
+    public ILogger Logger { get; } = logger;
+    public IInstanceService Instances { get; } = instances;
+    public IServerService Server { get; } = server;
+    public IDownloadService Download { get; } = download;
+    public IEventBus EventBus { get; } = eventBus;
+    public IFileService File { get; } = file;
+    public IFolderService Folder { get; } = folder;
 
     /// <summary>进程执行守卫</summary>
-    public ProcessGuard? ProcessGuard { get; }
+    public ProcessGuard? ProcessGuard { get; } = processGuard;
 
     /// <summary>P/Invoke 调用守卫</summary>
-    public PInvokeGuard? PInvokeGuard { get; }
+    public PInvokeGuard? PInvokeGuard { get; } = pInvokeGuard;
 
     /// <summary>
     /// 验证进程创建是否允许。

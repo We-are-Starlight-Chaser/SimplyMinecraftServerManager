@@ -143,8 +143,8 @@ internal sealed class TriggerEvaluator
                 _ when opAndValue.StartsWith("!=") => "!=",
                 _ when opAndValue.StartsWith(">=") => ">=",
                 _ when opAndValue.StartsWith("<=") => "<=",
-                _ when opAndValue.StartsWith(">") => ">",
-                _ when opAndValue.StartsWith("<") => "<",
+                _ when opAndValue.StartsWith('>') => ">",
+                _ when opAndValue.StartsWith('<') => "<",
                 _ => "=="
             };
 

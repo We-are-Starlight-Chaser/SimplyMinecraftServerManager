@@ -27,7 +27,7 @@ internal sealed class ModuleMonitor : IDisposable
     private readonly ILogger _logger;
     private readonly Thread _monitorThread;
     private readonly ManualResetEventSlim _stopEvent = new();
-    private readonly ConcurrentBag<ModuleLogEntry> _auditLog = new();
+    private readonly ConcurrentBag<ModuleLogEntry> _auditLog = [];
     private readonly ConcurrentDictionary<string, int> _moduleLoadFrequency = new();
 
     // 基线
@@ -37,7 +37,7 @@ internal sealed class ModuleMonitor : IDisposable
 
     // 追踪
     private readonly HashSet<string> _observedModules = new(StringComparer.OrdinalIgnoreCase);
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private bool _disposed;
     private int _violationCount;
 
@@ -69,27 +69,14 @@ internal sealed class ModuleMonitor : IDisposable
         "wbemcomn.dll", "wbemdisp.dll",
     };
 
-    // 已知安全模块路径
-    private static readonly HashSet<string> SafeModulePaths = new(StringComparer.OrdinalIgnoreCase);
+    // 扩展目录路径（启动时确定）
+    private readonly string _extensionsDir;
 
     static ModuleMonitor()
     {
-        // 初始化 .NET 运行时目录为安全路径
-        string? runtimeDir = Path.GetDirectoryName(typeof(object).Assembly.Location);
-        if (!string.IsNullOrEmpty(runtimeDir))
-        {
-            SafeModulePaths.Add(runtimeDir);
-        }
-
-        // 添加 Windows 系统目录
-        string? systemDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
-        if (!string.IsNullOrEmpty(systemDir))
-        {
-            SafeModulePaths.Add(systemDir);
-        }
     }
 
-    public IReadOnlyCollection<ModuleLogEntry> AuditLog => _auditLog.ToArray();
+    public IReadOnlyCollection<ModuleLogEntry> AuditLog => [.. _auditLog];
     public int ViolationCount => Interlocked.CompareExchange(ref _violationCount, 0, 0);
 
     public ModuleMonitor(
@@ -104,6 +91,7 @@ internal sealed class ModuleMonitor : IDisposable
         _monitorIntervalMs = monitorIntervalMs;
         _maxModuleLoadPerSecond = maxModuleLoadPerSecond;
         _maxViolations = maxViolations;
+        _extensionsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "extensions");
 
         // 记录基线
         RecordBaseline();
@@ -178,6 +166,14 @@ internal sealed class ModuleMonitor : IDisposable
     /// <summary>
     /// 验证模块是否允许加载。
     /// 返回 true 表示允许，false 表示应阻止。
+    ///
+    /// 校验流程：
+    ///   1. 危险模块黑名单 → 拦截
+    ///   2. 已知系统模块（SHA256 哈希匹配）→ 放行
+    ///   3. 加载频率异常 → 拦截
+    ///   4. 扩展目录下的模块 → 放行
+    ///   5. .NET 共享框架目录下的模块 → 放行（哈希表未覆盖的运行时模块）
+    ///   6. 其他 → 拦截
     /// </summary>
     public bool ValidateModuleLoad(string moduleName, string? modulePath = null)
     {
@@ -190,22 +186,37 @@ internal sealed class ModuleMonitor : IDisposable
             return false;
         }
 
-        // 2. 检查模块加载频率
+        // 2. 已知系统模块：通过 SHA256 哈希比对确认是官方原始版本 → 放行
+        if (SystemIntegrityChecker.IsKnownSystemModule(moduleName, modulePath))
+        {
+            LogAccess(moduleName, modulePath);
+            return true;
+        }
+
+        // 3. 检查模块加载频率
         if (!CheckLoadFrequency(moduleName))
         {
             LogViolation(moduleName, modulePath, "模块加载频率超限");
             return false;
         }
 
-        // 3. 验证模块来源路径
-        if (!string.IsNullOrEmpty(modulePath) && !IsModulePathSafe(modulePath))
+        // 4. 扩展目录下的模块 → 放行
+        if (!string.IsNullOrEmpty(modulePath) && IsModulePathInExtensionsDir(modulePath))
         {
-            LogViolation(moduleName, modulePath, "模块路径不安全");
-            return false;
+            LogAccess(moduleName, modulePath);
+            return true;
         }
 
-        LogAccess(moduleName, modulePath);
-        return true;
+        // 5. .NET 共享框架目录下的模块 → 放行（哈希表未覆盖的运行时模块，如 Serialization.Formatters 等）
+        if (!string.IsNullOrEmpty(modulePath) && IsPathInDotNetSharedFrameworks(modulePath))
+        {
+            LogAccess(moduleName, modulePath);
+            return true;
+        }
+
+        // 6. 其他未知模块 → 拦截
+        LogViolation(moduleName, modulePath, "未知模块，不在已知安全位置");
+        return false;
     }
 
     /// <summary>
@@ -334,32 +345,45 @@ internal sealed class ModuleMonitor : IDisposable
         }
     }
 
-    private static bool IsModulePathSafe(string modulePath)
+    /// <summary>
+    /// 检查模块是否位于扩展目录下（扩展之间互相加载的 DLL）。
+    /// </summary>
+    private bool IsModulePathInExtensionsDir(string modulePath)
     {
         try
         {
             string fullPath = Path.GetFullPath(modulePath);
-
-            // 检查是否在已知安全路径中
-            foreach (string safePath in SafeModulePaths)
-            {
-                if (fullPath.StartsWith(safePath, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-
-            // 检查临时目录（某些合法模块可能从临时目录加载）
-            string tempPath = Path.GetTempPath();
-            if (fullPath.StartsWith(tempPath, StringComparison.OrdinalIgnoreCase))
-            {
-                return true; // 临时目录允许，但会记录日志
-            }
-
-            // 检查扩展自己的目录
-            // 注意：这里无法直接获取扩展目录，需要由调用方验证
-
+            return fullPath.StartsWith(_extensionsDir, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// 检查模块是否位于 .NET 共享框架目录下（Microsoft.NETCore.App, Microsoft.WindowsDesktop.App 等）。
+    /// 用于放行哈希表未覆盖的运行时延迟加载模块。
+    /// </summary>
+    private static bool IsPathInDotNetSharedFrameworks(string modulePath)
+    {
+        try
+        {
+            string fullPath = Path.GetFullPath(modulePath);
+            string? dir = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrEmpty(dir)) return false;
+
+            // 共享框架位于 shared/Microsoft.{FrameworkName}/{version}/ 下
+            // 向上两级到达 shared/ 目录
+            string? versionDir = Path.GetDirectoryName(dir);
+            string? frameworkDir = versionDir is not null ? Path.GetDirectoryName(versionDir) : null;
+            string? sharedRoot = frameworkDir is not null ? Path.GetDirectoryName(frameworkDir) : null;
+
+            if (string.IsNullOrEmpty(sharedRoot)) return false;
+
+            // 检查是否在 shared/ 下的某个 Microsoft.* 框架目录中
+            return fullPath.StartsWith(sharedRoot, StringComparison.OrdinalIgnoreCase)
+                && fullPath.Contains("Microsoft.", StringComparison.OrdinalIgnoreCase);
         }
         catch
         {

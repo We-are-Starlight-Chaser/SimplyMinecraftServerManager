@@ -6,6 +6,7 @@ namespace SimplyMinecraftServerManager.Extension.Interfaces;
 /// <summary>
 /// 扩展日志抽象，供扩展输出诊断和运行时日志。
 /// 宿主负责将日志路由到适当的输出（UI、文件等）。
+/// 禁止直接使用 Console.WriteLine / System.Diagnostics.Debug.WriteLine，必须通过此接口。
 /// </summary>
 public interface ILogger
 {

@@ -11,7 +11,7 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 /// </summary>
 internal sealed class ExtensionLifecycle
 {
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private ExtensionState _state = ExtensionState.NotLoaded;
     private DateTime? _loadedAt;
     private DateTime? _disposedAt;

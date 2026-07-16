@@ -20,9 +20,7 @@ internal sealed class InstanceServiceImpl(CapabilityGuard? guard = null) : IInst
     {
         _guard?.Ensure(ExtensionCapability.InstanceAccess, "GetAll");
 
-        return InstanceManager.GetAll()
-            .Select(MapToSnapshot)
-            .ToList();
+        return [.. InstanceManager.GetAll().Select(MapToSnapshot)];
     }
 
     public InstanceSnapshot? GetById(string instanceId)
@@ -40,9 +38,7 @@ internal sealed class InstanceServiceImpl(CapabilityGuard? guard = null) : IInst
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         _guard?.Ensure(ExtensionCapability.InstanceAccess, "Search");
 
-        return InstanceManager.Search(query)
-            .Select(MapToSnapshot)
-            .ToList();
+        return [.. InstanceManager.Search(query).Select(MapToSnapshot)];
     }
 
     public string? GetInstancePath(string instanceId)

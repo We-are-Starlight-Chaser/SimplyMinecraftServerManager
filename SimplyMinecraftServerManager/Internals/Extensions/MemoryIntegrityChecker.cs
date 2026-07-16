@@ -23,7 +23,7 @@ internal sealed class MemoryIntegrityChecker : IDisposable
     private readonly string _extensionId;
     private readonly ILogger _logger;
     private readonly Timer _checkTimer;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     // 快照存储
     private byte[]? _lastCodeHash;
@@ -160,8 +160,6 @@ internal sealed class MemoryIntegrityChecker : IDisposable
 
     private void CheckGcIntegrity()
     {
-        // 检查 GC 代数分布
-        long gen0 = GC.GetTotalMemory(forceFullCollection: false);
         int gen2Count = GC.CollectionCount(2);
 
         // Gen2 回收次数异常高可能表示内存破坏导致大量对象存活

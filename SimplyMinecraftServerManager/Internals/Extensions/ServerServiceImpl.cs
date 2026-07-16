@@ -24,7 +24,7 @@ internal sealed class ServerServiceImpl(CapabilityGuard? guard = null) : IServer
             return Task.CompletedTask;
         }
 
-        var instance = InstanceManager.GetById(instanceId)
+        _ = InstanceManager.GetById(instanceId)
             ?? throw new InvalidOperationException($"实例 '{instanceId}' 不存在");
 
         var process = new ServerProcess(instanceId);
@@ -109,6 +109,6 @@ internal sealed class ServerServiceImpl(CapabilityGuard? guard = null) : IServer
 
         // ServerProcess 不直接暴露历史日志，返回空列表
         // 扩展应通过 EventBus 订阅 OutputReceived 事件获取实时日志
-        return Array.Empty<string>();
+        return [];
     }
 }

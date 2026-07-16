@@ -12,17 +12,12 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 /// 触发器管理器：管理所有扩展触发器的注册、条件求值和异步执行。
 /// 线程安全，支持一次性触发器和定时触发器。
 /// </summary>
-internal sealed class TriggerManager : IDisposable
+internal sealed class TriggerManager(ILogger logger) : IDisposable
 {
     private readonly ConcurrentDictionary<string, RegisteredTrigger> _triggers = new();
     private readonly ConcurrentDictionary<string, Timer> _timers = new();
-    private readonly ILogger _logger;
+    private readonly ILogger _logger = logger;
     private bool _disposed;
-
-    public TriggerManager(ILogger logger)
-    {
-        _logger = logger;
-    }
 
     /// <summary>
     /// 注册扩展的触发器。

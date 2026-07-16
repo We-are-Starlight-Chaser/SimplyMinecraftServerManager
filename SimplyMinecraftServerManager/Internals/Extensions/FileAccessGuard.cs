@@ -2,8 +2,8 @@
 // Licensed under the MIT License.
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using SimplyMinecraftServerManager.Extension.Interfaces;
 using SimplyMinecraftServerManager.Extension.Models;
 
@@ -17,13 +17,22 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 ///   4. 文件扩展名过滤
 ///   5. 操作审计日志
 /// </summary>
-internal sealed class FileAccessGuard
+internal sealed class FileAccessGuard(
+    string extensionId,
+    ILogger logger,
+    IReadOnlyList<FileAccessScope> declaredScopes,
+    string extensionDataPath)
 {
-    private readonly string _extensionId;
-    private readonly ILogger _logger;
-    private readonly Dictionary<string, FileAccessScope> _declaredScopes;
-    private readonly string _extensionDataPath;
-    private readonly ConcurrentBag<FileAccessLogEntry> _auditLog = new();
+    private readonly string _extensionId = extensionId;
+    private readonly ILogger _logger = logger;
+    private readonly Dictionary<string, FileAccessScope> _declaredScopes = declaredScopes.ToDictionary(
+            s => s.Id, s => s, StringComparer.OrdinalIgnoreCase);
+    private readonly string _extensionDataPath = extensionDataPath;
+    private readonly ConcurrentBag<FileAccessLogEntry> _auditLog = [];
+    
+    // TOCTOU protection: track file operations to detect race conditions
+    private readonly ConcurrentDictionary<string, FileOperationTracker> _fileOperationTrackers = new();
+    private readonly TimeSpan _operationWindow = TimeSpan.FromSeconds(5);
 
     // 危险系统目录（硬编码，不可覆盖）
     private static readonly HashSet<string> DangerousDirectories = new(StringComparer.OrdinalIgnoreCase)
@@ -69,21 +78,7 @@ internal sealed class FileAccessGuard
         ".xbap", ".xnk", ".appx", ".appxbundle", ".msix", ".msixbundle",
     };
 
-    public IReadOnlyCollection<FileAccessLogEntry> AuditLog => _auditLog.ToArray();
-
-    public FileAccessGuard(
-        string extensionId,
-        ILogger logger,
-        IReadOnlyList<FileAccessScope> declaredScopes,
-        string extensionDataPath)
-    {
-        _extensionId = extensionId;
-        _logger = logger;
-        _extensionDataPath = extensionDataPath;
-
-        _declaredScopes = declaredScopes.ToDictionary(
-            s => s.Id, s => s, StringComparer.OrdinalIgnoreCase);
-    }
+    public IReadOnlyCollection<FileAccessLogEntry> AuditLog => [.. _auditLog];
 
     /// <summary>
     /// 校验文件操作是否允许。
@@ -201,7 +196,7 @@ internal sealed class FileAccessGuard
             string instanceId = path["${instance:".Length..].TrimEnd('}');
             return PathHelper.GetInstanceDir(instanceId);
         }
-        if (path.StartsWith("~", StringComparison.Ordinal))
+        if (path.StartsWith('~'))
         {
             return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -369,6 +364,53 @@ internal sealed class FileAccessGuard
             Allowed = true
         });
     }
+    
+    /// <summary>
+    /// Tracks a file operation for TOCTOU protection.
+    /// Returns true if the operation should be blocked.
+    /// </summary>
+    public bool TrackFileOperation(string filePath, FileAccessLevel level)
+    {
+        var tracker = _fileOperationTrackers.GetOrAdd(filePath, 
+            path => new FileOperationTracker(path, (ExtensionLogger)_logger));
+        
+        // Check for TOCTOU attacks
+        if (tracker.HasFileBeenModified())
+        {
+            LogDenied("TOCTOU", filePath, "TOCTOU race condition detected");
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /// <summary>
+    /// Acquires a file lock for atomic operations.
+    /// </summary>
+    public FileStream? AcquireFileLock(string filePath, FileAccess access, FileShare share)
+    {
+        var tracker = _fileOperationTrackers.GetOrAdd(filePath, 
+            path => new FileOperationTracker(path, (ExtensionLogger)_logger));
+        
+        return tracker.AcquireLock(access, share);
+    }
+    
+    /// <summary>
+    /// Cleans up old file operation trackers.
+    /// </summary>
+    public void CleanupTrackers()
+    {
+        var cutoff = DateTime.UtcNow - TimeSpan.FromMinutes(10);
+        var keysToRemove = _fileOperationTrackers
+            .Where(kvp => kvp.Value.LastCheckTime < cutoff)
+            .Select(kvp => kvp.Key)
+            .ToList();
+        
+        foreach (var key in keysToRemove)
+        {
+            _fileOperationTrackers.TryRemove(key, out _);
+        }
+    }
 
     public sealed class FileAccessLogEntry
     {
@@ -379,5 +421,126 @@ internal sealed class FileAccessGuard
         public FileAccessLevel Level { get; init; }
         public bool Allowed { get; init; }
         public string? DenyReason { get; init; }
+    }
+    
+    /// <summary>
+    /// Tracks file operations to detect TOCTOU race conditions.
+    /// </summary>
+    private sealed class FileOperationTracker
+    {
+        private readonly string _filePath;
+        private readonly ExtensionLogger _logger;
+        private DateTime _lastCheckTime;
+        private FileAttributes _lastAttributes;
+        private long _lastSize;
+        private int _checkCount;
+        private readonly Lock _lock = new();
+        
+        public DateTime LastCheckTime => _lastCheckTime;
+        
+        public FileOperationTracker(string filePath, ExtensionLogger logger)
+        {
+            _filePath = filePath;
+            _logger = logger;
+            _lastCheckTime = DateTime.UtcNow;
+            
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    var fileInfo = new FileInfo(filePath);
+                    _lastAttributes = fileInfo.Attributes;
+                    _lastSize = fileInfo.Length;
+                }
+            }
+            catch
+            {
+                // Ignore errors during initialization
+            }
+        }
+        
+        /// <summary>
+        /// Checks if the file has been modified since the last check.
+        /// Returns true if TOCTOU attack is detected.
+        /// </summary>
+        public bool HasFileBeenModified()
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    if (!File.Exists(_filePath))
+                    {
+                        return true; // File was deleted
+                    }
+                    
+                    var fileInfo = new FileInfo(_filePath);
+                    var currentAttributes = fileInfo.Attributes;
+                    var currentSize = fileInfo.Length;
+                    var currentTime = DateTime.UtcNow;
+                    
+                    // Check if attributes changed
+                    if (currentAttributes != _lastAttributes)
+                    {
+                        _logger.Warn($"TOCTOU detected: File attributes changed for {_filePath}");
+                        return true;
+                    }
+                    
+                    // Check if size changed
+                    if (currentSize != _lastSize)
+                    {
+                        _logger.Warn($"TOCTOU detected: File size changed for {_filePath}");
+                        return true;
+                    }
+                    
+                    // Check if too many checks in short time
+                    if (currentTime - _lastCheckTime < TimeSpan.FromSeconds(5))
+                    {
+                        _checkCount++;
+                        if (_checkCount > 10)
+                        {
+                            _logger.Warn($"TOCTOU detected: Too many checks for {_filePath} in short time");
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        _checkCount = 1;
+                    }
+                    
+                    _lastCheckTime = currentTime;
+                    _lastAttributes = currentAttributes;
+                    _lastSize = currentSize;
+                    
+                    return false;
+                }
+                catch
+                // If we can't check, assume it's safe (let other checks handle it)
+                {
+                    return false;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Acquires a file lock to prevent concurrent modifications.
+        /// </summary>
+        public FileStream? AcquireLock(FileAccess access, FileShare share)
+        {
+            try
+            {
+                return new FileStream(
+                    _filePath,
+                    FileMode.Open,
+                    access,
+                    share,
+                    bufferSize: 4096,
+                    FileOptions.None);
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 }

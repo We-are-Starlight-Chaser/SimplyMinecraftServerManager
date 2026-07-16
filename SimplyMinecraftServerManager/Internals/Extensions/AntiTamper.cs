@@ -3,7 +3,6 @@
 
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using SimplyMinecraftServerManager.Extension.Interfaces;
 
 namespace SimplyMinecraftServerManager.Internals.Extensions;
@@ -24,9 +23,10 @@ internal sealed class AntiTamper : IDisposable
 {
     private readonly string _extensionId;
     private readonly string _extensionDataPath;
+    private readonly string _extensionsDir;
     private readonly ILogger _logger;
     private readonly Timer _monitorTimer;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     // 基线快照
     private HashSet<string> _baselineModules = [];
@@ -45,7 +45,7 @@ internal sealed class AntiTamper : IDisposable
     [
         "System.", "Microsoft.", "mscorlib", "netstandard",
         "SimplyMinecraftServerManager", "WindowsBase",
-        "PresentationCore", "PresentationFramework",
+        "PresentationCore", "PresentationFramework", "PresentationUI",
         "Accessibility", "UIAutomation",
     ];
 
@@ -67,6 +67,7 @@ internal sealed class AntiTamper : IDisposable
     {
         _extensionId = extensionId;
         _extensionDataPath = extensionDataPath;
+        _extensionsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "extensions");
         _logger = logger;
         _maxViolations = maxViolations;
 
@@ -189,18 +190,47 @@ internal sealed class AntiTamper : IDisposable
     {
         try
         {
-            var currentModules = process.Modules
-                .Cast<ProcessModule>()
-                .Select(m => m.ModuleName)
-                .Where(n => !string.IsNullOrEmpty(n))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var modules = process.Modules;
+            var currentModuleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var currentModulePaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            var newModules = currentModules.Except(_baselineModules);
+            for (int i = 0; i < modules.Count; i++)
+            {
+                try
+                {
+                    var module = modules[i];
+                    string name = module.ModuleName;
+                    string path = module.FileName;
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        currentModuleNames.Add(name);
+                        if (!string.IsNullOrEmpty(path))
+                            currentModulePaths[name] = path;
+                    }
+                }
+                catch { }
+            }
+
+            var newModules = currentModuleNames.Except(_baselineModules);
 
             foreach (string moduleName in newModules)
             {
-                // 跳过已知安全模块
-                if (SafeModulePrefixes.Any(p => moduleName.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+                string? modulePath = currentModulePaths.GetValueOrDefault(moduleName);
+
+                // 已知系统模块（SHA256 哈希匹配）→ 放行
+                if (SystemIntegrityChecker.IsKnownSystemModule(moduleName, modulePath))
+                {
+                    continue;
+                }
+
+                // 扩展目录下的模块（其他扩展的 DLL）→ 放行
+                if (!string.IsNullOrEmpty(modulePath) && IsPathInExtensionsDir(modulePath))
+                {
+                    continue;
+                }
+
+                // .NET 共享框架目录下的模块（运行时延迟加载）→ 放行
+                if (!string.IsNullOrEmpty(modulePath) && IsPathInDotNetSharedFrameworks(modulePath))
                 {
                     continue;
                 }
@@ -212,6 +242,42 @@ internal sealed class AntiTamper : IDisposable
         catch
         {
             // 进程模块枚举可能在某些状态下失败
+        }
+    }
+
+    private bool IsPathInExtensionsDir(string modulePath)
+    {
+        try
+        {
+            string fullPath = Path.GetFullPath(modulePath);
+            return fullPath.StartsWith(_extensionsDir, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsPathInDotNetSharedFrameworks(string modulePath)
+    {
+        try
+        {
+            string fullPath = Path.GetFullPath(modulePath);
+            string? dir = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrEmpty(dir)) return false;
+
+            string? versionDir = Path.GetDirectoryName(dir);
+            string? frameworkDir = versionDir is not null ? Path.GetDirectoryName(versionDir) : null;
+            string? sharedRoot = frameworkDir is not null ? Path.GetDirectoryName(frameworkDir) : null;
+
+            if (string.IsNullOrEmpty(sharedRoot)) return false;
+
+            return fullPath.StartsWith(sharedRoot, StringComparison.OrdinalIgnoreCase)
+                && fullPath.Contains("Microsoft.", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
         }
     }
 

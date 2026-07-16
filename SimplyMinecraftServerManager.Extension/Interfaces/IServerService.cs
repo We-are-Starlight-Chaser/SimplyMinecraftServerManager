@@ -7,6 +7,7 @@ namespace SimplyMinecraftServerManager.Extension.Interfaces;
 
 /// <summary>
 /// 服务器进程控制服务，供扩展启动、停止和向服务器发送命令。
+/// 禁止直接使用 System.Diagnostics.Process 管理服务器进程，必须通过此接口。
 /// </summary>
 public interface IServerService
 {

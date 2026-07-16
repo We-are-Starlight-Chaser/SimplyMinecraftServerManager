@@ -22,10 +22,10 @@ internal sealed class PInvokeGuard : IDisposable
 {
     private readonly string _extensionId;
     private readonly ILogger _logger;
-    private readonly ConcurrentBag<PInvokeLogEntry> _auditLog = new();
+    private readonly ConcurrentBag<PInvokeLogEntry> _auditLog = [];
     private readonly ConcurrentDictionary<string, int> _callFrequency = new();
     private readonly Timer _frequencyResetTimer;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private bool _disposed;
 
     // 配置
@@ -96,7 +96,7 @@ internal sealed class PInvokeGuard : IDisposable
         "zlib1.dll", "libz.dll",
     };
 
-    public IReadOnlyCollection<PInvokeLogEntry> AuditLog => _auditLog.ToArray();
+    public IReadOnlyCollection<PInvokeLogEntry> AuditLog => [.. _auditLog];
 
     public PInvokeGuard(
         string extensionId,
@@ -178,7 +178,7 @@ internal sealed class PInvokeGuard : IDisposable
         return !_disposed;
     }
 
-    private bool IsDangerousLibrary(string libraryName)
+    private static bool IsDangerousLibrary(string libraryName)
     {
         string libName = Path.GetFileName(libraryName).ToLowerInvariant();
 
@@ -191,7 +191,7 @@ internal sealed class PInvokeGuard : IDisposable
         return DangerousNativeLibraries.Contains(libName);
     }
 
-    private bool IsDangerousFunction(string functionName)
+    private static bool IsDangerousFunction(string functionName)
     {
         return DangerousWin32Apis.Contains(functionName);
     }

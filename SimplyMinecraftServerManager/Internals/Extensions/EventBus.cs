@@ -16,7 +16,7 @@ internal sealed class EventBus : IEventBus
 {
     private readonly ConcurrentDictionary<Type, Delegate> _handlers = new();
     private readonly ConcurrentDictionary<string, HashSet<string>> _extensionSubscriptions = new();
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     /// <summary>
     /// 获取指定扩展的所有订阅事件类型名称
@@ -27,9 +27,9 @@ internal sealed class EventBus : IEventBus
         {
             if (_extensionSubscriptions.TryGetValue(extensionId, out var types))
             {
-                return types.ToList();
+                return [.. types];
             }
-            return Array.Empty<string>();
+            return [];
         }
     }
 
@@ -98,7 +98,7 @@ internal sealed class EventBus : IEventBus
         {
             if (!_extensionSubscriptions.TryGetValue(extensionId, out var types))
             {
-                types = new HashSet<string>();
+                types = [];
                 _extensionSubscriptions[extensionId] = types;
             }
             types.Add(typeof(TEventArgs).FullName!);
@@ -107,7 +107,7 @@ internal sealed class EventBus : IEventBus
         return SubscribeInternal(handler);
     }
 
-    private IDisposable SubscribeInternal<TEventArgs>(EventHandler<TEventArgs> handler) where TEventArgs : EventArgs
+    private Unsubscriber SubscribeInternal<TEventArgs>(EventHandler<TEventArgs> handler) where TEventArgs : EventArgs
     {
         _handlers.AddOrUpdate(
             typeof(TEventArgs),

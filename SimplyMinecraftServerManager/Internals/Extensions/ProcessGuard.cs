@@ -19,14 +19,14 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 ///   4. 异常进程行为检测
 ///   5. 进程执行频率限制
 /// </summary>
-internal sealed class ProcessGuard : IDisposable
+internal sealed partial class ProcessGuard : IDisposable
 {
     private readonly string _extensionId;
     private readonly ILogger _logger;
-    private readonly ConcurrentBag<ProcessLogEntry> _auditLog = new();
+    private readonly ConcurrentBag<ProcessLogEntry> _auditLog = [];
     private readonly ConcurrentDictionary<string, int> _processFrequency = new();
     private readonly Timer _frequencyResetTimer;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private bool _disposed;
 
     // 配置
@@ -91,7 +91,7 @@ internal sealed class ProcessGuard : IDisposable
         @"C:\ProgramData",
     };
 
-    public IReadOnlyCollection<ProcessLogEntry> AuditLog => _auditLog.ToArray();
+    public IReadOnlyCollection<ProcessLogEntry> AuditLog => [.. _auditLog];
 
     public ProcessGuard(
         string extensionId,
@@ -190,7 +190,7 @@ internal sealed class ProcessGuard : IDisposable
         return !DangerousExtensions.Contains(ext);
     }
 
-    private bool IsDangerousSystemTool(string fileName)
+    private static bool IsDangerousSystemTool(string fileName)
     {
         string toolName = Path.GetFileName(fileName).ToLowerInvariant();
         return DangerousSystemTools.Contains(toolName);
@@ -218,47 +218,6 @@ internal sealed class ProcessGuard : IDisposable
         return false;
     }
 
-    /// <summary>
-    /// 使用正则表达式检测危险参数（防编码绕过）
-    /// </summary>
-    private static readonly Regex DangerousArgumentRegex = new(
-        @"(?xi)" +
-        // 命令注入符号
-        @"(\|\|)|(\&&)|(\|)|(>>)|(<>)|(<<)" +
-        // 命令执行
-        @"|(\b(cmd|powershell|pwsh|wscript|cscript|mshta)\b)" +
-        // PowerShell 编码命令
-        @"|(-[eE]{1,2}nc\w*\s+)|(-encodedcommand\s+)|(-enc\s+)" +
-        // 危险操作命令
-        @"|(\b(del|rmdir|rd|format|attrib|cacls|icacls|takeown|cipher)\b)" +
-        // 网络操作
-        @"|(\b(ftp|telnet|ssh|scp|sftp|curl|wget|bitsadmin)\b)" +
-        // 进程操作
-        @"|(\b(taskkill|tasklist|wmic|psexec|ps)\b)" +
-        // 注册表操作
-        @"|(\b(reg|regedit|regedit32|regsvr32)\b)" +
-        // 计划任务
-        @"|(\b(schtasks)\b)" +
-        // 服务操作
-        @"|(\bsc\s+(create|delete|start|stop|config)\b)" +
-        // 用户管理
-        @"|(\b(net\s+(user|localgroup|group|accounts))\b)" +
-        // 系统信息
-        @"|(\b(systeminfo|ipconfig|ifconfig|whoami)\b)" +
-        // 文件操作
-        @"|(\b(copy|move|ren|type|xcopy|robocopy)\b)" +
-        // 环境变量
-        @"|(\b(set|setx|path|echo)\b\s+)" +
-        // 批处理技巧
-        @"|(\b(assoc|ftype|doskey|label)\b)" +
-        // 编码绕过（Base64, Unicode 转义）
-        @"|(\[Convert\]::FromBase64String)" +
-        @"|(\$\{env:)" +
-        @"|(\^)" +  // cmd 转义字符
-        // 危险路径
-        @"|(\\\\[a-zA-Z0-9])",  // UNC 路径
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture);
-
     private static bool HasDangerousArguments(string arguments)
     {
         if (string.IsNullOrWhiteSpace(arguments)) return false;
@@ -267,7 +226,7 @@ internal sealed class ProcessGuard : IDisposable
         if (arguments.Length > 4096) return true;
 
         // 使用正则表达式检测危险模式
-        return DangerousArgumentRegex.IsMatch(arguments);
+        return DangerousArgumentRegex().IsMatch(arguments);
     }
 
     private bool CheckFrequency()
@@ -342,4 +301,11 @@ internal sealed class ProcessGuard : IDisposable
         public bool Allowed { get; init; }
         public string? DenyReason { get; init; }
     }
+
+
+    /// <summary>
+    /// 使用正则表达式检测危险参数（防编码绕过）
+    /// </summary>
+    [GeneratedRegex(@"(?xi)(\|\|)|(\&&)|(\|)|(>>)|(<>)|(<<)|(\b(cmd|powershell|pwsh|wscript|cscript|mshta)\b)|(-[eE]{1,2}nc\w*\s+)|(-encodedcommand\s+)|(-enc\s+)|(\b(del|rmdir|rd|format|attrib|cacls|icacls|takeown|cipher)\b)|(\b(ftp|telnet|ssh|scp|sftp|curl|wget|bitsadmin)\b)|(\b(taskkill|tasklist|wmic|psexec|ps)\b)|(\b(reg|regedit|regedit32|regsvr32)\b)|(\b(schtasks)\b)|(\bsc\s+(create|delete|start|stop|config)\b)|(\b(net\s+(user|localgroup|group|accounts))\b)|(\b(systeminfo|ipconfig|ifconfig|whoami)\b)|(\b(copy|move|ren|type|xcopy|robocopy)\b)|(\b(set|setx|path|echo)\b\s+)|(\b(assoc|ftype|doskey|label)\b)|(\[Convert\]::FromBase64String)|(\$\{env:)|(\^)|(\\\\[a-zA-Z0-9])", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture | RegexOptions.Compiled, "en-US")]
+    private static partial Regex DangerousArgumentRegex();
 }
