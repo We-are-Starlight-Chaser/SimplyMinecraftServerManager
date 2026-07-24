@@ -23,8 +23,36 @@ internal sealed class MemoryGuard : IDisposable
 {
     private readonly string _extensionId;
     private readonly ILogger _logger;
-    private readonly Timer _monitorTimer;
     private readonly Lock _lock = new();
+
+    // ===== 共享静态定时器 =====
+    private static readonly Timer s_sharedTimer;
+    private static readonly List<MemoryGuard> s_activeGuards = [];
+    private static readonly Lock s_sharedLock = new();
+
+    static MemoryGuard()
+    {
+        s_sharedTimer = new Timer(
+            callback: _ => MonitorAll(),
+            state: null,
+            dueTime: 2000,
+            period: 2000);
+    }
+
+    private static void MonitorAll()
+    {
+        MemoryGuard[] snapshot;
+        lock (s_sharedLock)
+        {
+            if (s_activeGuards.Count == 0) return;
+            snapshot = [.. s_activeGuards];
+        }
+        foreach (var guard in snapshot)
+        {
+            if (!guard._disposed)
+                guard.MonitorMemory();
+        }
+    }
 
     // 配置
     private readonly long _maxManagedMemoryBytes;
@@ -48,13 +76,13 @@ internal sealed class MemoryGuard : IDisposable
     private int _activeThreadCount;
     private int _threadCreationCountInWindow;
     private long _lastThreadWindowStartTicks;
-    private readonly List<int> _createdThreadIds = new();
+    private readonly List<int> _createdThreadIds = [];
     
     // 磁盘写入追踪
     private long _totalDiskWriteBytes;
     private long _diskWriteBytesInCurrentHour;
     private long _lastDiskWriteWindowStartTicks;
-    private DateTime _lastDiskWriteSampleTime;
+    private readonly DateTime _lastDiskWriteSampleTime;
 
     // 事件
     public event EventHandler<MemoryThresholdEventArgs>? ThresholdExceeded;
@@ -97,11 +125,10 @@ internal sealed class MemoryGuard : IDisposable
         _lastDiskWriteWindowStartTicks = DateTime.UtcNow.Ticks;
         _lastDiskWriteSampleTime = DateTime.UtcNow;
 
-        _monitorTimer = new Timer(
-            callback: _ => MonitorMemory(),
-            state: null,
-            dueTime: monitorIntervalMs,
-            period: monitorIntervalMs);
+        lock (s_sharedLock)
+        {
+            s_activeGuards.Add(this);
+        }
     }
 
     /// <summary>
@@ -342,12 +369,17 @@ internal sealed class MemoryGuard : IDisposable
     {
         if (_disposed) return;
 
+        bool shouldShutdown = false;
+        long current = 0;
+        long lastSampled = 0;
+        DateTime now = default;
+
         lock (_lock)
         {
             try
             {
-                long current = GC.GetTotalMemory(forceFullCollection: false);
-                DateTime now = DateTime.UtcNow;
+                current = GC.GetTotalMemory(forceFullCollection: false);
+                now = DateTime.UtcNow;
                 double elapsedSec = (now - _lastSampleTime).TotalSeconds;
 
                 CurrentManagedBytes = current;
@@ -357,19 +389,11 @@ internal sealed class MemoryGuard : IDisposable
                 if (current > _maxManagedMemoryBytes)
                 {
                     _consecutiveOverflows++;
-
-                    double currentMb = current / 1024.0 / 1024.0;
-                    double maxMb = _maxManagedMemoryBytes / 1024.0 / 1024.0;
-
-                    _logger.Warn($"[{_extensionId}] 托管内存超限: {currentMb:F1}MB > {maxMb:F1}MB (连续 {_consecutiveOverflows} 次)");
-
                     OnThresholdExceeded(MemoryThresholdType.Managed, current, _maxManagedMemoryBytes);
 
-                    // 连续 3 次超限 → 强制终止
                     if (_consecutiveOverflows >= 3)
                     {
-                        _logger.Error($"[{_extensionId}] 连续内存超限，强制终止扩展");
-                        ForcedShutdown?.Invoke(this, EventArgs.Empty);
+                        shouldShutdown = true;
                     }
                 }
                 else
@@ -388,22 +412,12 @@ internal sealed class MemoryGuard : IDisposable
 
                         if (ratePerSec > _maxAllocationRateBytesPerSec)
                         {
-                            double rateMb = ratePerSec / 1024.0 / 1024.0;
-                            double maxRateMb = _maxAllocationRateBytesPerSec / 1024.0 / 1024.0;
-                            _logger.Warn($"[{_extensionId}] 内存分配速率异常: {rateMb:F1}MB/s > {maxRateMb:F1}MB/s");
-
                             OnThresholdExceeded(MemoryThresholdType.AllocationRate, ratePerSec, _maxAllocationRateBytesPerSec);
                         }
                     }
                 }
 
-                // 3. 泄漏检测：老年代持续增长
-                long gen2 = GC.GetTotalMemory(forceFullCollection: false);
-                if (gen2 > 0 && current > _maxManagedMemoryBytes * 0.8)
-                {
-                    _logger.Warn($"[{_extensionId}] 内存使用接近上限 ({current / 1024 / 1024}MB / {_maxManagedMemoryBytes / 1024 / 1024}MB)，可能存在泄漏");
-                }
-
+                lastSampled = current;
                 _lastSampledManagedBytes = current;
                 _lastSampleTime = now;
             }
@@ -411,6 +425,20 @@ internal sealed class MemoryGuard : IDisposable
             {
                 Debug.WriteLine($"[MemoryGuard] Monitor error for '{_extensionId}': {ex.Message}");
             }
+        }
+
+        // 在锁外记录日志，避免字符串插值分配在锁内
+        if (current > _maxManagedMemoryBytes)
+        {
+            double currentMb = current / 1024.0 / 1024.0;
+            double maxMb = _maxManagedMemoryBytes / 1024.0 / 1024.0;
+            _logger.Warn($"[{_extensionId}] 托管内存超限: {currentMb:F1}MB > {maxMb:F1}MB (连续 {_consecutiveOverflows} 次)");
+        }
+
+        if (shouldShutdown)
+        {
+            _logger.Error($"[{_extensionId}] 连续内存超限，强制终止扩展");
+            ForcedShutdown?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -429,7 +457,10 @@ internal sealed class MemoryGuard : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _monitorTimer.Dispose();
+        lock (s_sharedLock)
+        {
+            s_activeGuards.Remove(this);
+        }
     }
 
     /// <summary>内存阈值类型</summary>

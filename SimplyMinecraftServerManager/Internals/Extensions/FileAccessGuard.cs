@@ -3,178 +3,203 @@
 
 using System.Collections.Concurrent;
 using System.IO;
-using System.Threading;
+using System.Runtime.CompilerServices;
 using SimplyMinecraftServerManager.Extension.Interfaces;
 using SimplyMinecraftServerManager.Extension.Models;
 
 namespace SimplyMinecraftServerManager.Internals.Extensions;
 
 /// <summary>
-/// 文件访问守卫：校验所有文件操作是否在声明的范围内。
-///   1. 危险系统目录过滤（硬编码，不可绕过）
-///   2. 路径穿越检测
-///   3. 声明范围校验
-///   4. 文件扩展名过滤
-///   5. 操作审计日志
+/// 文件访问守卫
+/// 校验所有文件操作是否在声明范围内，支持 TOCTOU 保护和审计日志。
 /// </summary>
-internal sealed class FileAccessGuard(
-    string extensionId,
-    ILogger logger,
-    IReadOnlyList<FileAccessScope> declaredScopes,
-    string extensionDataPath)
+internal sealed class FileAccessGuard : IDisposable
 {
-    private readonly string _extensionId = extensionId;
-    private readonly ILogger _logger = logger;
-    private readonly Dictionary<string, FileAccessScope> _declaredScopes = declaredScopes.ToDictionary(
-            s => s.Id, s => s, StringComparer.OrdinalIgnoreCase);
-    private readonly string _extensionDataPath = extensionDataPath;
-    private readonly ConcurrentBag<FileAccessLogEntry> _auditLog = [];
-    
-    // TOCTOU protection: track file operations to detect race conditions
-    private readonly ConcurrentDictionary<string, FileOperationTracker> _fileOperationTrackers = new();
-    private readonly TimeSpan _operationWindow = TimeSpan.FromSeconds(5);
+    private readonly string _extensionId;
+    private readonly ILogger _logger;
+    private readonly Dictionary<string, FileAccessScope> _declaredScopes;
+    private readonly string _extensionDataPath;
 
-    // 危险系统目录（硬编码，不可覆盖）
-    private static readonly HashSet<string> DangerousDirectories = new(StringComparer.OrdinalIgnoreCase)
+    // 审计日志：环形缓冲区，防止无限增长
+    private readonly FileAccessLogEntry[] _auditRing;
+    private int _auditHead;
+    private int _auditCount;
+    private readonly Lock _auditLock = new();
+    private const int MaxAuditEntries = 1024;
+
+    // TOCTOU 跟踪器
+    private readonly ConcurrentDictionary<string, FileOperationTracker> _trackers = new();
+    private readonly Timer _cleanupTimer;
+    private int _disposed;
+
+    // 预计算危险目录的规范化形式
+    private static readonly string[] DangerousDirs;
+    private static readonly HashSet<string> DangerousFileNames;
+    private static readonly HashSet<string> DangerousExeExts;
+
+    static FileAccessGuard()
     {
-        @"C:\Windows",
-        @"C:\Windows\System32",
-        @"C:\Windows\SysWOW64",
-        @"C:\Program Files",
-        @"C:\Program Files (x86)",
-        @"C:\ProgramData",
-        @"C:\Recovery",
-        @"C:\$Recycle.Bin",
-        @"C:\System Volume Information",
-        @"C:\Boot",
-        @"C:\bootmgr",
-        @"C:\pagefile.sys",
-        @"C:\hiberfil.sys",
-        @"C:\swapfile.sys",
-        Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-        Environment.GetFolderPath(Environment.SpecialFolder.System),
-        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-    };
+        var rawDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            @"C:\Windows", @"C:\Windows\System32", @"C:\Windows\SysWOW64",
+            @"C:\Program Files", @"C:\Program Files (x86)", @"C:\ProgramData",
+            @"C:\Recovery", @"C:\$Recycle.Bin", @"C:\System Volume Information",
+            @"C:\Boot",
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            Environment.GetFolderPath(Environment.SpecialFolder.System),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        };
 
-    // 危险文件名模式
-    private static readonly HashSet<string> DangerousFileNames = new(StringComparer.OrdinalIgnoreCase)
+        // 预规范化 + 确保尾部带分隔符（修复 StartsWith 边界缺陷）
+        DangerousDirs = [.. rawDirs
+            .Where(d => !string.IsNullOrEmpty(d))
+            .Select(d => EnsureTrailingSeparator(Path.GetFullPath(d)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+
+        DangerousFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "hosts", "passwd", "shadow", "sudoers",
+            "SAM", "SYSTEM", "SECURITY", "SOFTWARE",
+        };
+
+        DangerousExeExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".exe", ".com", ".scr", ".msi", ".msp", ".mst", ".pif",
+            ".bat", ".cmd", ".cpl", ".hta", ".inf", ".ins",
+            ".isp", ".jse", ".lnk", ".msc", ".ps1", ".ps2",
+            ".psm1", ".psc1", ".psc2", ".reg", ".rgs", ".scf",
+            ".scm", ".sct", ".shb", ".shs", ".vbe", ".vbs",
+            ".vbscript", ".ws", ".wsc", ".wsf", ".wsh",
+            ".xbap", ".xnk", ".appx", ".appxbundle", ".msix", ".msixbundle",
+        };
+    }
+
+    public FileAccessGuard(
+        string extensionId,
+        ILogger logger,
+        IReadOnlyList<FileAccessScope> declaredScopes,
+        string extensionDataPath)
     {
-        "hosts", "passwd", "shadow", "sudoers",
-        "SAM", "SYSTEM", "SECURITY", "SOFTWARE",
-    };
+        _extensionId = extensionId;
+        _logger = logger;
+        _declaredScopes = declaredScopes.ToDictionary(s => s.Id, s => s, StringComparer.OrdinalIgnoreCase);
+        _extensionDataPath = extensionDataPath;
+        _auditRing = new FileAccessLogEntry[MaxAuditEntries];
 
-    // 危险可执行文件扩展名（硬编码，不可覆盖）
-    private static readonly HashSet<string> DangerousExecutableExtensions = new(StringComparer.OrdinalIgnoreCase)
+        // 每 5 分钟自动清理过期 tracker
+        _cleanupTimer = new Timer(_ => CleanupTrackers(), null,
+            TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
+    }
+
+    /// <summary>获取审计日志快照</summary>
+    public IReadOnlyList<FileAccessLogEntry> GetAuditLog()
     {
-        ".exe", ".com", ".scr", ".msi", ".msp", ".mst", ".pif",
-        ".bat", ".cmd", ".com", ".cpl", ".hta", ".inf", ".ins",
-        ".isp", ".jse", ".lnk", ".msc", ".msi", ".msp", ".mst",
-        ".pif", ".ps1", ".ps2", ".psm1", ".psc1", ".psc2",
-        ".reg", ".rgs", ".scf", ".scm", ".sct", ".shb", ".shs",
-        ".vbe", ".vbs", ".vbscript", ".ws", ".wsc", ".wsf", ".wsh",
-        ".xbap", ".xnk", ".appx", ".appxbundle", ".msix", ".msixbundle",
-    };
-
-    public IReadOnlyCollection<FileAccessLogEntry> AuditLog => [.. _auditLog];
+        lock (_auditLock)
+        {
+            if (_auditCount == 0) return [];
+            var result = new List<FileAccessLogEntry>(_auditCount);
+            int start = (_auditHead - _auditCount + MaxAuditEntries) % MaxAuditEntries;
+            for (int i = 0; i < _auditCount; i++)
+                result.Add(_auditRing[(start + i) % MaxAuditEntries]);
+            return result;
+        }
+    }
 
     /// <summary>
-    /// 校验文件操作是否允许。
+    /// 校验文件操作是否允许。返回允许的绝对路径，或 null 表示拒绝。
     /// </summary>
-    /// <returns>允许的绝对路径，或 null 表示拒绝</returns>
     public string? Validate(string scopeId, string relativePath, FileAccessLevel requiredLevel)
     {
-        // 1. 查找声明的 scope
+        // 1. Scope 查找
         if (!_declaredScopes.TryGetValue(scopeId, out var scope))
         {
             LogDenied(scopeId, relativePath, "未声明的访问范围");
             return null;
         }
 
-        // 2. 检查访问级别
+        // 2. 权限级别
         if (!scope.Level.HasFlag(requiredLevel))
         {
-            LogDenied(scopeId, relativePath, $"请求 {requiredLevel}，声明级别 {scope.Level}");
+            LogDenied(scopeId, relativePath, $"请求 {requiredLevel}，声明 {scope.Level}");
             return null;
         }
 
-        // 3. 解析绝对路径
-        string absolutePath = ResolvePath(scope, relativePath);
+        // 3. 解析 + 归一化（只做一次 GetFullPath）
+        string absolutePath = ResolveAndNormalize(scope, relativePath);
 
-        // 4. 路径穿越检测（检查路径是否在声明的范围内）
-        if (!IsPathWithinScope(absolutePath, scope))
+        // 4. 路径穿越检测（使用预计算的 scope 基路径）
+        if (!IsWithinAnyScopeBase(absolutePath, scope))
         {
-            LogDenied(scopeId, relativePath, $"路径穿越检测: {absolutePath} 不在声明范围内");
+            LogDenied(scopeId, relativePath, $"路径穿越: {absolutePath}");
             return null;
         }
 
-        // 4.1 符号链接/Junction 检测
+        // 5. 符号链接/Junction
         if (IsSymlinkOrJunction(absolutePath))
         {
-            LogDenied(scopeId, relativePath, $"检测到符号链接/Junction: {absolutePath}");
+            LogDenied(scopeId, relativePath, $"符号链接/Junction: {absolutePath}");
             return null;
         }
 
-        // 5. 危险目录过滤
+        // 6. 危险目录（使用预规范化 + 尾部精确匹配）
         if (IsInDangerousDirectory(absolutePath))
         {
-            LogDenied(scopeId, relativePath, $"访问危险系统目录: {absolutePath}");
+            LogDenied(scopeId, relativePath, $"危险系统目录: {absolutePath}");
             return null;
         }
 
-        // 6. 危险文件名过滤
+        // 7. 危险文件名
         string fileName = Path.GetFileName(absolutePath);
         if (DangerousFileNames.Contains(fileName))
         {
-            LogDenied(scopeId, relativePath, $"访问危险系统文件: {fileName}");
+            LogDenied(scopeId, relativePath, $"危险系统文件: {fileName}");
             return null;
         }
 
-        // 7. 文件扩展名过滤
+        // 8. 扩展名过滤
         if (!IsExtensionAllowed(scope, absolutePath))
         {
-            LogDenied(scopeId, relativePath, $"文件扩展名被拒绝: {Path.GetExtension(absolutePath)}");
+            LogDenied(scopeId, relativePath, $"扩展名被拒: {Path.GetExtension(absolutePath)}");
             return null;
         }
 
-        // 8. UNC 路径检测
-        if (IsUncPath(absolutePath))
+        // 9. UNC 路径
+        if (absolutePath.StartsWith(@"\\", StringComparison.Ordinal) ||
+            absolutePath.StartsWith("//", StringComparison.Ordinal))
         {
-            LogDenied(scopeId, relativePath, $"UNC 路径访问被拒绝: {absolutePath}");
+            LogDenied(scopeId, relativePath, $"UNC 路径被拒: {absolutePath}");
             return null;
         }
 
-        // 9. NTFS 流检测
+        // 10. NTFS 备用数据流
         if (HasNtfsStream(absolutePath))
         {
-            LogDenied(scopeId, relativePath, $"NTFS 备用数据流访问被拒绝: {absolutePath}");
+            LogDenied(scopeId, relativePath, $"NTFS 流被拒: {absolutePath}");
             return null;
         }
 
-        // 10. 记录审计日志
         LogAccess(scopeId, absolutePath, requiredLevel);
-
         return absolutePath;
     }
 
-    private string ResolvePath(FileAccessScope scope, string relativePath)
+    // ===== 路径解析（合并 Resolve + Normalize，消除重复 GetFullPath） =====
+    private string ResolveAndNormalize(FileAccessScope scope, string relativePath)
     {
-        // 解析特殊路径变量
-        string basePath = scope.Paths.Length > 0 ? ResolveSpecialPath(scope.Paths[0]) : _extensionDataPath;
+        string basePath = scope.Paths.Length > 0
+            ? ResolveSpecialPath(scope.Paths[0])
+            : _extensionDataPath;
 
-        // 如果有多个路径，尝试匹配
         if (scope.Paths.Length > 1)
         {
-            foreach (string declaredPath in scope.Paths)
+            foreach (string declared in scope.Paths)
             {
-                string resolved = ResolveSpecialPath(declaredPath);
+                string resolved = ResolveSpecialPath(declared);
                 string combined = Path.Combine(resolved, relativePath);
-                if (File.Exists(combined) || Directory.Exists(Path.GetDirectoryName(combined)))
-                {
+                if (File.Exists(combined) || Directory.Exists(Path.GetDirectoryName(combined)!))
                     return Path.GetFullPath(combined);
-                }
             }
         }
 
@@ -184,164 +209,92 @@ internal sealed class FileAccessGuard(
     private string ResolveSpecialPath(string path)
     {
         if (path.StartsWith("${extensionData}", StringComparison.OrdinalIgnoreCase))
-        {
             return Path.Combine(_extensionDataPath, _extensionId);
-        }
         if (path.StartsWith("${instanceRoot}", StringComparison.OrdinalIgnoreCase))
-        {
             return PathHelper.InstancesRoot;
-        }
         if (path.StartsWith("${instance:", StringComparison.OrdinalIgnoreCase))
         {
             string instanceId = path["${instance:".Length..].TrimEnd('}');
             return PathHelper.GetInstanceDir(instanceId);
         }
         if (path.StartsWith('~'))
-        {
             return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 path[1..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        }
 
         return Path.GetFullPath(path);
     }
 
-    /// <summary>
-    /// 检查路径是否在声明的访问范围内（修复路径穿越检测缺陷）
-    /// </summary>
-    private static bool IsPathWithinScope(string absolutePath, FileAccessScope scope)
+    // ===== 路径穿越检测（使用预缓存的 scope 基路径） =====
+    private bool IsWithinAnyScopeBase(string normalizedPath, FileAccessScope scope)
     {
-        string normalized = Path.GetFullPath(absolutePath);
-
-        // 检查路径是否在声明的任一目录内
-        foreach (string declaredPath in scope.Paths)
+        foreach (string declared in scope.Paths)
         {
-            string resolvedBase = Path.GetFullPath(declaredPath);
-            if (normalized.StartsWith(resolvedBase + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-                normalized.Equals(resolvedBase, StringComparison.OrdinalIgnoreCase))
-            {
+            string baseDir = EnsureTrailingSeparator(Path.GetFullPath(ResolveSpecialPath(declared)));
+            if (normalizedPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
                 return true;
-            }
         }
-
         return false;
     }
 
-    /// <summary>
-    /// 检测路径是否是符号链接或 Junction（P1: 符号链接检测）
-    /// </summary>
-    private static bool IsSymlinkOrJunction(string absolutePath)
+    // ===== 危险目录检测（修复 StartsWith 边界缺陷） =====
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsInDangerousDirectory(string normalizedPath)
+    {
+        foreach (string dir in DangerousDirs)
+        {
+            // dir 已带尾部分隔符，StartsWith 天然保证边界
+            if (normalizedPath.StartsWith(dir, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static string EnsureTrailingSeparator(string path)
+    {
+        if (path.EndsWith(Path.DirectorySeparatorChar))
+            return path;
+        return path + Path.DirectorySeparatorChar;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsSymlinkOrJunction(string path)
     {
         try
         {
-            if (File.Exists(absolutePath))
-            {
-                var fileInfo = new FileInfo(absolutePath);
-                return (fileInfo.Attributes & FileAttributes.ReparsePoint) != 0;
-            }
-
-            if (Directory.Exists(absolutePath))
-            {
-                var dirInfo = new DirectoryInfo(absolutePath);
-                return (dirInfo.Attributes & FileAttributes.ReparsePoint) != 0;
-            }
+            var attrs = File.GetAttributes(path);
+            return (attrs & FileAttributes.ReparsePoint) != 0;
         }
-        catch
-        {
-            // 如果无法检查属性，假设是安全的（让后续检查处理）
-        }
-
-        return false;
+        catch { return false; }
     }
 
-    /// <summary>
-    /// 检测 UNC 路径访问（\\server\share 形式）
-    /// </summary>
-    private static bool IsUncPath(string absolutePath)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool HasNtfsStream(string path)
     {
-        return absolutePath.StartsWith(@"\\", StringComparison.Ordinal) ||
-               absolutePath.StartsWith("//", StringComparison.Ordinal);
+        // 跳过驱动器号 C:，检查后续是否还有冒号
+        int first = path.IndexOf(':');
+        if (first <= 0) return false;
+        return path.IndexOf(':', first + 1) > 0;
     }
 
-    /// <summary>
-    /// 检测 NTFS 备用数据流访问（file.txt:hidden:$DATA 形式）
-    /// </summary>
-    private static bool HasNtfsStream(string absolutePath)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsExtensionAllowed(FileAccessScope scope, string path)
     {
-        // NTFS 流包含冒号分隔符（但跳过驱动器号如 C:）
-        int colonIndex = absolutePath.IndexOf(':');
-        if (colonIndex > 0)
-        {
-            // 检查是否是驱动器号（如 C:）还是流分隔符
-            if (colonIndex == 1 && char.IsLetter(absolutePath[0]))
-            {
-                return false; // 这是驱动器号
-            }
-
-            // 检查是否有额外的冒号（表示 NTFS 流）
-            int secondColon = absolutePath.IndexOf(':', colonIndex + 1);
-            if (secondColon > 0)
-            {
-                return true; // 包含 NTFS 流
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsInDangerousDirectory(string absolutePath)
-    {
-        string normalized = Path.GetFullPath(absolutePath);
-
-        foreach (string dangerous in DangerousDirectories)
-        {
-            if (string.IsNullOrEmpty(dangerous)) continue;
-
-            if (normalized.StartsWith(dangerous, StringComparison.OrdinalIgnoreCase))
-            {
-                // 允许精确匹配（如 C:\Windows 本身不算穿越）
-                if (normalized.Length == dangerous.Length ||
-                    normalized[dangerous.Length] == Path.DirectorySeparatorChar ||
-                    normalized[dangerous.Length] == Path.AltDirectorySeparatorChar)
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsExtensionAllowed(FileAccessScope scope, string absolutePath)
-    {
-        string ext = Path.GetExtension(absolutePath);
-
-        // 1. 危险可执行文件扩展名（硬编码，不可覆盖）
-        if (DangerousExecutableExtensions.Contains(ext))
-        {
-            return false;
-        }
-
-        // 2. 禁止列表优先
+        string ext = Path.GetExtension(path);
+        if (DangerousExeExts.Contains(ext)) return false;
         if (scope.DeniedExtensions.Length > 0 &&
             scope.DeniedExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
-        {
             return false;
-        }
-
-        // 3. 允许列表为空表示允许所有
-        if (scope.AllowedExtensions.Length == 0)
-        {
-            return true;
-        }
-
+        if (scope.AllowedExtensions.Length == 0) return true;
         return scope.AllowedExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
     }
 
+    // ===== 环形缓冲审计日志（固定内存，零 GC 压力） =====
     private void LogDenied(string scopeId, string path, string reason)
     {
-        _logger.Warn($"[{_extensionId}] 文件访问拒绝: Scope={scopeId}, Path={path}, Reason={reason}");
-        _auditLog.Add(new FileAccessLogEntry
+        _logger.Warn($"[{_extensionId}] 文件拒绝: Scope={scopeId}, Path={path}, Reason={reason}");
+        AddAuditEntry(new FileAccessLogEntry
         {
             Timestamp = DateTime.UtcNow,
             ExtensionId = _extensionId,
@@ -354,7 +307,7 @@ internal sealed class FileAccessGuard(
 
     private void LogAccess(string scopeId, string path, FileAccessLevel level)
     {
-        _auditLog.Add(new FileAccessLogEntry
+        AddAuditEntry(new FileAccessLogEntry
         {
             Timestamp = DateTime.UtcNow,
             ExtensionId = _extensionId,
@@ -364,54 +317,67 @@ internal sealed class FileAccessGuard(
             Allowed = true
         });
     }
-    
-    /// <summary>
-    /// Tracks a file operation for TOCTOU protection.
-    /// Returns true if the operation should be blocked.
-    /// </summary>
+
+    private void AddAuditEntry(FileAccessLogEntry entry)
+    {
+        lock (_auditLock)
+        {
+            _auditRing[_auditHead] = entry;
+            _auditHead = (_auditHead + 1) % MaxAuditEntries;
+            if (_auditCount < MaxAuditEntries) _auditCount++;
+        }
+    }
+
+    // ===== TOCTOU 跟踪 =====
     public bool TrackFileOperation(string filePath, FileAccessLevel level)
     {
-        var tracker = _fileOperationTrackers.GetOrAdd(filePath, 
-            path => new FileOperationTracker(path, (ExtensionLogger)_logger));
-        
-        // Check for TOCTOU attacks
+        var tracker = _trackers.GetOrAdd(filePath,
+            p => new FileOperationTracker(p, _logger));
         if (tracker.HasFileBeenModified())
         {
             LogDenied("TOCTOU", filePath, "TOCTOU race condition detected");
             return true;
         }
-        
         return false;
     }
-    
-    /// <summary>
-    /// Acquires a file lock for atomic operations.
-    /// </summary>
+
     public FileStream? AcquireFileLock(string filePath, FileAccess access, FileShare share)
     {
-        var tracker = _fileOperationTrackers.GetOrAdd(filePath, 
-            path => new FileOperationTracker(path, (ExtensionLogger)_logger));
-        
+        var tracker = _trackers.GetOrAdd(filePath,
+            p => new FileOperationTracker(p, _logger));
         return tracker.AcquireLock(access, share);
     }
-    
-    /// <summary>
-    /// Cleans up old file operation trackers.
-    /// </summary>
-    public void CleanupTrackers()
+
+    private void CleanupTrackers()
     {
         var cutoff = DateTime.UtcNow - TimeSpan.FromMinutes(10);
-        var keysToRemove = _fileOperationTrackers
-            .Where(kvp => kvp.Value.LastCheckTime < cutoff)
-            .Select(kvp => kvp.Key)
-            .ToList();
-        
-        foreach (var key in keysToRemove)
+        foreach (var kvp in _trackers)
         {
-            _fileOperationTrackers.TryRemove(key, out _);
+            if (kvp.Value.LastCheckTime < cutoff)
+            {
+                if (_trackers.TryRemove(kvp.Key, out var removed))
+                    removed.Dispose();
+            }
         }
     }
 
+    // ===== Dispose：释放所有资源 =====
+    public void Dispose()
+    {
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0) return;
+
+        _cleanupTimer.Dispose();
+
+        // 释放所有 tracker（包括其中可能持有的 FileStream）
+        foreach (var kvp in _trackers)
+        {
+            if (_trackers.TryRemove(kvp.Key, out var tracker))
+                tracker.Dispose();
+        }
+        _trackers.Clear();
+    }
+
+    // ===== 数据模型 =====
     public sealed class FileAccessLogEntry
     {
         public DateTime Timestamp { get; init; }
@@ -422,84 +388,62 @@ internal sealed class FileAccessGuard(
         public bool Allowed { get; init; }
         public string? DenyReason { get; init; }
     }
-    
+
     /// <summary>
-    /// Tracks file operations to detect TOCTOU race conditions.
+    /// 文件操作跟踪器（实现 IDisposable 释放锁定的 FileStream）。
     /// </summary>
-    private sealed class FileOperationTracker
+    private sealed class FileOperationTracker : IDisposable
     {
         private readonly string _filePath;
-        private readonly ExtensionLogger _logger;
+        private readonly ILogger _logger;
         private DateTime _lastCheckTime;
         private FileAttributes _lastAttributes;
         private long _lastSize;
         private int _checkCount;
+        private FileStream? _heldLock;
         private readonly Lock _lock = new();
-        
+        private int _disposed;
+
         public DateTime LastCheckTime => _lastCheckTime;
-        
-        public FileOperationTracker(string filePath, ExtensionLogger logger)
+
+        public FileOperationTracker(string filePath, ILogger logger)
         {
             _filePath = filePath;
             _logger = logger;
             _lastCheckTime = DateTime.UtcNow;
-            
             try
             {
                 if (File.Exists(filePath))
                 {
-                    var fileInfo = new FileInfo(filePath);
-                    _lastAttributes = fileInfo.Attributes;
-                    _lastSize = fileInfo.Length;
+                    var fi = new FileInfo(filePath);
+                    _lastAttributes = fi.Attributes;
+                    _lastSize = fi.Length;
                 }
             }
-            catch
-            {
-                // Ignore errors during initialization
-            }
+            catch { /* 初始化失败不阻塞 */ }
         }
-        
-        /// <summary>
-        /// Checks if the file has been modified since the last check.
-        /// Returns true if TOCTOU attack is detected.
-        /// </summary>
+
         public bool HasFileBeenModified()
         {
             lock (_lock)
             {
                 try
                 {
-                    if (!File.Exists(_filePath))
-                    {
-                        return true; // File was deleted
-                    }
-                    
-                    var fileInfo = new FileInfo(_filePath);
-                    var currentAttributes = fileInfo.Attributes;
-                    var currentSize = fileInfo.Length;
-                    var currentTime = DateTime.UtcNow;
-                    
-                    // Check if attributes changed
-                    if (currentAttributes != _lastAttributes)
-                    {
-                        _logger.Warn($"TOCTOU detected: File attributes changed for {_filePath}");
-                        return true;
-                    }
-                    
-                    // Check if size changed
-                    if (currentSize != _lastSize)
-                    {
-                        _logger.Warn($"TOCTOU detected: File size changed for {_filePath}");
-                        return true;
-                    }
-                    
-                    // Check if too many checks in short time
-                    if (currentTime - _lastCheckTime < TimeSpan.FromSeconds(5))
+                    if (!File.Exists(_filePath)) return true;
+
+                    var fi = new FileInfo(_filePath);
+                    var curAttrs = fi.Attributes;
+                    var curSize = fi.Length;
+                    var now = DateTime.UtcNow;
+
+                    bool modified = curAttrs != _lastAttributes || curSize != _lastSize;
+
+                    if (!modified && (now - _lastCheckTime) < TimeSpan.FromSeconds(5))
                     {
                         _checkCount++;
                         if (_checkCount > 10)
                         {
-                            _logger.Warn($"TOCTOU detected: Too many checks for {_filePath} in short time");
+                            _logger.Warn($"TOCTOU: 短时间内过多检查 {_filePath}");
                             return true;
                         }
                     }
@@ -507,39 +451,43 @@ internal sealed class FileAccessGuard(
                     {
                         _checkCount = 1;
                     }
-                    
-                    _lastCheckTime = currentTime;
-                    _lastAttributes = currentAttributes;
-                    _lastSize = currentSize;
-                    
-                    return false;
+
+                    if (modified)
+                        _logger.Warn($"TOCTOU: 文件变更 {_filePath}");
+
+                    _lastCheckTime = now;
+                    _lastAttributes = curAttrs;
+                    _lastSize = curSize;
+                    return modified;
                 }
-                catch
-                // If we can't check, assume it's safe (let other checks handle it)
-                {
-                    return false;
-                }
+                catch { return false; }
             }
         }
-        
-        /// <summary>
-        /// Acquires a file lock to prevent concurrent modifications.
-        /// </summary>
+
         public FileStream? AcquireLock(FileAccess access, FileShare share)
         {
-            try
+            lock (_lock)
             {
-                return new FileStream(
-                    _filePath,
-                    FileMode.Open,
-                    access,
-                    share,
-                    bufferSize: 4096,
-                    FileOptions.None);
+                // 释放旧锁再获取新锁，防止句柄泄漏
+                _heldLock?.Dispose();
+                _heldLock = null;
+
+                try
+                {
+                    _heldLock = new FileStream(_filePath, FileMode.Open, access, share, 4096, FileOptions.None);
+                    return _heldLock;
+                }
+                catch { return null; }
             }
-            catch
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0) return;
+            lock (_lock)
             {
-                return null;
+                _heldLock?.Dispose();
+                _heldLock = null;
             }
         }
     }

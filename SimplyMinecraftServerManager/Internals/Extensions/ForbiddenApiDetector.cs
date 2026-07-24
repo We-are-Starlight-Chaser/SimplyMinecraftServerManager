@@ -1,8 +1,10 @@
 // Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using SimplyMinecraftServerManager.Extension.Interfaces;
 
 namespace SimplyMinecraftServerManager.Internals.Extensions;
@@ -20,11 +22,9 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 /// </summary>
 internal static class ForbiddenApiDetector
 {
-    /// <summary>
-    /// 禁止的 API 模式（命名空间 + 类名 + 可选方法名）。
-    /// </summary>
     private static readonly (string Namespace, string? ClassName, string? MethodName, string Alternative, string Reason)[] ForbiddenApis =
     [
+#pragma warning disable CS8619 // 数组中 null 用于表示"不限定方法名"，与元组 string? 语义一致
         // === 文件系统 === 项目已有 IFileService / IFolderService
         ("System.IO", "File", "ReadAllBytesAsync",  "IFileService.ReadBytesAsync()",     "文件读取必须通过 IFileService"),
         ("System.IO", "File", "ReadAllBytes",        "IFileService.ReadBytesAsync()",     "文件读取必须通过 IFileService"),
@@ -124,6 +124,32 @@ internal static class ForbiddenApiDetector
         ("System.Net.Mail", "SmtpClient",      "SendAsync",        null, "禁止网络上传"),
         ("System.Net.Mail", "SmtpClient",      "SendMailAsync",    null, "禁止网络上传"),
     ];
+#pragma warning restore CS8619
+
+    /// <summary>
+    /// 按命名空间前缀索引的规则字典，O(1) 查找替代 O(N) 线性扫描。
+    /// </summary>
+    private static readonly Dictionary<string, List<int>> _namespaceIndex;
+
+    /// <summary>
+    /// 缓存已查询过的程序集名称，避免每帧重复反射。
+    /// </summary>
+    private static readonly ConcurrentDictionary<Assembly, string?> _assemblyNameCache = new();
+
+    static ForbiddenApiDetector()
+    {
+        _namespaceIndex = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        for (int i = 0; i < ForbiddenApis.Length; i++)
+        {
+            string ns = ForbiddenApis[i].Namespace;
+            if (!_namespaceIndex.TryGetValue(ns, out var list))
+            {
+                list = [];
+                _namespaceIndex[ns] = list;
+            }
+            list.Add(i);
+        }
+    }
 
     /// <summary>
     /// 检测结果。
@@ -163,6 +189,20 @@ internal static class ForbiddenApiDetector
         if (frames is null || frames.Length == 0)
             return result;
 
+        // 预检查：扩展程序集中是否有帧
+        bool hasExtensionFrame = false;
+        foreach (var frame in frames)
+        {
+            var m = frame.GetMethod();
+            var asm = m?.DeclaringType?.Assembly;
+            if (asm is not null && GetCachedAssemblyName(asm)?.StartsWith(extensionAssemblyName, StringComparison.OrdinalIgnoreCase) == true)
+            {
+                hasExtensionFrame = true;
+                break;
+            }
+        }
+        if (!hasExtensionFrame) return result;
+
         foreach (var frame in frames)
         {
             var method = frame.GetMethod();
@@ -175,33 +215,41 @@ internal static class ForbiddenApiDetector
             string className = declaringType.Name;
             string methodName = method.Name;
 
-            // 检查是否匹配禁止的 API
-            foreach (var (forbiddenNs, forbiddenClass, forbiddenMethod, alternative, reason) in ForbiddenApis)
+            // 按命名空间前缀索引查找，O(1) 替代 O(N) 遍历
+            if (!_namespaceIndex.TryGetValue(ns, out var candidates))
             {
+                // 尝试父命名空间匹配（如 System.IO.Compression.File → System.IO）
+                int lastDot = ns.LastIndexOf('.');
+                if (lastDot > 0)
+                {
+                    string parentNs = ns[..lastDot];
+                    if (!_namespaceIndex.TryGetValue(parentNs, out candidates))
+                        continue;
+                }
+                else
+                {
+                    continue;
+                }
+            }
+
+            foreach (int idx in candidates)
+            {
+                var (forbiddenNs, forbiddenClass, forbiddenMethod, alternative, reason) = ForbiddenApis[idx];
+
                 if (!ns.StartsWith(forbiddenNs, StringComparison.Ordinal)) continue;
                 if (forbiddenClass is not null && !className.Contains(forbiddenClass, StringComparison.Ordinal)) continue;
                 if (forbiddenMethod is not null && !methodName.Contains(forbiddenMethod, StringComparison.Ordinal)) continue;
 
-                // 检查调用者是否来自扩展
-                var callerFrame = Array.Find(frames, f =>
+                result.HasViolation = true;
+                result.Violations.Add(new ViolationInfo
                 {
-                    var m = f.GetMethod();
-                    return m?.DeclaringType?.Assembly.GetName().Name?.StartsWith(extensionAssemblyName, StringComparison.OrdinalIgnoreCase) == true;
+                    ForbiddenApi = $"{declaringType.FullName}.{methodName}()",
+                    Alternative = alternative,
+                    Reason = reason,
+                    CallerAssembly = GetCachedAssemblyName(declaringType.Assembly) ?? extensionAssemblyName,
+                    StackTrace = stackTrace.ToString(),
                 });
-
-                if (callerFrame is not null)
-                {
-                    result.HasViolation = true;
-                    result.Violations.Add(new ViolationInfo
-                    {
-                        ForbiddenApi = $"{declaringType.FullName}.{methodName}()",
-                        Alternative = alternative,
-                        Reason = reason,
-                        CallerAssembly = extensionAssemblyName,
-                        StackTrace = stackTrace.ToString(),
-                    });
-                    return result; // 只报告第一个违规
-                }
+                return result;
             }
         }
 
@@ -228,8 +276,25 @@ internal static class ForbiddenApiDetector
             string className = declaringType.Name;
             string methodName = method.Name;
 
-            foreach (var (forbiddenNs, forbiddenClass, forbiddenMethod, alternative, reason) in ForbiddenApis)
+            if (!_namespaceIndex.TryGetValue(ns, out var candidates))
             {
+                int lastDot = ns.LastIndexOf('.');
+                if (lastDot > 0)
+                {
+                    string parentNs = ns[..lastDot];
+                    if (!_namespaceIndex.TryGetValue(parentNs, out candidates))
+                        continue;
+                }
+                else
+                {
+                    continue;
+                }
+            }
+
+            foreach (int idx in candidates)
+            {
+                var (forbiddenNs, forbiddenClass, forbiddenMethod, alternative, reason) = ForbiddenApis[idx];
+
                 if (!ns.StartsWith(forbiddenNs, StringComparison.Ordinal)) continue;
                 if (forbiddenClass is not null && !className.Contains(forbiddenClass, StringComparison.Ordinal)) continue;
                 if (forbiddenMethod is not null && !methodName.Contains(forbiddenMethod, StringComparison.Ordinal)) continue;
@@ -255,5 +320,15 @@ internal static class ForbiddenApiDetector
     public static IReadOnlyList<(string Api, string Alternative, string Reason)> GetAllForbiddenApis()
     {
         return ForbiddenApis.Select(x => ($"{x.Namespace}.{x.ClassName}.{x.MethodName}", x.Alternative, x.Reason)).ToList();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static string? GetCachedAssemblyName(Assembly assembly)
+    {
+        return _assemblyNameCache.GetOrAdd(assembly, a =>
+        {
+            try { return a.GetName().Name; }
+            catch { return null; }
+        });
     }
 }

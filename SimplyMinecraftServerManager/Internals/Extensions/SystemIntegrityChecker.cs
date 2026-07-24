@@ -13,7 +13,7 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 ///
 /// 设计原则：
 ///   - 仅收录框架没有替代 API 的系统 DLL（文件操作、进程创建等已有 Guard 的不在此列）
-///   - 哈希值硬编码自 .NET 10.0.9 (win-x64) 的已知安全版本
+///   - 哈希值硬编码自 .NET 10.0.10 (win-x64) 的已知安全版本
 ///   - ModuleMonitor / AntiTamper 在检测到新模块时调用 IsKnownSystemModule() 进行放行
 /// </summary>
 internal static class SystemIntegrityChecker
@@ -24,36 +24,23 @@ internal static class SystemIntegrityChecker
     /// </summary>
     public static readonly Dictionary<string, string> ExpectedHashes = new(StringComparer.OrdinalIgnoreCase)
     {
-        // === .NET Core Runtime ===
-        // CRITICAL: 所有扩展必需的基础类型 (Version, DateTime, IDisposable, String, etc.)
-        ["System.Private.CoreLib.dll"]    = "dc1945de746f94987ec705a1f27d512abf72a41a1da37e414d1951e4e823037a",
-        // CRITICAL: 核心运行时类型系统 (Type, Object, Assembly, Activator, etc.)
-        ["System.Runtime.dll"]            = "87f6a9a4133e1fb95b0430071ae73d232eb9cb24beb04aca4d7ae3a3d074f9ad",
-        // CRITICAL: CancellationToken 在所有 SDK 方法签名中
-        ["System.Threading.dll"]          = "89a81656b39f93950f4ab2882b7ea350892edd7b6074ad67179ecc73ca01a190",
-        // CRITICAL: Task/Task<T> 是所有异步方法的返回类型
-        ["System.Threading.Tasks.dll"]    = "3d58c971ab9bb4e3b5de43f4706ad9f63b4aea04d1ca7a3762ce93168875a60d",
-        // HIGH: SDK 接口暴露的集合类型 (IReadOnlyList, Dictionary, etc.)
-        ["System.Collections.dll"]        = "e8a4b43005fff65121433b298659322410a69bc02bcf44b223f1ed282a3a0335",
-        // HIGH: LINQ 查询方法
-        ["System.Linq.dll"]               = "2142f1e852b8edbf8dceddb575177295dde02c8a368e716f0ca0c902d42bfe03",
-        // MEDIUM: Path, MemoryStream, Stream 等类型使用
-        ["System.IO.dll"]                 = "f5f0aaa66f552c7c0867c3ca00c3df1b4108a8539817b24a33f002da19e59ac1",
-        // MEDIUM: HttpClient 用于 HTTP 请求
-        ["System.Net.Http.dll"]           = "9b6b1e1f5e8b6ac535241cd514e1b1c1e15b2fac9df30fc0f1369c1b8a9d1433",
+        // === .NET Core Runtime (.NET 10.0.10 win-x64) ===
+        ["System.Private.CoreLib.dll"]    = "76a49f17e83f613bc8a5b55fc98830b764e7838265aacbdbcc8f46707f80a3c9",
+        ["System.Runtime.dll"]            = "60d0795848d15c0ee9c37d6b97dfef12eb48292ffda3e9054204b2c3a6a89b19",
+        ["System.Threading.dll"]          = "96ef32e315217f24b6b701fc182cac464966cad1da94dd25a3609fe2d9f5a6ca",
+        ["System.Threading.Tasks.dll"]    = "2830ac695731137a529b7620482499eae9dc88730aa78b2dbbbe35e9ea6655d9",
+        ["System.Collections.dll"]        = "fc52be0abceac360478ffffce876c99997b4af56fc36fbf07cfc38ac5b7fdd7f",
+        ["System.Linq.dll"]               = "4a5d41332ed37f7e195503ebd3f478da2ad0008cb8a9f85739b53d2df7d33d46",
+        ["System.IO.dll"]                 = "7b40c8b70bf1b61924b4fade11d4325151debc2f5733f32fbe3409621914c802",
+        ["System.Net.Http.dll"]           = "277ee31df794738d802c9dca109565ee1f549e733741af03b17f907208d13538",
 
-        // === WPF 框架 ===
-        // WPF 渲染核心
-        ["PresentationCore.dll"]         = "2264156caa886da031791f6459d5bc78cec0c52a117b2333393546c82c3642de",
-        // WPF 框架层 (控件、布局、数据绑定)
-        ["PresentationFramework.dll"]     = "f13135c4cdf7d1b40469c1c0b6396ea59782f267e8cdd7c37b480c229c9175ff",
-        // WPF 基础 (DependencyObject, Dispatcher, etc.)
-        ["WindowsBase.dll"]              = "eb051d513031cb6d80b219a1de82e8889284aedcd770f399bf3ea726cff43e14",
-        // WPF UI 控件
-        ["PresentationUI.dll"]           = "ad0e1a34dc5ee8f8d0cc95cb14e957a25df4e1132491a415770f82de442baadd",
-        // UI 自动化
-        ["UIAutomationProvider.dll"]      = "691c03d4bd5ad62aca075154454f9112fd83063c351f05ac000dc8a378cf96e0",
-        ["UIAutomationTypes.dll"]         = "f067607b8580974165b05e41a7c28fda823ddd8c3211c4d63f894f3b3006470d",
+        // === WPF 框架 (Microsoft.WindowsDesktop.App 10.0.10) ===
+        ["WindowsBase.dll"]              = "40919153c0d41db63182208f07ceb2cdd7a5eaa1231bfae318f64fad929d6646",
+        ["PresentationCore.dll"]         = "b8fbf245f2868dc992c329e67f1277119dc3a3914048ec73ee88fa45acf7e0ec",
+        ["PresentationFramework.dll"]     = "3a22e5bd32d90b034a5ec19657b506cac2647b46cdaef5d33e134b09585de5d2",
+        ["PresentationUI.dll"]           = "c4dddb3014180a096a5d4150e5dc70d70842959d295de846519c5f3351d46fcd",
+        ["UIAutomationProvider.dll"]      = "55d87d14c32dcc2b768c1bf217019bf9780867ecc78ffeb70fbcdce0f9b7f9b7",
+        ["UIAutomationTypes.dll"]         = "d4b9677ed735fe4f8db62ebc5d989cfc433f025dfbf3fd961f9367c140276e5d",
     };
 
     /// <summary>
@@ -78,8 +65,15 @@ internal static class SystemIntegrityChecker
             if (!File.Exists(modulePath))
                 return false;
 
-            byte[] fileBytes = File.ReadAllBytes(modulePath);
-            byte[] actualHashBytes = SHA256.HashData(fileBytes);
+            using var incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            using var stream = new FileStream(modulePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            byte[] buffer = new byte[81920];
+            int bytesRead;
+            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                incrementalHash.AppendData(buffer, 0, bytesRead);
+            }
+            byte[] actualHashBytes = incrementalHash.GetHashAndReset();
             string actualHash = Convert.ToHexStringLower(actualHashBytes);
 
             return string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase);
@@ -140,8 +134,15 @@ internal static class SystemIntegrityChecker
 
             try
             {
-                byte[] fileBytes = File.ReadAllBytes(dllPath);
-                byte[] actualHashBytes = SHA256.HashData(fileBytes);
+                using var incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                using var stream = new FileStream(dllPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                byte[] buffer = new byte[81920];
+                int bytesRead;
+                while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    incrementalHash.AppendData(buffer, 0, bytesRead);
+                }
+                byte[] actualHashBytes = incrementalHash.GetHashAndReset();
                 string actualHash = Convert.ToHexStringLower(actualHashBytes);
 
                 if (string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))

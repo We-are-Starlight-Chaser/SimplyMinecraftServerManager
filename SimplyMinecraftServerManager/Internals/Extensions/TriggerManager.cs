@@ -154,6 +154,9 @@ internal sealed class TriggerManager(ILogger logger) : IDisposable
         await FireAsync(TriggerType.Timer, context).ConfigureAwait(false);
     }
 
+    // 最小触发间隔（防止恶意扩展高频触发）
+    private static readonly TimeSpan MinInterval = TimeSpan.FromSeconds(5);
+
     private static bool TryParseInterval(string input, out TimeSpan result)
     {
         result = TimeSpan.Zero;
@@ -163,21 +166,31 @@ internal sealed class TriggerManager(ILogger logger) : IDisposable
         if (trimmed.EndsWith('s') && int.TryParse(trimmed[..^1], out int seconds))
         {
             result = TimeSpan.FromSeconds(seconds);
-            return true;
         }
-        if (trimmed.EndsWith('m') && int.TryParse(trimmed[..^1], out int minutes))
+        else if (trimmed.EndsWith('m') && int.TryParse(trimmed[..^1], out int minutes))
         {
             result = TimeSpan.FromMinutes(minutes);
-            return true;
         }
-        if (trimmed.EndsWith('h') && int.TryParse(trimmed[..^1], out int hours))
+        else if (trimmed.EndsWith('h') && int.TryParse(trimmed[..^1], out int hours))
         {
             result = TimeSpan.FromHours(hours);
-            return true;
+        }
+        else
+        {
+            // 尝试 TimeSpan.Parse
+            if (!TimeSpan.TryParse(input, out result))
+            {
+                return false;
+            }
         }
 
-        // 尝试 TimeSpan.Parse
-        return TimeSpan.TryParse(input, out result);
+        // 最小间隔限制
+        if (result < MinInterval)
+        {
+            result = MinInterval;
+        }
+
+        return result > TimeSpan.Zero;
     }
 
     public void Dispose()

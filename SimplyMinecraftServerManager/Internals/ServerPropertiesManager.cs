@@ -20,6 +20,36 @@ namespace SimplyMinecraftServerManager.Internals
         /// </summary>
         /// <param name="instanceId">实例 ID</param>
         /// <returns>配置键值对字典</returns>
+        public static async Task<Dictionary<string, string>> ReadAsync(string instanceId)
+        {
+            if (_propsCache.TryGet(instanceId, out var cached))
+                return new Dictionary<string, string>(cached!, StringComparer.OrdinalIgnoreCase);
+
+            string path = PathHelper.GetServerPropertiesPath(instanceId);
+            if (!File.Exists(path))
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            var lines = await ReadAllLinesWithRetryAsync(path).ConfigureAwait(false);
+            foreach (string line in lines)
+            {
+                string trimmed = line.Trim();
+                if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
+                    continue;
+
+                int eq = trimmed.IndexOf('=');
+                if (eq < 0) continue;
+
+                string key = trimmed[..eq].Trim();
+                string value = trimmed[(eq + 1)..];
+                result[key] = value;
+            }
+
+            _propsCache.Set(instanceId, result);
+            return result;
+        }
+
         public static Dictionary<string, string> Read(string instanceId)
         {
             if (_propsCache.TryGet(instanceId, out var cached))
@@ -31,7 +61,7 @@ namespace SimplyMinecraftServerManager.Internals
 
             var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            var lines = ReadAllLinesWithRetry(path);
+            var lines = ReadAllLinesSync(path);
             foreach (string line in lines)
             {
                 string trimmed = line.Trim();
@@ -113,12 +143,12 @@ namespace SimplyMinecraftServerManager.Internals
         /// <param name="instanceId">实例 ID</param>
         /// <param name="key">配置键名</param>
         /// <param name="value">要设置的值</param>
-        public static void SetValue(string instanceId, string key, string value)
+        public static async Task SetValueAsync(string instanceId, string key, string value)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             
             var lines = File.Exists(path)
-                ? ReadAllLinesWithRetry(path).ToList()
+                ? (await ReadAllLinesWithRetryAsync(path).ConfigureAwait(false)).ToList()
                 : [];
 
             bool found = false;
@@ -149,7 +179,52 @@ namespace SimplyMinecraftServerManager.Internals
             FileLock.EnterWriteLock();
             try
             {
-                WriteAllLinesWithRetry(path, lines);
+                await WriteAllLinesWithRetryAsync(path, lines).ConfigureAwait(false);
+            }
+            finally
+            {
+                FileLock.ExitWriteLock();
+            }
+            InvalidateCache(instanceId);
+        }
+
+        public static void SetValue(string instanceId, string key, string value)
+        {
+            string path = PathHelper.GetServerPropertiesPath(instanceId);
+            
+            var lines = File.Exists(path)
+                ? ReadAllLinesSync(path).ToList()
+                : [];
+
+            bool found = false;
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                string trimmed = lines[i].TrimStart();
+                if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
+                    continue;
+
+                int eq = trimmed.IndexOf('=');
+                if (eq < 0) continue;
+
+                string k = trimmed[..eq].Trim();
+                if (k.Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    lines[i] = $"{key}={value}";
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                lines.Add($"{key}={value}");
+            }
+
+            FileLock.EnterWriteLock();
+            try
+            {
+                WriteAllLinesSync(path, lines);
             }
             finally
             {
@@ -163,12 +238,12 @@ namespace SimplyMinecraftServerManager.Internals
         /// </summary>
         /// <param name="instanceId">实例 ID</param>
         /// <param name="values">要设置的键值对字典</param>
-        public static void SetValues(string instanceId, Dictionary<string, string> values)
+        public static async Task SetValuesAsync(string instanceId, Dictionary<string, string> values)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             
             var lines = File.Exists(path)
-                ? ReadAllLinesWithRetry(path).ToList()
+                ? (await ReadAllLinesWithRetryAsync(path).ConfigureAwait(false)).ToList()
                 : [];
 
             var remaining = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
@@ -197,7 +272,7 @@ namespace SimplyMinecraftServerManager.Internals
             FileLock.EnterWriteLock();
             try
             {
-                WriteAllLinesWithRetry(path, lines);
+                await WriteAllLinesWithRetryAsync(path, lines).ConfigureAwait(false);
             }
             finally
             {
@@ -206,11 +281,73 @@ namespace SimplyMinecraftServerManager.Internals
             InvalidateCache(instanceId);
         }
 
-        /// <summary>
-        /// 覆盖写入整个 server.properties 文件。
-        /// </summary>
-        /// <param name="instanceId">实例 ID</param>
-        /// <param name="properties">完整的配置键值对</param>
+        public static void SetValues(string instanceId, Dictionary<string, string> values)
+        {
+            string path = PathHelper.GetServerPropertiesPath(instanceId);
+            
+            var lines = File.Exists(path)
+                ? ReadAllLinesSync(path).ToList()
+                : [];
+
+            var remaining = new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < lines.Count && remaining.Count > 0; i++)
+            {
+                string trimmed = lines[i].TrimStart();
+                if (trimmed.Length == 0 || trimmed[0] == '#' || trimmed[0] == '!')
+                    continue;
+
+                int eq = trimmed.IndexOf('=');
+                if (eq < 0) continue;
+
+                string k = trimmed[..eq].Trim();
+
+                if (remaining.TryGetValue(k, out string? newVal))
+                {
+                    lines[i] = $"{k}={newVal}";
+                    remaining.Remove(k);
+                }
+            }
+
+            foreach (var kvp in remaining)
+                lines.Add($"{kvp.Key}={kvp.Value}");
+
+            FileLock.EnterWriteLock();
+            try
+            {
+                WriteAllLinesSync(path, lines);
+            }
+            finally
+            {
+                FileLock.ExitWriteLock();
+            }
+            InvalidateCache(instanceId);
+        }
+
+        public static async Task WriteAllAsync(string instanceId, Dictionary<string, string> properties)
+        {
+            string path = PathHelper.GetServerPropertiesPath(instanceId);
+            var lines = new List<string>
+            {
+                "#Minecraft server properties",
+                $"#Generated by SMSM {DateTime.Now:ddd MMM dd HH:mm:ss zzz yyyy}"
+            };
+
+            foreach (var kvp in properties.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+                lines.Add($"{kvp.Key}={kvp.Value}");
+
+            FileLock.EnterWriteLock();
+            try
+            {
+                await WriteAllLinesWithRetryAsync(path, lines).ConfigureAwait(false);
+            }
+            finally
+            {
+                FileLock.ExitWriteLock();
+            }
+            InvalidateCache(instanceId);
+        }
+
         public static void WriteAll(string instanceId, Dictionary<string, string> properties)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
@@ -226,7 +363,7 @@ namespace SimplyMinecraftServerManager.Internals
             FileLock.EnterWriteLock();
             try
             {
-                WriteAllLinesWithRetry(path, lines);
+                WriteAllLinesSync(path, lines);
             }
             finally
             {
@@ -235,13 +372,7 @@ namespace SimplyMinecraftServerManager.Internals
             InvalidateCache(instanceId);
         }
 
-        /// <summary>
-        /// 移除指定的配置项。
-        /// </summary>
-        /// <param name="instanceId">实例 ID</param>
-        /// <param name="key">要移除的配置键名</param>
-        /// <returns>是否成功移除</returns>
-        public static bool RemoveValue(string instanceId, string key)
+        public static async Task<bool> RemoveValueAsync(string instanceId, string key)
         {
             string path = PathHelper.GetServerPropertiesPath(instanceId);
             if (!File.Exists(path)) return false;
@@ -249,7 +380,7 @@ namespace SimplyMinecraftServerManager.Internals
             FileLock.EnterWriteLock();
             try
             {
-                var lines = ReadAllLinesWithRetry(path).ToList();
+                var lines = (await ReadAllLinesWithRetryAsync(path).ConfigureAwait(false)).ToList();
                 int removed = lines.RemoveAll(line =>
                 {
                     string t = line.TrimStart();
@@ -260,7 +391,7 @@ namespace SimplyMinecraftServerManager.Internals
                 });
 
                 if (removed > 0)
-                    WriteAllLinesWithRetry(path, lines);
+                    await WriteAllLinesWithRetryAsync(path, lines).ConfigureAwait(false);
 
                 if (removed > 0) InvalidateCache(instanceId);
                 return removed > 0;
@@ -271,7 +402,37 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        private static string[] ReadAllLinesWithRetry(string path, int retryCount = 3, int delayMs = 20)
+        public static bool RemoveValue(string instanceId, string key)
+        {
+            string path = PathHelper.GetServerPropertiesPath(instanceId);
+            if (!File.Exists(path)) return false;
+
+            FileLock.EnterWriteLock();
+            try
+            {
+                var lines = ReadAllLinesSync(path).ToList();
+                int removed = lines.RemoveAll(line =>
+                {
+                    string t = line.TrimStart();
+                    if (t.Length == 0 || t[0] == '#' || t[0] == '!') return false;
+                    int eq = t.IndexOf('=');
+                    if (eq < 0) return false;
+                    return t[..eq].Trim().Equals(key, StringComparison.OrdinalIgnoreCase);
+                });
+
+                if (removed > 0)
+                    WriteAllLinesSync(path, lines);
+
+                if (removed > 0) InvalidateCache(instanceId);
+                return removed > 0;
+            }
+            finally
+            {
+                FileLock.ExitWriteLock();
+            }
+        }
+
+    private static string[] ReadAllLinesSync(string path, int retryCount = 3, int delayMs = 20)
         {
             for (int attempt = 0; ; attempt++)
             {
@@ -294,7 +455,7 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
-        private static void WriteAllLinesWithRetry(string path, IEnumerable<string> lines, int retryCount = 3, int delayMs = 20)
+        private static void WriteAllLinesSync(string path, IEnumerable<string> lines, int retryCount = 3, int delayMs = 20)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
@@ -316,6 +477,56 @@ namespace SimplyMinecraftServerManager.Internals
                 catch (IOException) when (attempt < retryCount)
                 {
                     Thread.Sleep(delayMs * (attempt + 1));
+                }
+            }
+        }
+
+    private static async Task<string[]> ReadAllLinesWithRetryAsync(string path, int retryCount = 3, int delayMs = 20)
+        {
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                    var lines = new List<string>();
+                    string? line;
+                    while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) is not null)
+                    {
+                        lines.Add(line);
+                    }
+
+                    return lines.ToArray();
+                }
+                catch (IOException) when (attempt < retryCount)
+                {
+                    await Task.Delay(delayMs * (attempt + 1)).ConfigureAwait(false);
+                }
+            }
+        }
+
+        private static async Task WriteAllLinesWithRetryAsync(string path, IEnumerable<string> lines, int retryCount = 3, int delayMs = 20)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
+                    using var writer = new StreamWriter(stream, Encoding.UTF8);
+                    foreach (var line in lines)
+                    {
+                        await writer.WriteLineAsync(line).ConfigureAwait(false);
+                    }
+
+                    await writer.FlushAsync().ConfigureAwait(false);
+                    await stream.FlushAsync().ConfigureAwait(false);
+                    return;
+                }
+                catch (IOException) when (attempt < retryCount)
+                {
+                    await Task.Delay(delayMs * (attempt + 1)).ConfigureAwait(false);
                 }
             }
         }

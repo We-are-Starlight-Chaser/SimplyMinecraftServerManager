@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <Application
@@ -10,6 +10,7 @@
   DispatcherUnhandledException="OnDispatcherUnhandledException"
   Exit="OnExit"
   Startup="OnStartup"
+  ShutdownMode="OnExplicitShutdown"
 >
   <Application.Resources>
     <ResourceDictionary>

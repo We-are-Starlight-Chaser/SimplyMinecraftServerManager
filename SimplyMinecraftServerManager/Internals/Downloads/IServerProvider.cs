@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 namespace SimplyMinecraftServerManager.Internals.Downloads
@@ -28,5 +28,22 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             string destinationPath,
             DownloadManager? downloadManager = null,
             CancellationToken ct = default);
+
+        /// <summary>
+        /// 下载完成后的后处理钩子。
+        /// 默认实现直接返回下载路径（大多数平台无需后处理）。
+        /// NeoForge 需要运行 installer 生成实际的 server.jar。
+        /// </summary>
+        /// <param name="downloadedFilePath">已下载的文件路径</param>
+        /// <param name="workingDirectory">实例工作目录</param>
+        /// <param name="ct">取消令牌</param>
+        /// <returns>最终可用的服务器 JAR 路径</returns>
+        Task<string> AfterDownloadAsync(
+            string downloadedFilePath,
+            string workingDirectory,
+            CancellationToken ct = default)
+        {
+            return Task.FromResult(downloadedFilePath);
+        }
     }
 }

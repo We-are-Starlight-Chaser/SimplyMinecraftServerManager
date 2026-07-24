@@ -15,7 +15,7 @@ public interface IEventBus
     /// <returns>用于取消订阅的 IDisposable</returns>
     IDisposable OnServerStateChanged(EventHandler<ServerStateChangedEventArgs> handler);
 
-    /// <summary>订阅插件安装/卸载事件</summary>
+    /// <summary>订阅插件/模组安装/卸载事件</summary>
     IDisposable OnPluginChanged(EventHandler<PluginEventArgs> handler);
 
     /// <summary>订阅服务器配置变更事件</summary>

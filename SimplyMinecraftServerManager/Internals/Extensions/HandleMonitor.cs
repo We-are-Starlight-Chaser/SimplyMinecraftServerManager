@@ -10,8 +10,8 @@ using SimplyMinecraftServerManager.Extension.Interfaces;
 namespace SimplyMinecraftServerManager.Internals.Extensions;
 
 /// <summary>
-/// Monitor for tracking file and process handle leaks in extensions.
-/// Detects when extensions don't properly release handles.
+/// 用于跟踪扩展中文件和进程句柄泄漏的监视器。
+/// 检测扩展未正确释放句柄的情况。
 /// </summary>
 internal sealed class HandleMonitor : IDisposable
 {
@@ -20,32 +20,32 @@ internal sealed class HandleMonitor : IDisposable
     private readonly Timer _monitorTimer;
     private readonly Lock _lock = new();
     
-    // Configuration
+    // 配置
     private readonly int _maxFileHandles;
     private readonly int _maxProcessHandles;
     private readonly int _maxHandleAgeSeconds;
     
-    // Tracking state
+    // 跟踪状态
     private readonly ConcurrentDictionary<IntPtr, FileHandleInfo> _fileHandles = new();
     private readonly ConcurrentDictionary<int, ProcessHandleInfo> _processHandles = new();
     private int _totalFileHandlesCreated;
     private int _totalProcessHandlesCreated;
     private bool _disposed;
     
-    // Events
+    // 事件
     public event EventHandler<HandleLeakEventArgs>? HandleLeakDetected;
     public event EventHandler? CriticalHandleLeak;
     
-    /// <summary>Current number of active file handles</summary>
+    /// <summary>当前活动文件句柄数量</summary>
     public int ActiveFileHandleCount => _fileHandles.Count;
     
-    /// <summary>Current number of active process handles</summary>
+    /// <summary>当前活动进程句柄数量</summary>
     public int ActiveProcessHandleCount => _processHandles.Count;
     
-    /// <summary>Total file handles created since monitor started</summary>
+    /// <summary>监视器启动以来创建的文件句柄总数</summary>
     public int TotalFileHandlesCreated => _totalFileHandlesCreated;
     
-    /// <summary>Total process handles created since monitor started</summary>
+    /// <summary>监视器启动以来创建的进程句柄总数</summary>
     public int TotalProcessHandlesCreated => _totalProcessHandlesCreated;
     
     public HandleMonitor(
@@ -70,7 +70,7 @@ internal sealed class HandleMonitor : IDisposable
     }
     
     /// <summary>
-    /// Tracks a file handle being opened.
+    /// 跟踪打开的文件句柄。
     /// </summary>
     public void TrackFileHandle(IntPtr handle, string filePath, FileAccess access)
     {
@@ -83,22 +83,22 @@ internal sealed class HandleMonitor : IDisposable
             FilePath = filePath,
             Access = access,
             OpenedAt = DateTime.UtcNow,
-            StackTrace = Environment.StackTrace
+            StackTrace = CaptureStackTrace()
         };
         
         _fileHandles[handle] = info;
         Interlocked.Increment(ref _totalFileHandlesCreated);
         
-        // Check if we're exceeding limits
+        // 检查是否超过限制
         if (_fileHandles.Count > _maxFileHandles)
         {
-            _logger?.Warn($"[{_extensionId}] File handle count exceeded limit: {_fileHandles.Count} > {_maxFileHandles}");
+            _logger?.Warn($"[{_extensionId}] 文件句柄数量超过限制: {_fileHandles.Count} > {_maxFileHandles}");
             OnHandleLeakDetected(HandleType.File, _fileHandles.Count, _maxFileHandles);
         }
     }
     
     /// <summary>
-    /// Tracks a file handle being closed.
+    /// 跟踪关闭的文件句柄。
     /// </summary>
     public void UntrackFileHandle(IntPtr handle)
     {
@@ -109,7 +109,7 @@ internal sealed class HandleMonitor : IDisposable
     }
     
     /// <summary>
-    /// Tracks a process handle being opened.
+    /// 跟踪打开的进程句柄。
     /// </summary>
     public void TrackProcessHandle(int processId, string processName)
     {
@@ -121,22 +121,22 @@ internal sealed class HandleMonitor : IDisposable
             ProcessId = processId,
             ProcessName = processName,
             OpenedAt = DateTime.UtcNow,
-            StackTrace = Environment.StackTrace
+            StackTrace = CaptureStackTrace()
         };
         
         _processHandles[processId] = info;
         Interlocked.Increment(ref _totalProcessHandlesCreated);
         
-        // Check if we're exceeding limits
+        // 检查是否超过限制
         if (_processHandles.Count > _maxProcessHandles)
         {
-            _logger?.Warn($"[{_extensionId}] Process handle count exceeded limit: {_processHandles.Count} > {_maxProcessHandles}");
+            _logger?.Warn($"[{_extensionId}] 进程句柄数量超过限制: {_processHandles.Count} > {_maxProcessHandles}");
             OnHandleLeakDetected(HandleType.Process, _processHandles.Count, _maxProcessHandles);
         }
     }
     
     /// <summary>
-    /// Tracks a process handle being closed.
+    /// 跟踪关闭的进程句柄。
     /// </summary>
     public void UntrackProcessHandle(int processId)
     {
@@ -147,7 +147,7 @@ internal sealed class HandleMonitor : IDisposable
     }
     
     /// <summary>
-    /// Gets information about all active file handles.
+    /// 获取所有活动文件句柄的信息。
     /// </summary>
     public IReadOnlyList<FileHandleInfo> GetActiveFileHandles()
     {
@@ -155,7 +155,7 @@ internal sealed class HandleMonitor : IDisposable
     }
     
     /// <summary>
-    /// Gets information about all active process handles.
+    /// 获取所有活动进程句柄的信息。
     /// </summary>
     public IReadOnlyList<ProcessHandleInfo> GetActiveProcessHandles()
     {
@@ -163,7 +163,7 @@ internal sealed class HandleMonitor : IDisposable
     }
     
     /// <summary>
-    /// Forces closure of all tracked file handles.
+    /// 强制关闭所有跟踪的文件句柄。
     /// </summary>
     public void ForceCloseAllFileHandles()
     {
@@ -171,20 +171,20 @@ internal sealed class HandleMonitor : IDisposable
         {
             try
             {
-                // Note: Actual handle closure should be done by the owner
-                // This just removes from tracking
+                // 注意：实际句柄关闭应由所有者完成
+                // 这里只是从跟踪中移除
                 _fileHandles.TryRemove(handle, out _);
-                _logger?.Warn($"[{_extensionId}] Marked file handle {handle} for closure");
+                _logger?.Warn($"[{_extensionId}] 已标记文件句柄 {handle} 待关闭");
             }
             catch
             {
-                // Ignore errors during forced closure
+                // 忽略强制关闭期间的错误
             }
         }
     }
     
     /// <summary>
-    /// Forces termination of all tracked processes.
+    /// 强制终止所有跟踪的进程。
     /// </summary>
     public void ForceTerminateAllProcesses()
     {
@@ -196,13 +196,13 @@ internal sealed class HandleMonitor : IDisposable
                 if (!process.HasExited)
                 {
                     process.Kill();
-                    _logger?.Warn($"[{_extensionId}] Terminated process {processId} ({_processHandles[processId].ProcessName})");
+                    _logger?.Warn($"[{_extensionId}] 已终止进程 {processId} ({_processHandles[processId].ProcessName})");
                 }
                 _processHandles.TryRemove(processId, out _);
             }
             catch
             {
-                // Process may have already exited or be inaccessible
+                // 进程可能已退出或无法访问
                 _processHandles.TryRemove(processId, out _);
             }
         }
@@ -219,38 +219,38 @@ internal sealed class HandleMonitor : IDisposable
             {
                 var now = DateTime.UtcNow;
                 
-                // Check for old file handles
+                // 检查旧文件句柄
                 var oldFileHandles = _fileHandles.Values
                     .Where(h => (now - h.OpenedAt).TotalSeconds > _maxHandleAgeSeconds)
                     .ToList();
                 
                 foreach (var handle in oldFileHandles)
                 {
-                    _logger?.Warn($"[{_extensionId}] Potentially leaked file handle: {handle.FilePath} (opened {(now - handle.OpenedAt).TotalSeconds:F0}s ago)");
+                    _logger?.Warn($"[{_extensionId}] 可能泄漏的文件句柄: {handle.FilePath} (已打开 {(now - handle.OpenedAt).TotalSeconds:F0}秒)");
                     OnHandleLeakDetected(HandleType.File, _fileHandles.Count, _maxFileHandles);
                 }
                 
-                // Check for old process handles
+                // 检查旧进程句柄
                 var oldProcessHandles = _processHandles.Values
                     .Where(h => (now - h.OpenedAt).TotalSeconds > _maxHandleAgeSeconds)
                     .ToList();
                 
                 foreach (var handle in oldProcessHandles)
                 {
-                    _logger?.Warn($"[{_extensionId}] Potentially leaked process handle: {handle.ProcessName} (PID: {handle.ProcessId}, opened {(now - handle.OpenedAt).TotalSeconds:F0}s ago)");
+                    _logger?.Warn($"[{_extensionId}] 可能泄漏的进程句柄: {handle.ProcessName} (PID: {handle.ProcessId}, 已打开 {(now - handle.OpenedAt).TotalSeconds:F0}秒)");
                     OnHandleLeakDetected(HandleType.Process, _processHandles.Count, _maxProcessHandles);
                 }
                 
-                // Critical check: if we have too many handles, trigger critical event
+                // 严重检查：如果句柄过多，触发严重事件
                 if (_fileHandles.Count > _maxFileHandles * 2 || _processHandles.Count > _maxProcessHandles * 2)
                 {
-                    _logger?.Error($"[{_extensionId}] Critical handle leak detected!");
+                    _logger?.Error($"[{_extensionId}] 检测到严重句柄泄漏!");
                     CriticalHandleLeak?.Invoke(this, EventArgs.Empty);
                 }
             }
             catch (Exception ex)
             {
-                _logger?.Error($"[{_extensionId}] Error in handle monitor: {ex.Message}");
+                _logger?.Error($"[{_extensionId}] 句柄监视器错误: {ex.Message}");
             }
         }
     }
@@ -265,6 +265,28 @@ internal sealed class HandleMonitor : IDisposable
             MaxCount = maxCount
         });
     }
+
+    /// <summary>
+    /// 捕获精简堆栈信息（仅保留前 5 帧），降低内存开销。
+    /// </summary>
+    private static string? CaptureStackTrace()
+    {
+        try
+        {
+            var trace = new StackTrace(skipFrames: 2);
+            var frames = trace.GetFrames();
+            if (frames is null || frames.Length == 0)
+                return null;
+
+            int limit = Math.Min(frames.Length, 5);
+            return string.Join(" <- ", frames.Take(limit)
+                .Select(f => $"{f.GetMethod()?.DeclaringType?.Name}.{f.GetMethod()?.Name}"));
+        }
+        catch
+        {
+            return null;
+        }
+    }
     
     public void Dispose()
     {
@@ -274,18 +296,18 @@ internal sealed class HandleMonitor : IDisposable
         _disposed = true;
         _monitorTimer.Dispose();
         
-        // Log final statistics
-        _logger?.Info($"[{_extensionId}] Handle monitor disposed. Total file handles: {_totalFileHandlesCreated}, Total process handles: {_totalProcessHandlesCreated}");
+        // 记录最终统计信息
+        _logger?.Info($"[{_extensionId}] 句柄监视器已释放。文件句柄总数: {_totalFileHandlesCreated}, 进程句柄总数: {_totalProcessHandlesCreated}");
     }
     
-    /// <summary>Handle types</summary>
+    /// <summary>句柄类型</summary>
     public enum HandleType
     {
         File,
         Process
     }
     
-    /// <summary>Handle leak event arguments</summary>
+    /// <summary>句柄泄漏事件参数</summary>
     public sealed class HandleLeakEventArgs : EventArgs
     {
         public required string ExtensionId { get; init; }
@@ -294,7 +316,7 @@ internal sealed class HandleMonitor : IDisposable
         public required int MaxCount { get; init; }
     }
     
-    /// <summary>File handle information</summary>
+    /// <summary>文件句柄信息</summary>
     public sealed class FileHandleInfo
     {
         public IntPtr Handle { get; init; }
@@ -304,7 +326,7 @@ internal sealed class HandleMonitor : IDisposable
         public string? StackTrace { get; init; }
     }
     
-    /// <summary>Process handle information</summary>
+    /// <summary>进程句柄信息</summary>
     public sealed class ProcessHandleInfo
     {
         public int ProcessId { get; init; }

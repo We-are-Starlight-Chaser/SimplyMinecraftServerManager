@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <Page
@@ -62,6 +62,8 @@
                                     <ComboBoxItem Content="Purpur"/>
                                     <ComboBoxItem Content="Leaves"/>
                                     <ComboBoxItem Content="Leaf"/>
+                                    <ComboBoxItem Content="Fabric"/>
+                                    <ComboBoxItem Content="NeoForge"/>
                                 </ComboBox>
                                 <ui:Button 
                                     Command="{Binding ViewModel.LoadServerVersionsCommand}"
@@ -226,7 +228,7 @@
                     </Grid>
                 </Grid>
             </TabItem>
-            <TabItem Header="插件">
+            <TabItem Header="插件&amp;模组">
                 <controls:DownloadPluginsPanel Margin="16" DataContext="{Binding ViewModel}"/>
             </TabItem>
         </TabControl>

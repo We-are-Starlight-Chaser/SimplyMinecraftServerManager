@@ -12,15 +12,17 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
     {
         private const string UserAgent = "SimplyMinecraftServerManager/1.0 (https://github.com/We-are-Starlight-Chaser/SimplyMinecraftServerManager)";
 
-        /// <summary>
-        /// 创建默认的 HttpClient 实例，超时时间 30 分钟。
-        /// </summary>
-        public static HttpClient CreateDefaultClient()
+        private static readonly Lazy<HttpClient> _sharedClient = new(() =>
         {
             var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
             client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
             client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
             return client;
-        }
+        });
+
+        /// <summary>
+        /// 获取共享的 HttpClient 实例，超时时间 30 分钟。
+        /// </summary>
+        public static HttpClient CreateDefaultClient() => _sharedClient.Value;
     }
 }

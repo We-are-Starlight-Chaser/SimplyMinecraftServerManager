@@ -85,14 +85,17 @@ private readonly HttpClient _httpClient;
             "download.mojang.com",
             "github.com",
             "githubusercontent.com",
-            "modrinth.com",
+            "objects.githubusercontent.com",
             "cdn.modrinth.com",
+            "modrinth.com",
             "leavesmc.org",
             "purpurmc.org",
             "github.io",
             "adoptium.net",
             "azul.com",
-            "zulu.org"
+            "zulu.org",
+            "fabricmc.net",
+            "neoforged.net",
         };
 
         private static readonly ConcurrentDictionary<string, Func<HashAlgorithm>> HashAlgorithmFactories = new()
@@ -122,7 +125,8 @@ private readonly HttpClient _httpClient;
             {
                 var handler = new HttpClientHandler
                 {
-                    ServerCertificateCustomValidationCallback = ValidateCertificate
+                    ServerCertificateCustomValidationCallback = ValidateCertificate,
+                    CheckCertificateRevocationList = false
                 };
                 _httpClient = new HttpClient(handler)
                 {
@@ -141,7 +145,11 @@ private readonly HttpClient _httpClient;
             X509Chain? chain,
             SslPolicyErrors errors)
         {
-            if (certificate == null) return false;
+            if (certificate == null)
+            {
+                Debug.WriteLine("[DownloadManager] SSL 验证失败: 证书为 null");
+                return false;
+            }
 
             string host = message.RequestUri?.Host ?? "";
             bool isAllowedHost = AllowedHosts.Contains(host);
@@ -154,11 +162,13 @@ private readonly HttpClient _httpClient;
 
             if (!isAllowedHost)
             {
+                Debug.WriteLine($"[DownloadManager] SSL 验证拒绝: 主机 '{host}' 不在白名单中");
                 return false;
             }
 
             if (errors != SslPolicyErrors.None)
             {
+                Debug.WriteLine($"[DownloadManager] SSL 策略错误: {errors} (主机: {host})");
                 return false;
             }
 
@@ -221,7 +231,7 @@ private readonly HttpClient _httpClient;
             TaskQueued?.Invoke(this, downloadTask);
             // 捕获当前 semaphore 引用，保证任务全生命周期使用同一个
             var semaphore = _semaphore;
-            return Task.Run(() => ExecuteAsync(downloadTask, semaphore));
+            return ExecuteAsync(downloadTask, semaphore);
         }
 
         /// <summary>
@@ -235,7 +245,7 @@ private readonly HttpClient _httpClient;
             InvalidateAllTasksCache();
             TaskQueued?.Invoke(this, downloadTask);
             var semaphore = _semaphore;
-            _ = Task.Run(() => ExecuteAsync(downloadTask, semaphore))
+            _ = ExecuteAsync(downloadTask, semaphore)
                 .ContinueWith(t =>
                 {
                     if (t.Exception != null)
@@ -345,7 +355,7 @@ private readonly HttpClient _httpClient;
                 oldCts.Dispose();
                 
                 var semaphore = _semaphore;
-                _ = Task.Run(() => ExecuteAsync(task, semaphore))
+                _ = ExecuteAsync(task, semaphore)
                     .ContinueWith(t =>
                     {
                         if (t.Exception != null)
@@ -368,7 +378,7 @@ private readonly HttpClient _httpClient;
                 oldCts.Dispose();
                 
                 var semaphore = _semaphore;
-                _ = Task.Run(() => ExecuteAsync(task, semaphore))
+                _ = ExecuteAsync(task, semaphore)
                     .ContinueWith(t =>
                     {
                         if (t.Exception != null)
@@ -447,8 +457,20 @@ private readonly HttpClient _httpClient;
                     request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(task.PausedPosition, null);
                 }
 
+                Debug.WriteLine($"[DownloadManager] 开始下载: {task.DisplayName}");
+                Debug.WriteLine($"[DownloadManager] URL: {task.Url}");
+                Debug.WriteLine($"[DownloadManager] 断点续传: {supportsResume}, 起始位置: {task.PausedPosition}");
+
                 using var response = await _httpClient.SendAsync(
                     request, HttpCompletionOption.ResponseHeadersRead, task.Cts.Token);
+
+                Debug.WriteLine($"[DownloadManager] 收到响应: {(int)response.StatusCode} {response.ReasonPhrase}");
+                Debug.WriteLine($"[DownloadManager] Content-Type: {response.Content.Headers.ContentType}");
+                Debug.WriteLine($"[DownloadManager] Content-Length: {response.Content.Headers.ContentLength}");
+                Debug.WriteLine($"[DownloadManager] Content-Encoding: {response.Content.Headers.ContentEncoding}");
+
+                foreach (var header in response.Headers)
+                    Debug.WriteLine($"[DownloadManager] 响应头 {header.Key}: {string.Join(", ", header.Value)}");
 
                 response.EnsureSuccessStatusCode();
 
@@ -467,6 +489,7 @@ private readonly HttpClient _httpClient;
                 await using var contentStream =
                     await response.Content.ReadAsStreamAsync(task.Cts.Token);
 
+                {
 // 如果支持断点续传且有暂停位置，则追加写入；否则创建新文件
                     var fileMode = (supportsResume && task.PausedPosition > 0) ? FileMode.Append : FileMode.Create;
                     await using var fileStream = new FileStream(
@@ -519,6 +542,7 @@ private readonly HttpClient _httpClient;
                     {
                         System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
                     }
+                } // fileStream 在此处自动释放，可以安全移动文件
 
                 if (!string.IsNullOrEmpty(task.ExpectedHash))
                 {
@@ -588,11 +612,40 @@ private readonly HttpClient _httpClient;
                 TaskFailed?.Invoke(this, task);
                 return task;
             }
+            catch (HttpRequestException ex)
+            {
+                task.Status = DownloadStatus.Failed;
+                task.ErrorMessage = ex.Message;
+                task.EndTime = DateTime.Now;
+
+                Debug.WriteLine($"[DownloadManager] HTTP 请求失败: {task.DisplayName}");
+                Debug.WriteLine($"[DownloadManager] URL: {task.Url}");
+                Debug.WriteLine($"[DownloadManager] 状态码: {ex.StatusCode}");
+                Debug.WriteLine($"[DownloadManager] 错误消息: {ex.Message}");
+                if (ex.InnerException != null)
+                    Debug.WriteLine($"[DownloadManager] 内部异常: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+
+                CleanupTemp(task);
+                RaiseProgress(task, 0, isFailed: true, errorMessage: ex.Message, installationStatus: task.InstallationStatus);
+                TaskFailed?.Invoke(this, task);
+                return task;
+            }
             catch (Exception ex)
             {
                 task.Status = DownloadStatus.Failed;
                 task.ErrorMessage = ex.Message;
                 task.EndTime = DateTime.Now;
+
+                Debug.WriteLine($"[DownloadManager] 下载失败: {task.DisplayName}");
+                Debug.WriteLine($"[DownloadManager] URL: {task.Url}");
+                Debug.WriteLine($"[DownloadManager] 异常类型: {ex.GetType().Name}");
+                Debug.WriteLine($"[DownloadManager] 错误消息: {ex.Message}");
+                Debug.WriteLine($"[DownloadManager] 堆栈: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                    Debug.WriteLine($"[DownloadManager] 内部异常: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+                if (ex is IOException)
+                    Debug.WriteLine($"[DownloadManager] IOException HResult: {ex.HResult}");
+
                 CleanupTemp(task);
                 RaiseProgress(task, 0, isFailed: true, errorMessage: ex.Message, installationStatus: task.InstallationStatus);
                 TaskFailed?.Invoke(this, task);

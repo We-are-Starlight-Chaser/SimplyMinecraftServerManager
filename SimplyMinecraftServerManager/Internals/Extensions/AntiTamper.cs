@@ -58,6 +58,8 @@ internal sealed class AntiTamper : IDisposable
         "AdjustTokenPrivileges", "OpenThreadToken",
     ];
 
+    private readonly int _monitorIntervalMs;
+
     public AntiTamper(
         string extensionId,
         string extensionDataPath,
@@ -70,15 +72,23 @@ internal sealed class AntiTamper : IDisposable
         _extensionsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "extensions");
         _logger = logger;
         _maxViolations = maxViolations;
+        _monitorIntervalMs = monitorIntervalMs;
 
-        // 记录基线
-        RecordBaseline();
-
+        // 基线在 StartMonitoring() 中记录，而非构造时
         _monitorTimer = new Timer(
             callback: _ => Monitor(),
             state: null,
-            dueTime: monitorIntervalMs,
-            period: monitorIntervalMs);
+            Timeout.Infinite,
+            Timeout.Infinite);
+    }
+
+    /// <summary>
+    /// 启动监控。应在扩展 InitAsync 完成后调用，以确保基线准确。
+    /// </summary>
+    public void StartMonitoring()
+    {
+        RecordBaseline();
+        _monitorTimer.Change(_monitorIntervalMs, _monitorIntervalMs);
     }
 
     /// <summary>

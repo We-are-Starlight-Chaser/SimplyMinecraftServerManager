@@ -42,7 +42,7 @@
           </Border>
           <TextBlock Text="还没有可用实例" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,18,0,0" />
           <TextBlock
-            Text="请先创建服务端实例，再到这里安装插件。"
+            Text="请先创建服务端实例，再到这里安装插件/模组。"
             Foreground="{DynamicResource TextFillColorSecondaryBrush}"
             HorizontalAlignment="Center"
             Margin="0,8,0,0"
@@ -158,8 +158,9 @@
         <ui:TextBox
           Grid.Column="0"
           Text="{Binding PluginSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-          PlaceholderText="搜索插件..."
+          PlaceholderText="搜索插件/模组..."
           KeyDown="OnPluginSearchKeyDown"
+          TextChanged="OnSearchQueryChanged"
         />
 
         <ui:Button Grid.Column="1" Command="{Binding SearchPluginsCommand}" Margin="8,0,0,0" IsEnabled="{Binding IsSearchingPlugins, Converter={StaticResource InverseBooleanConverter}}">
@@ -316,7 +317,7 @@
             <Grid>
               <StackPanel Orientation="Horizontal" Visibility="{Binding IsLoadingMorePlugins, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                 <ui:SymbolIcon Symbol="Add24" />
-                <TextBlock Text="加载更多插件" Margin="8,0,0,0" />
+                <TextBlock Text="加载更多插件/模组" Margin="8,0,0,0" />
               </StackPanel>
               <ui:ProgressRing Width="16" Height="16" IsIndeterminate="True" Visibility="{Binding IsLoadingMorePlugins, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </Grid>

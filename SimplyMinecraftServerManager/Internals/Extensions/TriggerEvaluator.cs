@@ -79,8 +79,8 @@ internal sealed class TriggerEvaluator
             return EvaluateInstanceIdExpression(trimmed, context);
         }
 
-        // 未知表达式默认通过
-        return true;
+        // 未知表达式默认拒绝（安全优先）
+        return false;
     }
 
     private static bool EvaluateTimeBetween(string expression, TriggerContext context)

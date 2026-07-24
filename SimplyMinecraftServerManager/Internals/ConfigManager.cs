@@ -91,6 +91,7 @@ namespace SimplyMinecraftServerManager.Internals
         {
             return new AppConfig
             {
+                IsFirstTimeUsing = original.IsFirstTimeUsing,
                 DefaultMinMemoryMb = original.DefaultMinMemoryMb,
                 DefaultMaxMemoryMb = original.DefaultMaxMemoryMb,
                 DefaultJdkPath = original.DefaultJdkPath,

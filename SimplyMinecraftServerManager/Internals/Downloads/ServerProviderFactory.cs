@@ -54,6 +54,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                     ServerPlatform.Purpur => new PurpurProvider(SharedClient),
                     ServerPlatform.Leaves => new LeavesProvider(SharedClient),
                     ServerPlatform.Leaf => new LeafProvider(SharedClient),
+                    ServerPlatform.Fabric => new FabricMetaProvider(SharedClient),
+                    ServerPlatform.NeoForge => new NeoForgeProvider(SharedClient),
                     _ => throw new ArgumentOutOfRangeException(nameof(platform))
                 };
 
@@ -86,6 +88,8 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 Get(ServerPlatform.Purpur),
                 Get(ServerPlatform.Leaves),
                 Get(ServerPlatform.Leaf),
+                Get(ServerPlatform.Fabric),
+                Get(ServerPlatform.NeoForge),
             }.AsReadOnly();
         }
 

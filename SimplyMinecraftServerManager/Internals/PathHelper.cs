@@ -17,6 +17,7 @@ namespace SimplyMinecraftServerManager.Internals
         private static readonly string _instancesFile = Path.Combine(_root, "instances.toml");
         private static readonly string _instancesRoot = Path.Combine(_root, "instances");
         private static readonly string _jdksRoot = Path.Combine(_root, "jdks");
+        private static readonly string _backupsRoot = Path.Combine(_root, "backups");
 
         /// <summary>
         /// 获取应用程序根目录路径。
@@ -44,6 +45,10 @@ namespace SimplyMinecraftServerManager.Internals
         public static string JdksRoot => _jdksRoot;
 
         /// <summary>
+        /// 获取备份文件根目录路径。
+        /// </summary>
+        public static string BackupsRoot => _backupsRoot;
+        /// <summary>
         /// 获取指定实例的目录路径。
         /// </summary>
         /// <param name="id">实例 ID。</param>
@@ -56,15 +61,27 @@ namespace SimplyMinecraftServerManager.Internals
         }
 
         /// <summary>
-        /// 获取指定实例的插件目录路径。
+        /// 获取指定实例的插件/模组目录路径。
         /// </summary>
         /// <param name="id">实例 ID。</param>
-        /// <returns>插件目录的完整路径。</returns>
+        /// <returns>插件/模组目录的完整路径。</returns>
         /// <exception cref="ArgumentException">实例 ID 无效时抛出。</exception>
         public static string GetPluginsDir(string id)
         {
             ValidateInstanceId(id);
             return Path.Combine(GetInstanceDir(id), "plugins");
+        }
+
+        /// <summary>
+        /// 获取指定实例的 Mod 目录路径（Fabric/NeoForge 使用 mods/ 目录）。
+        /// </summary>
+        /// <param name="id">实例 ID。</param>
+        /// <returns>Mod 目录的完整路径。</returns>
+        /// <exception cref="ArgumentException">实例 ID 无效时抛出。</exception>
+        public static string GetModsDir(string id)
+        {
+            ValidateInstanceId(id);
+            return Path.Combine(GetInstanceDir(id), "mods");
         }
 
         /// <summary>
@@ -111,6 +128,11 @@ namespace SimplyMinecraftServerManager.Internals
             return ValidatePathInsideInstance(fullPath, id);
         }
 
+        public static string GetBackupsDir(string id)
+        {
+            ValidateInstanceId(id);
+            return Path.Combine(BackupsRoot, id);
+        }
         private static void ValidateInstanceId(string id)
         {
             if (string.IsNullOrWhiteSpace(id))

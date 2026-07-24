@@ -34,6 +34,9 @@ internal sealed class MemoryIntegrityChecker : IDisposable
     // 配置
     private readonly int _maxViolations;
 
+    // 存储扩展类型用于定时代码段校验
+    private Type? _extensionType;
+
     // 事件
     public event EventHandler<IntegrityViolationEventArgs>? ViolationDetected;
 
@@ -62,6 +65,8 @@ internal sealed class MemoryIntegrityChecker : IDisposable
     {
         lock (_lock)
         {
+            _extensionType = extensionType;
+            
             try
             {
                 // 1. 代码段哈希
@@ -111,11 +116,32 @@ internal sealed class MemoryIntegrityChecker : IDisposable
 
                 // 检查 GC 代数分布异常（检测内存破坏）
                 CheckGcIntegrity();
+
+                // 代码段哈希校验（如果已记录基线）
+                if (_extensionType is not null && _lastCodeHash is not null)
+                {
+                    CheckCodeIntegrity();
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[{_extensionId}] Integrity check error: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// 检查代码段完整性（在Timer回调中使用）。
+    /// </summary>
+    private void CheckCodeIntegrity()
+    {
+        if (_extensionType is null || _lastCodeHash is null) return;
+
+        byte[] currentCodeHash = ComputeTypeHash(_extensionType);
+        if (!CryptographicOperations.FixedTimeEquals(currentCodeHash, _lastCodeHash))
+        {
+            _logger.Error($"[{_extensionId}] 代码段哈希不匹配！可能被篡改");
+            OnViolation(IntegrityViolationType.CodeTamper, "代码段哈希变更");
         }
     }
 

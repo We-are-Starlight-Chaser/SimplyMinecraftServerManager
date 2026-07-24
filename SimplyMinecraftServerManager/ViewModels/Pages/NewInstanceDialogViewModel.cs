@@ -138,7 +138,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>
         /// 支持的服务器类型列表
         /// </summary>
-        public static string[] ServerTypes => ["Paper", "Purpur", "Leaves", "Leaf", "Folia"];
+        public static string[] ServerTypes => ["Paper", "Purpur", "Leaves", "Leaf", "Folia", "Fabric", "NeoForge"];
 
         /// <summary>
         /// 浏览并选择自定义 JAR 文件

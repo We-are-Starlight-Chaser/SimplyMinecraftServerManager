@@ -22,17 +22,28 @@ internal sealed class ExtensionLoadContext(string extensionId) : AssemblyLoadCon
     private readonly string _extensionPath = Path.GetFullPath(Path.Combine(
         AppDomain.CurrentDomain.BaseDirectory, "extensions", extensionId));
 
-    private readonly ILogger _logger = new ExtensionLogger(extensionId);
+    private readonly ExtensionLogger _logger = new(extensionId);
     
-    // Track loaded assemblies to detect suspicious loading patterns
-    private readonly HashSet<string> _loadedAssemblies = new();
-    private readonly object _lock = new();
+    // 跟踪已加载的程序集，检测可疑的加载模式
+    private readonly HashSet<string> _loadedAssemblies = [];
+    private readonly Lock _lock = new();
     
-    // Maximum number of assemblies an extension can load
+    // 扩展可以加载的最大程序集数量
     private const int MaxAssemblyLoadCount = 100;
     
-    // Allowed paths for assembly loading
+    // 允许的程序集加载路径
     private static readonly string[] AllowedAssemblyPaths = [];
+
+    // PInvokeGuard 引用，用于非托管 DLL 验证
+    private PInvokeGuard? _pInvokeGuard;
+
+    /// <summary>
+    /// 设置 PInvokeGuard 用于非托管DLL加载校验。
+    /// </summary>
+    public void SetPInvokeGuard(PInvokeGuard guard)
+    {
+        _pInvokeGuard = guard;
+    }
 
     /// <summary>
     /// SDK 程序集名称前缀（所有以此开头的程序集必须从主程序加载）。
@@ -42,7 +53,7 @@ internal sealed class ExtensionLoadContext(string extensionId) : AssemblyLoadCon
         "SimplyMinecraftServerManager",
     ];
     
-    // Dangerous assembly patterns that should be blocked
+    // 应被阻止的危险程序集模式
     private static readonly string[] DangerousAssemblyPatterns =
     [
         "System.Runtime.Serialization",
@@ -53,6 +64,19 @@ internal sealed class ExtensionLoadContext(string extensionId) : AssemblyLoadCon
         "System.Configuration",
         "System.Data.SqlClient",
         "System.Web",
+        // 动态代码生成
+        "System.Reflection.Emit",
+        "System.Runtime.Loader",
+        "System.CodeDom",
+        "Microsoft.CSharp",
+        "System.Linq.Expressions",
+        // 远程调用
+        "System.Runtime.Remoting",
+        "System.Net.Sockets",
+        // 数据库
+        "System.Data.OleDb",
+        "System.Data.Odbc",
+        "System.Data.OracleClient",
     ];
 
     /// <summary>
@@ -95,14 +119,14 @@ internal sealed class ExtensionLoadContext(string extensionId) : AssemblyLoadCon
             return null;
         }
         
-        // Check if loading dangerous assemblies
+        // 检查是否正在加载危险程序集
         if (IsDangerousAssembly(assemblyName.Name))
         {
             _logger.Warn($"Blocked loading of dangerous assembly {assemblyName.Name} in extension {extensionId}");
             return null;
         }
         
-        // Check assembly load count limit
+        // 检查程序集加载数量限制
         lock (_lock)
         {
             if (_loadedAssemblies.Count >= MaxAssemblyLoadCount)
@@ -117,7 +141,7 @@ internal sealed class ExtensionLoadContext(string extensionId) : AssemblyLoadCon
         string assemblyPath = Path.Combine(_extensionPath, $"{assemblyName.Name}.dll");
         if (File.Exists(assemblyPath))
         {
-            // Validate assembly path is within allowed directories
+            // 验证程序集路径是否在允许的目录内
             if (!IsAssemblyPathAllowed(assemblyPath))
             {
                 _logger.Warn($"Blocked loading assembly from disallowed path {assemblyPath} in extension {extensionId}");
@@ -132,7 +156,7 @@ internal sealed class ExtensionLoadContext(string extensionId) : AssemblyLoadCon
     }
     
     /// <summary>
-    /// Checks if the assembly path is within allowed directories.
+    /// 检查程序集路径是否在允许的目录内。
     /// </summary>
     private bool IsAssemblyPathAllowed(string assemblyPath)
     {
@@ -140,20 +164,20 @@ internal sealed class ExtensionLoadContext(string extensionId) : AssemblyLoadCon
         {
             var fullPath = Path.GetFullPath(assemblyPath);
             
-            // Allow loading from extension directory
+            // 允许从扩展目录加载
             if (fullPath.StartsWith(_extensionPath, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
             
-            // Allow loading from main application directory
+            // 允许从主应用程序目录加载
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
             if (fullPath.StartsWith(appDir, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
             
-            // Allow loading from .NET shared framework directories
+            // 允许从 .NET 共享框架目录加载
             var runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
             if (fullPath.StartsWith(runtimeDir, StringComparison.OrdinalIgnoreCase))
             {
@@ -169,7 +193,7 @@ internal sealed class ExtensionLoadContext(string extensionId) : AssemblyLoadCon
     }
     
     /// <summary>
-    /// Checks if the assembly is dangerous and should be blocked.
+    /// 检查程序集是否危险并应被阻止。
     /// </summary>
     private static bool IsDangerousAssembly(string assemblyName)
     {
@@ -185,10 +209,30 @@ internal sealed class ExtensionLoadContext(string extensionId) : AssemblyLoadCon
 
     protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
     {
-        string unmanagedPath = Path.Combine(_extensionPath, unmanagedDllName);
-        if (File.Exists(unmanagedPath))
+        // 使用 PInvokeGuard 验证是否允许加载此非托管DLL
+        if (_pInvokeGuard is not null)
         {
-            return LoadUnmanagedDllFromPath(unmanagedPath);
+            if (!_pInvokeGuard.ValidatePInvokeCall(unmanagedDllName, "*"))
+            {
+                _logger.Warn($"Blocked loading of dangerous unmanaged DLL {unmanagedDllName} in extension {extensionId}");
+                return IntPtr.Zero;
+            }
+        }
+
+        // 安全检查：防止路径遍历攻击
+        string unmanagedPath = Path.Combine(_extensionPath, unmanagedDllName);
+        string fullPath = Path.GetFullPath(unmanagedPath);
+        
+        // 验证解析后的路径仍在扩展目录内
+        if (!fullPath.StartsWith(_extensionPath, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.Warn($"Blocked loading unmanaged DLL from outside extension directory: {unmanagedDllName} -> {fullPath}");
+            return IntPtr.Zero;
+        }
+
+        if (File.Exists(fullPath))
+        {
+            return LoadUnmanagedDllFromPath(fullPath);
         }
 
         return IntPtr.Zero;

@@ -1,7 +1,10 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using SimplyMinecraftServerManager.ViewModels.Windows;
+using SimplyMinecraftServerManager.Views.Pages;
+using System.Diagnostics;
+using System.Windows;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Appearance;
@@ -31,13 +34,26 @@ namespace SimplyMinecraftServerManager.Views.Windows
             navigationService.SetNavigationControl(RootNavigation);
 
             contentDialogService.SetDialogHost(RootContentDialogPresenter);
+
+            Loaded += OnLoaded;
+        }
+
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            try {
+                Navigate(typeof(DashboardPage));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
         }
 
         #region INavigationWindow methods
 
         public INavigationView GetNavigation() => RootNavigation;
 
-        public bool Navigate(Type pageType) => RootNavigation.Navigate(pageType);
+        public bool Navigate(Type pageType) => RootNavigation?.Navigate(pageType) ?? false;
 
         public void SetPageService(INavigationViewPageProvider navigationViewPageProvider) => RootNavigation.SetPageProviderService(navigationViewPageProvider);
 

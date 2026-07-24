@@ -8,7 +8,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
 {
     /// <summary>
     /// Modrinth API v2 客户端。
-    /// 支持搜索插件、获取项目详情、版本列表、下载。
+    /// 支持搜索插件/模组、获取项目详情、版本列表、下载。
     /// https://docs.modrinth.com/api/
     /// </summary>
     public class ModrinthProvider(HttpClient? httpClient = null)
@@ -248,13 +248,21 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         }
 
         /// <summary>
-        /// 便捷方法：搜索 → 获取第一个结果的最新版本 → 下载到实例 plugins 目录。
+        /// 便捷方法：搜索 → 获取第一个结果的最新版本 → 下载到实例 plugins 或 mods 目录。
         /// </summary>
+        /// <param name="query">搜索关键词</param>
+        /// <param name="instanceId">实例 ID</param>
+        /// <param name="mcVersion">Minecraft 版本</param>
+        /// <param name="loaders">加载器过滤 (bukkit/spigot/paper/fabric/forge…)</param>
+        /// <param name="projectType">项目类型 (plugin / mod)</param>
+        /// <param name="downloadManager">下载管理器</param>
+        /// <param name="ct">取消令牌</param>
         public async Task<DownloadTask?> SearchAndDownloadAsync(
             string query,
             string instanceId,
             string? mcVersion = null,
             IEnumerable<string>? loaders = null,
+            string? projectType = "plugin",
             DownloadManager? downloadManager = null,
             CancellationToken ct = default)
         {
@@ -263,7 +271,7 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
                 query,
                 loaders: loaders ?? ["bukkit", "spigot", "paper", "purpur"],
                 gameVersions: mcVersion != null ? new[] { mcVersion } : null,
-                projectType: "plugin",
+                projectType: projectType,
                 limit: 1,
                 ct: ct);
 
@@ -282,14 +290,15 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
             if (versions.Count == 0)
                 return null;
 
-            var latestVersion = versions[0]; // API 默认按时间降序
+            var latestVersion = versions[0];
             var primaryFile = latestVersion.PrimaryFile;
             if (primaryFile == null)
                 return null;
 
-            // 下载到 plugins 目录
+            // 根据项目类型决定下载目录: plugin → plugins/，mod → mods/
+            string subDir = projectType == "mod" ? "mods" : "plugins";
             string destPath = System.IO.Path.Combine(
-                PathHelper.GetPluginsDir(instanceId),
+                PathHelper.GetInstanceDir(instanceId), subDir,
                 primaryFile.FileName);
 
             return await DownloadFileAsync(

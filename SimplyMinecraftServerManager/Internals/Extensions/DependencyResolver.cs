@@ -1,264 +1,226 @@
 // Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
-using System.Diagnostics;
-using System.Reflection;
+using System.Runtime.CompilerServices;
 using SimplyMinecraftServerManager.Extension.Interfaces;
 using SimplyMinecraftServerManager.Extension.Models;
 
 namespace SimplyMinecraftServerManager.Internals.Extensions;
 
 /// <summary>
-/// 扩展依赖解析器。
-/// 负责分层拓扑排序、版本兼容性检查、循环依赖检测。
-/// 支持最高 16 层分级，同层扩展可并行加载。
+/// 扩展依赖解析器（启动期单次调用专用）。
+/// Resolve 与 ResolveTiers 互斥调用，均原地破坏入度表，零冗余拷贝。
 /// </summary>
-internal sealed class DependencyResolver(Dictionary<string, IExtensionMetadata> extensions, ILogger logger)
+internal sealed class DependencyResolver(
+    Dictionary<string, IExtensionMetadata> extensions,
+    ILogger logger)
 {
     private readonly Dictionary<string, IExtensionMetadata> _extensions = extensions;
     private readonly ILogger _logger = logger;
 
-    /// <summary>最大分层数</summary>
     public const int MaxTiers = 16;
 
-    /// <summary>
-    /// 分层拓扑排序。
-    /// 将扩展按依赖深度分为多个层（tier），每层内的扩展无相互依赖，可并行加载。
-    /// Tier 0 = 无依赖的扩展，Tier N = 所有依赖均在 Tier 0..N-1 中。
-    /// </summary>
-    /// <returns>按层排列的扩展 ID 列表（List&lt;List&lt;string&gt;&gt;，外层=层序，内层=同层扩展）</returns>
-    public List<List<string>> ResolveTiers()
+    // ========== 共享图结构（仅作为参数传递，不持有状态） ==========
+    private readonly struct DepGraph(
+        Dictionary<string, int> inDegree,
+        Dictionary<string, List<string>> dependents)
     {
-        // 1. 构建依赖图和入度表
-        var inDegree = new Dictionary<string, int>();
-        var dependents = new Dictionary<string, List<string>>();
-        var dependencies = new Dictionary<string, List<string>>();
-
-        foreach (var (id, _) in _extensions)
-        {
-            inDegree.TryAdd(id, 0);
-            dependents.TryAdd(id, []);
-            dependencies.TryAdd(id, []);
-        }
-
-        foreach (var (id, meta) in _extensions)
-        {
-            if (meta.Dependencies is not { Length: > 0 }) continue;
-
-            foreach (var dep in meta.Dependencies)
-            {
-                if (!_extensions.ContainsKey(dep.Id))
-                {
-                    throw new InvalidOperationException(
-                        $"扩展 '{id}' 依赖 '{dep.Id}'，但该依赖未找到。");
-                }
-
-                dependents[dep.Id].Add(id);
-                dependencies[id].Add(dep.Id);
-                inDegree[id] = inDegree.GetValueOrDefault(id) + 1;
-            }
-        }
-
-        // 2. 分层 Kahn 算法：记录每个扩展所在层级
-        var tierMap = new Dictionary<string, int>();
-        var queue = new Queue<string>();
-
-        // Tier 0: 无依赖的扩展
-        foreach (var (id, degree) in inDegree)
-        {
-            if (degree == 0)
-            {
-                tierMap[id] = 0;
-                queue.Enqueue(id);
-            }
-        }
-
-        while (queue.Count > 0)
-        {
-            string current = queue.Dequeue();
-            int currentTier = tierMap[current];
-
-            foreach (string dependent in dependents[current])
-            {
-                inDegree[dependent]--;
-
-                // 依赖者的层级 = max(所有已处理依赖者的层级) + 1
-                // 通过维护依赖者已知的最大层级来实现
-                int dependentTier = currentTier + 1;
-
-                // 确保取所有依赖的最大层级
-                if (tierMap.TryGetValue(dependent, out int existingTier))
-                {
-                    if (dependentTier > existingTier)
-                    {
-                        tierMap[dependent] = dependentTier;
-                    }
-                    else
-                    {
-                        dependentTier = existingTier;
-                    }
-                }
-                else
-                {
-                    tierMap[dependent] = dependentTier;
-                }
-
-                if (inDegree[dependent] == 0)
-                {
-                    queue.Enqueue(dependent);
-                }
-            }
-        }
-
-        // 3. 循环依赖检测
-        if (tierMap.Count != _extensions.Count)
-        {
-            var circular = string.Join(", ", _extensions.Keys.Where(k => !tierMap.ContainsKey(k)));
-            throw new InvalidOperationException(
-                $"检测到循环依赖，涉及扩展: {circular}");
-        }
-
-        // 4. 限制最大层数
-        int maxTier = tierMap.Values.DefaultIfEmpty(0).Max();
-        if (maxTier >= MaxTiers)
-        {
-            _logger.Warn($"扩展依赖层级 ({maxTier + 1}) 超过最大限制 ({MaxTiers})，将截断");
-        }
-
-        // 5. 按层级分组
-        int tierCount = Math.Min(maxTier + 1, MaxTiers);
-        var tiers = new List<List<string>>(tierCount);
-        for (int i = 0; i < tierCount; i++)
-        {
-            tiers.Add([]);
-        }
-
-        foreach (var (id, tier) in tierMap)
-        {
-            int clampedTier = Math.Min(tier, MaxTiers - 1);
-            tiers[clampedTier].Add(id);
-        }
-
-        // 移除空层
-        tiers.RemoveAll(t => t.Count == 0);
-
-        return tiers;
+        public readonly Dictionary<string, int> InDegree = inDegree;
+        public readonly Dictionary<string, List<string>> Dependents = dependents;
     }
 
     /// <summary>
-    /// 拓扑排序扩展加载顺序（Kahn 算法）。
-    /// 返回按依赖顺序排列的扩展 ID 列表。
-    /// 如果存在循环依赖或缺失依赖，抛出异常。
+    /// 构建依赖图 + 前置校验（纯函数，无副作用）。
+    /// 由 Resolve / ResolveTiers 在入口处调用一次。
     /// </summary>
-    public List<string> Resolve()
+    private DepGraph BuildGraph()
     {
-        var inDegree = new Dictionary<string, int>();
-        var dependents = new Dictionary<string, List<string>>();
+        int count = _extensions.Count;
+        var inDegree = new Dictionary<string, int>(count);
+        var dependents = new Dictionary<string, List<string>>(count);
 
-        foreach (var (id, _) in _extensions)
+        foreach (var id in _extensions.Keys)
         {
-            inDegree.TryAdd(id, 0);
-            dependents.TryAdd(id, []);
+            inDegree[id] = 0;
+            dependents[id] = [];
         }
 
-        // 构建依赖图
         foreach (var (id, meta) in _extensions)
         {
             if (meta.Dependencies is not { Length: > 0 }) continue;
 
-            foreach (var dep in meta.Dependencies)
+            for (int i = 0; i < meta.Dependencies.Length; i++)
             {
+                var dep = meta.Dependencies[i];
+
+                if (dep.Id == id)
+                    throw new InvalidOperationException($"扩展 '{id}' 存在自依赖。");
+
                 if (!_extensions.ContainsKey(dep.Id))
-                {
                     throw new InvalidOperationException(
                         $"扩展 '{id}' 依赖 '{dep.Id}'，但该依赖未找到。");
-                }
+
+                // 线性去重（依赖数通常 < 10，避免 HashSet 分配）
+                bool dup = false;
+                for (int j = 0; j < i; j++)
+                    if (meta.Dependencies[j].Id == dep.Id) { dup = true; break; }
+                if (dup) continue;
 
                 dependents[dep.Id].Add(id);
-                inDegree[id] = inDegree.GetValueOrDefault(id) + 1;
+                inDegree[id]++;
             }
         }
 
-        // Kahn 拓扑排序
-        var queue = new Queue<string>();
-        foreach (var (id, degree) in inDegree)
-        {
-            if (degree == 0) queue.Enqueue(id);
-        }
+        return new DepGraph(inDegree, dependents);
+    }
 
-        var sorted = new List<string>();
-        while (queue.Count > 0)
+    /// <summary>
+    /// 串行拓扑排序（层级 &lt; MaxTiers 时调用）。
+    /// 原地破坏 inDegree，不可重复调用。
+    /// </summary>
+    public List<string> Resolve()
+    {
+        var graph = BuildGraph();
+        int count = _extensions.Count;
+        if (count == 0) return [];
+
+        // 零分配 BFS 队列
+        var queue = new string[count];
+        int head = 0, tail = 0;
+
+        foreach (var (id, degree) in graph.InDegree)
+            if (degree == 0) queue[tail++] = id;
+
+        var sorted = new List<string>(count);
+        while (head < tail)
         {
-            string current = queue.Dequeue();
+            var current = queue[head++];
             sorted.Add(current);
 
-            foreach (string dependent in dependents[current])
+            foreach (var dependent in graph.Dependents[current])
             {
-                inDegree[dependent]--;
-                if (inDegree[dependent] == 0)
-                {
-                    queue.Enqueue(dependent);
-                }
+                graph.InDegree[dependent]--; // 原地破坏
+                if (graph.InDegree[dependent] == 0)
+                    queue[tail++] = dependent;
             }
         }
 
-        if (sorted.Count != _extensions.Count)
-        {
-            var circular = string.Join(", ", _extensions.Keys.Except(sorted));
+        if (sorted.Count != count)
             throw new InvalidOperationException(
-                $"检测到循环依赖，涉及扩展: {circular}");
-        }
+                $"检测到循环依赖，涉及扩展: {string.Join(", ", _extensions.Keys.Except(sorted))}");
 
         return sorted;
     }
 
     /// <summary>
-    /// 验证所有扩展的 HostApiVersion 兼容性。
-    /// 扩展声明所需最低宿主 SDK 版本，与当前宿主版本比较。
-    /// 返回不兼容的扩展 ID 列表。
+    /// 分层拓扑排序（层级 &gt;= MaxTiers 时调用）。
+    /// 原地破坏 inDegree，不可重复调用。
     /// </summary>
+    public List<List<string>> ResolveTiers()
+    {
+        var graph = BuildGraph();
+        int count = _extensions.Count;
+        if (count == 0) return [];
+
+        var tierMap = new Dictionary<string, int>(count);
+
+        // 零分配 BFS 队列
+        var queue = new string[count];
+        int head = 0, tail = 0;
+
+        foreach (var (id, degree) in graph.InDegree)
+        {
+            if (degree == 0)
+            {
+                tierMap[id] = 0;
+                queue[tail++] = id;
+            }
+        }
+
+        while (head < tail)
+        {
+            var current = queue[head++];
+            int currentTier = tierMap[current];
+
+            foreach (var dependent in graph.Dependents[current])
+            {
+                graph.InDegree[dependent]--; // 原地破坏
+
+                // CMOV 无分支层级更新
+                tierMap[dependent] = Math.Max(
+                    tierMap.GetValueOrDefault(dependent, -1),
+                    currentTier + 1);
+
+                if (graph.InDegree[dependent] == 0)
+                    queue[tail++] = dependent;
+            }
+        }
+
+        if (tierMap.Count != count)
+            throw new InvalidOperationException(
+                $"检测到循环依赖，涉及扩展: {string.Join(", ", _extensions.Keys.Where(k => !tierMap.ContainsKey(k)))}");
+
+        // 精确预分配分层结果
+        int maxTier = 0;
+        foreach (var t in tierMap.Values)
+            if (t > maxTier) maxTier = t;
+
+        if (maxTier >= MaxTiers)
+            _logger.Warn($"扩展依赖层级 ({maxTier + 1}) 超过最大限制 ({MaxTiers})，将截断");
+
+        int tierCount = Math.Min(maxTier + 1, MaxTiers);
+
+        // 第一遍：统计每层数量
+        var tierSizes = new int[tierCount];
+        foreach (var t in tierMap.Values)
+            tierSizes[Math.Min(t, MaxTiers - 1)]++;
+
+        // 第二遍：按精确容量填充
+        var buckets = new List<string>?[tierCount];
+        for (int i = 0; i < tierCount; i++)
+            if (tierSizes[i] > 0) buckets[i] = new List<string>(tierSizes[i]);
+
+        foreach (var (id, t) in tierMap)
+            buckets[Math.Min(t, MaxTiers - 1)]!.Add(id);
+
+        var result = new List<List<string>>(tierCount);
+        for (int i = 0; i < tierCount; i++)
+            if (buckets[i] is not null) result.Add(buckets[i]);
+
+        return result;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public List<string> CheckHostCompatibility(Version hostSdkVersion)
     {
-        var incompatible = new List<string>();
-
+        var list = new List<string>();
         foreach (var (id, meta) in _extensions)
         {
             if (meta.HostApiVersion is not null && hostSdkVersion < meta.HostApiVersion)
             {
-                _logger.Warn($"扩展 '{id}' 需要 SDK >= {meta.HostApiVersion}，当前主程序 SDK 版本 {hostSdkVersion}");
-                incompatible.Add(id);
+                _logger.Warn($"扩展 '{id}' 需要 SDK >= {meta.HostApiVersion}，当前 {hostSdkVersion}");
+                list.Add(id);
             }
         }
-
-        return incompatible;
+        return list;
     }
 
-    /// <summary>
-    /// 验证所有依赖的版本范围是否满足。
-    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public List<string> ValidateDependencyVersions()
     {
-        var invalid = new List<string>();
-
+        var list = new List<string>();
         foreach (var (id, meta) in _extensions)
         {
             if (meta.Dependencies is not { Length: > 0 }) continue;
-
             foreach (var dep in meta.Dependencies)
             {
-                if (_extensions.TryGetValue(dep.Id, out var depMeta) && dep.Range is not null)
+                if (_extensions.TryGetValue(dep.Id, out var m) && dep.Range is not null && !dep.Range.Satisfies(m.Version))
                 {
-                    if (!dep.Range.Satisfies(depMeta.Version))
-                    {
-                        _logger.Warn(
-                            $"扩展 '{id}' 依赖 '{dep.Id}' 版本 {depMeta.Version}，" +
-                            $"但要求版本范围 {dep.Range}");
-                        invalid.Add(id);
-                    }
+                    _logger.Warn($"扩展 '{id}' 依赖 '{dep.Id}' v{m.Version}，要求 {dep.Range}");
+                    list.Add(id);
                 }
             }
         }
-
-        return invalid;
+        return list;
     }
 }

@@ -4,7 +4,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using SimplyMinecraftServerManager.Extension.Interfaces;
 
 namespace SimplyMinecraftServerManager.Internals.Extensions;
@@ -28,7 +27,7 @@ internal sealed class ModuleMonitor : IDisposable
     private readonly Thread _monitorThread;
     private readonly ManualResetEventSlim _stopEvent = new();
     private readonly ConcurrentBag<ModuleLogEntry> _auditLog = [];
-    private readonly ConcurrentDictionary<string, int> _moduleLoadFrequency = new();
+    private readonly ConcurrentDictionary<string, (int Count, DateTime WindowStart)> _moduleLoadFrequency = new();
 
     // 基线
     private HashSet<string> _baselineModuleNames = new(StringComparer.OrdinalIgnoreCase);
@@ -250,7 +249,7 @@ internal sealed class ModuleMonitor : IDisposable
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[{_extensionId}] ModuleMonitor error: {ex.Message}");
+                Debug.WriteLine($"[{_extensionId}] 模块监控器错误: {ex.Message}");
             }
         }
     }
@@ -332,12 +331,20 @@ internal sealed class ModuleMonitor : IDisposable
     {
         lock (_lock)
         {
-            int count = _moduleLoadFrequency.AddOrUpdate(moduleName, 1, (_, v) => v + 1);
+            var now = DateTime.UtcNow;
+            var (Count, WindowStart) = _moduleLoadFrequency.AddOrUpdate(
+                moduleName,
+                _ => (1, now),
+                (_, existing) =>
+                {
+                    if ((now - existing.WindowStart).TotalSeconds >= 1)
+                        return (1, now);
+                    return (existing.Count + 1, existing.WindowStart);
+                });
 
-            // 每秒重置计数器
-            if (count > _maxModuleLoadPerSecond)
+            if (Count > _maxModuleLoadPerSecond)
             {
-                _logger.Warn($"[{_extensionId}] 模块 '{moduleName}' 加载频率超限: {count} > {_maxModuleLoadPerSecond}");
+                _logger.Warn($"[{_extensionId}] 模块 '{moduleName}' 加载频率超限: {Count} > {_maxModuleLoadPerSecond}");
                 return false;
             }
 

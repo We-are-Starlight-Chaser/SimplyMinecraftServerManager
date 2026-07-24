@@ -36,6 +36,16 @@ namespace SimplyMinecraftServerManager.Internals.Downloads
         /// <summary>
         /// Leaf 服务器，另一个 Paper 分支，提供额外的修复和优化。
         /// </summary>
-        Leaf
+        Leaf,
+
+        /// <summary>
+        /// Fabric 服务器，轻量级 Mod 加载器，使用 Mixin 注入。
+        /// </summary>
+        Fabric,
+
+        /// <summary>
+        /// NeoForge 服务器，Forge 的活跃分叉版本。
+        /// </summary>
+        NeoForge
     }
 }

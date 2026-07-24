@@ -17,10 +17,10 @@ namespace SimplyMinecraftServerManager.Helpers
         public static readonly InverseBooleanConverter Instance = new();
         
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-            => value is bool boolValue ? !boolValue : true;
+            => value is not bool boolValue || !boolValue;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-            => value is bool boolValue ? !boolValue : false;
+            => value is bool boolValue && !boolValue;
     }
 
     /// <summary>
@@ -129,6 +129,21 @@ namespace SimplyMinecraftServerManager.Helpers
         private static readonly SolidColorBrush DefaultLight = new(Color.FromRgb(0x60, 0x7D, 0x8B));
         private static readonly SolidColorBrush DefaultDark = new(Color.FromRgb(0x78, 0x90, 0x9C));
 
+        static PlatformNameToColorConverter()
+        {
+            PaperDark.Freeze();
+            PaperLight.Freeze();
+            FoliaDark.Freeze();
+            FoliaLight.Freeze();
+            PurpurDark.Freeze();
+            PurpurLight.Freeze();
+            LeavesDark.Freeze();
+            LeavesLight.Freeze();
+            LeafDark.Freeze();
+            LeafLight.Freeze();
+            DefaultDark.Freeze();
+            DefaultLight.Freeze();
+        }
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
@@ -155,6 +170,10 @@ namespace SimplyMinecraftServerManager.Helpers
         private static readonly SolidColorBrush GrayBrush = new(Colors.Gray);
         private static readonly Dictionary<string, SolidColorBrush> _brushCache = [];
 
+        static ThemeAwareColorConverter()
+        {
+            GrayBrush.Freeze();
+        }
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
             if (values.Length >= 2 && values[0] is string lightColor && values[1] is string darkColor)
@@ -166,6 +185,7 @@ namespace SimplyMinecraftServerManager.Helpers
                     if (!_brushCache.TryGetValue(colorHex, out var brush))
                     {
                         brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex)!);
+                        brush.Freeze();
                         _brushCache[colorHex] = brush;
                     }
                     return brush;
@@ -227,6 +247,16 @@ namespace SimplyMinecraftServerManager.Helpers
         private static readonly SolidColorBrush DefaultDark = new(Color.FromRgb(0x42, 0x42, 0x42));
         private static readonly SolidColorBrush Transparent = new(Colors.Transparent);
 
+        static JdkStatusToBackgroundConverter()
+        {
+            ValidDark.Freeze();
+            ValidLight.Freeze();
+            InvalidDark.Freeze();
+            InvalidLight.Freeze();
+            DefaultDark.Freeze();
+            DefaultLight.Freeze();
+            Transparent.Freeze();
+        }
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
@@ -259,6 +289,16 @@ namespace SimplyMinecraftServerManager.Helpers
         private static readonly SolidColorBrush DefaultDark = new(Color.FromRgb(0xBD, 0xBD, 0xBD));
         private static readonly SolidColorBrush GrayBrush = new(Colors.Gray);
 
+        static JdkStatusToForegroundConverter()
+        {
+            ValidDark.Freeze();
+            ValidLight.Freeze();
+            InvalidDark.Freeze();
+            InvalidLight.Freeze();
+            DefaultDark.Freeze();
+            DefaultLight.Freeze();
+            GrayBrush.Freeze();
+        }
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
@@ -307,6 +347,18 @@ namespace SimplyMinecraftServerManager.Helpers
         private static readonly SolidColorBrush InfoDark = new(Color.FromRgb(0x18, 0x4E, 0x77));
         private static readonly SolidColorBrush Transparent = new(Colors.Transparent);
 
+        static NotificationAppearanceToBadgeBrushConverter()
+        {
+            SuccessDark.Freeze();
+            SuccessLight.Freeze();
+            DangerDark.Freeze();
+            DangerLight.Freeze();
+            CautionDark.Freeze();
+            CautionLight.Freeze();
+            InfoDark.Freeze();
+            InfoLight.Freeze();
+            Transparent.Freeze();
+        }
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
@@ -342,6 +394,18 @@ namespace SimplyMinecraftServerManager.Helpers
         private static readonly SolidColorBrush InfoDark = new(Color.FromRgb(0x9A, 0xD3, 0xFF));
         private static readonly SolidColorBrush GrayBrush = new(Colors.Gray);
 
+        static NotificationAppearanceToForegroundBrushConverter()
+        {
+            SuccessDark.Freeze();
+            SuccessLight.Freeze();
+            DangerDark.Freeze();
+            DangerLight.Freeze();
+            CautionDark.Freeze();
+            CautionLight.Freeze();
+            InfoDark.Freeze();
+            InfoLight.Freeze();
+            GrayBrush.Freeze();
+        }
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             bool isDark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
@@ -373,6 +437,14 @@ namespace SimplyMinecraftServerManager.Helpers
         private static readonly SolidColorBrush CautionBorder = new(Color.FromArgb(0x66, 0x8F, 0x61, 0x00));
         private static readonly SolidColorBrush InfoBorder = new(Color.FromArgb(0x66, 0x0E, 0x63, 0xA9));
 
+        static NotificationAppearanceToBorderBrushConverter()
+        {
+            DefaultBorder.Freeze();
+            SuccessBorder.Freeze(); 
+            DangerBorder.Freeze(); 
+            CautionBorder.Freeze();
+            InfoBorder.Freeze();
+        }
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
             => value is ControlAppearance appearance
                 ? appearance switch

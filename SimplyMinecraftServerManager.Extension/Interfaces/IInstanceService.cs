@@ -23,7 +23,7 @@ public interface IInstanceService
     /// <summary>获取指定实例的根目录路径</summary>
     string? GetInstancePath(string instanceId);
 
-    /// <summary>获取指定实例的插件目录路径（如不存在返回 null）</summary>
+    /// <summary>获取指定实例的插件/模组目录路径（如不存在返回 null）</summary>
     string? GetPluginsPath(string instanceId);
 
     /// <summary>获取指定实例的配置目录路径（如不存在返回 null）</summary>

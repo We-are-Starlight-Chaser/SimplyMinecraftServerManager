@@ -143,6 +143,41 @@ namespace SimplyMinecraftServerManager.Internals
         }
 
         /// <summary>
+        /// 异步停止并移除指定实例的服务器进程，避免阻塞调用线程。
+        /// </summary>
+        public static async Task StopAndRemoveAsync(string instanceId, CancellationToken cancellationToken = default)
+        {
+            if (_processes.TryGetValue(instanceId, out var process))
+            {
+                try
+                {
+                    if (process.IsRunning)
+                        process.Stop();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to stop process for {instanceId}: {ex.Message}");
+                }
+
+                if (process.IsRunning)
+                {
+                    if (!await process.WaitForExitAsync(5000, cancellationToken))
+                    {
+                        try
+                        {
+                            process.Kill();
+                            await process.WaitForExitAsync(3000, cancellationToken);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[ServerProcessManager] Failed to kill process for {instanceId}: {ex.Message}");
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// 强制终止并移除指定实例的服务器进程。
         /// </summary>
         public static void KillAndRemove(string instanceId)

@@ -1,16 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Optimize>true</Optimize>
-    <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
     <EnableAotAnalyzers>true</EnableAotAnalyzers>
     <IsTrimmable>true</IsTrimmable>
-    <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
     <DebugType>none</DebugType>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591;IL2026;IL3050</NoWarn>
 
     <Version>1.0.0</Version>

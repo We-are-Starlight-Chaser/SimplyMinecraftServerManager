@@ -1,8 +1,9 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 using SimplyMinecraftServerManager.ViewModels.Pages;
 using System.Windows.Controls;
+using System.Windows.Media;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace SimplyMinecraftServerManager.Views.Pages
@@ -17,6 +18,30 @@ namespace SimplyMinecraftServerManager.Views.Pages
             DataContext = this;
 
             InitializeComponent();
+
+            // 每次导航进入时重置滚动位置
+            ViewModel.NavigatedTo += (_, _) => ResetScrollPositions();
+        }
+
+        /// <summary>
+        /// 重置所有 ScrollViewer 的滚动位置到顶部。
+        /// </summary>
+        internal void ResetScrollPositions()
+        {
+            ResetScrollPositionsRecursive(this);
+        }
+
+        private static void ResetScrollPositionsRecursive(DependencyObject parent)
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is ScrollViewer sv)
+                {
+                    sv.ScrollToTop();
+                }
+                ResetScrollPositionsRecursive(child);
+            }
         }
 
         /// <summary>

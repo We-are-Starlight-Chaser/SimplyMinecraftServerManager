@@ -293,7 +293,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     try
                     {
-                        InstanceManager.DeleteInstance(instance.Id, deleteFiles: true);
+                        await Task.Run(() => InstanceManager.DeleteInstance(instance.Id, deleteFiles: true));
                     }
                     catch
                     {
@@ -356,16 +356,20 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 var instances = await Task.Run(() => InstanceManager.GetAll());
 
-                var items = new List<InstanceDisplayItem>();
-                foreach (var inst in instances)
+                var items = await Task.Run(() =>
                 {
-                    var item = new InstanceDisplayItem(inst);
-                    var process = ServerProcessManager.GetProcess(inst.Id);
-                    bool isRunning = process?.IsRunning ?? false;
-                    item.ServerProcess = isRunning ? process : null;
-                    item.IsRunning = isRunning;
-                    items.Add(item);
-                }
+                    var result = new List<InstanceDisplayItem>();
+                    foreach (var inst in instances)
+                    {
+                        var item = new InstanceDisplayItem(inst);
+                        var process = ServerProcessManager.GetProcess(inst.Id);
+                        bool isRunning = process?.IsRunning ?? false;
+                        item.ServerProcess = isRunning ? process : null;
+                        item.IsRunning = isRunning;
+                        result.Add(item);
+                    }
+                    return result;
+                });
 
                 Instances = new ObservableCollection<InstanceDisplayItem>(items);
                 _instanceItemMap = new ConcurrentDictionary<string, InstanceDisplayItem>(items.ToDictionary(i => i.InstanceId));
@@ -446,7 +450,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 // 如果服务器正在运行，先强制终止
                 ServerProcessManager.KillAndRemove(item.InstanceId);
 
-                InstanceManager.DeleteInstance(item.InstanceId, deleteFiles: true);
+                await Task.Run(() => InstanceManager.DeleteInstance(item.InstanceId, deleteFiles: true));
                 Instances.Remove(item);
                 StatusMessage = "实例已删除";
             }

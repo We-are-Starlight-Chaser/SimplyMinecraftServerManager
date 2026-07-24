@@ -4,7 +4,7 @@
 namespace SimplyMinecraftServerManager.Extension.Interfaces;
 
 /// <summary>
-/// 文件下载服务，供扩展下载 JAR、插件等文件。
+/// 文件下载服务，供扩展下载 JAR、插件/模组等文件。
 /// 禁止直接使用 System.Net.Http.HttpClient 下载文件，必须通过此接口。
 /// </summary>
 public interface IDownloadService

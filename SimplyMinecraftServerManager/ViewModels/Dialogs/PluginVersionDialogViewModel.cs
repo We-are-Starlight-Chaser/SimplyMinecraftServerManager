@@ -8,7 +8,7 @@ using System.Globalization;
 namespace SimplyMinecraftServerManager.ViewModels.Dialogs
 {
     /// <summary>
-    /// 插件版本选择对话框的视图模型，支持分页加载和版本选择。
+    /// 插件/模组版本选择对话框的视图模型，支持分页加载和版本选择。
     /// </summary>
     public partial class PluginVersionDialogViewModel : ObservableObject
     {
@@ -18,7 +18,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Dialogs
         /// <summary>所有可用版本的完整列表。</summary>
         private List<PluginVersionListItem> _allVersions = [];
 
-        /// <summary>项目（插件）标题。</summary>
+        /// <summary>项目（插件/模组）标题。</summary>
         [ObservableProperty]
         private string _projectTitle = "";
 
@@ -49,7 +49,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Dialogs
         public bool HasVersions => Versions.Count > 0;
 
         /// <summary>
-        /// 创建插件版本对话框视图模型实例。
+        /// 创建插件/模组版本对话框视图模型实例。
         /// </summary>
         /// <param name="projectTitle">项目标题。</param>
         /// <param name="targetDescription">目标实例描述。</param>
@@ -111,7 +111,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Dialogs
     }
 
     /// <summary>
-    /// 插件版本列表项，封装单个 Modrinth 版本的显示信息。
+    /// 插件/模组版本列表项，封装单个 Modrinth 版本的显示信息。
     /// </summary>
     public sealed class PluginVersionListItem
     {

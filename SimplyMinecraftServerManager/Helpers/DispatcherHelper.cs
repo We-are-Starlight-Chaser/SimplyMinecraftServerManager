@@ -10,21 +10,30 @@ namespace SimplyMinecraftServerManager.Helpers
     /// </summary>
     internal static class DispatcherHelper
     {
-        private static Dispatcher? _dispatcher;
-
         /// <summary>
         /// 如果需要则异步调用操作，确保操作在 UI 线程上执行。
         /// </summary>
         /// <param name="action">需要在 UI 线程上执行的操作。</param>
         public static void InvokeIfNeeded(Action action)
         {
-            var d = _dispatcher ??= Application.Current?.Dispatcher;
+            var d = Application.Current?.Dispatcher;
             if (d == null || d.CheckAccess())
             {
                 action();
                 return;
             }
-            d.BeginInvoke(action, DispatcherPriority.Background);
+            d.BeginInvoke(action, DispatcherPriority.Normal);
+        }
+
+        public static void InvokeIfNeededSync(Action action)
+        {
+            var d = Application.Current?.Dispatcher;
+            if (d == null || d.CheckAccess())
+            {
+                action();
+                return;
+            }
+            d.Invoke(action, DispatcherPriority.Normal);
         }
     }
 

@@ -11,6 +11,7 @@ using SimplyMinecraftServerManager.ViewModels.Pages;
 using SimplyMinecraftServerManager.ViewModels.Windows;
 using SimplyMinecraftServerManager.Views.Pages;
 using SimplyMinecraftServerManager.Views.Windows;
+using System.Diagnostics;
 using System.IO;
 using System.Windows.Threading;
 using Wpf.Ui;
@@ -48,6 +49,9 @@ namespace SimplyMinecraftServerManager
                 services.AddSingleton<IContentDialogService, ContentDialogService>();
                 services.AddSingleton<NavigationParameterService>();
                 services.AddSingleton<AppNotificationService>();
+
+                services.AddSingleton<FirstTimeUsingWindow>();
+                services.AddSingleton<FirstTimeUsingWindowViewModel>();
 
                 services.AddSingleton<INavigationWindow, MainWindow>();
                 services.AddSingleton<MainWindowViewModel>(provider =>
@@ -107,6 +111,8 @@ namespace SimplyMinecraftServerManager
 
                 await Task.Run(() => ConfigManager.Load());
                 
+                SetToShowFirstTimeUsingWindow();
+
                 await _host.StartAsync();
                 
                 await Task.Run(() => InstanceManager.Load());
@@ -147,8 +153,11 @@ namespace SimplyMinecraftServerManager
             try
             {
                 Log("Application shutting down...");
-                await _extensionLoader!.UnloadAllAsync();
-                _extensionLoader.Dispose();
+                if (_extensionLoader != null)
+                {
+                    await _extensionLoader.UnloadAllAsync();
+                    _extensionLoader.Dispose();
+                }
                 ServerProcessManager.KillAll();
                 InstanceManager.Shutdown();
                 await _host.StopAsync();
@@ -200,7 +209,7 @@ namespace SimplyMinecraftServerManager
         }
 
         private static readonly Lock _logLock = new();
-        private static System.IO.StreamWriter? _logWriter;
+        private static StreamWriter? _logWriter;
         private static ExtensionLoader? _extensionLoader;
 
         private static void Log(string message)
@@ -230,6 +239,11 @@ namespace SimplyMinecraftServerManager
             catch
             {
             }
+        }
+        [Conditional("DEBUG")]
+        private static void SetToShowFirstTimeUsingWindow()
+        {
+            ConfigManager.Current.IsFirstTimeUsing = true;
         }
     }
 }

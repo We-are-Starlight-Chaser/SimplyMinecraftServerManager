@@ -49,7 +49,7 @@ public interface IExtension : IDisposable
     /// <summary>服务器停止后的回调</summary>
     void OnServerStopped(string instanceId) { }
 
-    /// <summary>插件安装后的回调</summary>
+    /// <summary>插件/模组安装后的回调</summary>
     void OnPluginInstalled(string instanceId, string pluginName) { }
 
     /// <summary>配置变更后的回调</summary>

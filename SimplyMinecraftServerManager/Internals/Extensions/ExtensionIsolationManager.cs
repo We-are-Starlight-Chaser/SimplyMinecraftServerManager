@@ -9,8 +9,8 @@ using SimplyMinecraftServerManager.Extension.Interfaces;
 namespace SimplyMinecraftServerManager.Internals.Extensions;
 
 /// <summary>
-/// Manager for isolating extension data directories.
-/// Prevents extensions from accessing each other's data.
+/// 扩展数据目录隔离管理器。
+/// 防止扩展访问彼此的数据目录。
 /// </summary>
 internal sealed class ExtensionIsolationManager : IDisposable
 {
@@ -19,13 +19,13 @@ internal sealed class ExtensionIsolationManager : IDisposable
     private readonly Timer _cleanupTimer;
     private readonly Lock _lock = new();
     
-    // Track extension data directories
+    // 跟踪扩展数据目录
     private readonly ConcurrentDictionary<string, ExtensionDataInfo> _extensionDataDirs = new();
     
-    // Isolation rules
-    private readonly Dictionary<string, IsolationRule> _isolationRules = new();
+    // 隔离规则
+    private readonly Dictionary<string, IsolationRule> _isolationRules = [];
     
-    // Events
+    // 事件
     public event EventHandler<IsolationViolationEventArgs>? IsolationViolationDetected;
     
     public ExtensionIsolationManager(
@@ -36,7 +36,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
         _baseDataPath = baseDataPath;
         _logger = logger;
         
-        // Ensure base data directory exists
+        // 确保基础数据目录存在
         Directory.CreateDirectory(_baseDataPath);
         
         _cleanupTimer = new Timer(
@@ -47,7 +47,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
     }
     
     /// <summary>
-    /// Registers an extension's data directory.
+    /// 注册扩展的数据目录。
     /// </summary>
     public void RegisterExtensionDataDirectory(string extensionId, string dataPath)
     {
@@ -56,7 +56,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
         
         var fullPath = Path.GetFullPath(dataPath);
         
-        // Ensure the data directory exists
+        // 确保数据目录存在
         Directory.CreateDirectory(fullPath);
         
         var info = new ExtensionDataInfo
@@ -70,24 +70,26 @@ internal sealed class ExtensionIsolationManager : IDisposable
         
         _extensionDataDirs[extensionId] = info;
         
-        // Create isolation rule
-        _isolationRules[extensionId] = new IsolationRule
+        // 创建隔离规则
+        lock (_lock)
         {
-            ExtensionId = extensionId,
-            AllowedPaths = new[] { fullPath },
-            DeniedPaths = _extensionDataDirs.Values
-                .Where(d => d.ExtensionId != extensionId)
-                .Select(d => d.DataPath)
-                .ToArray(),
-            CreatedAt = DateTime.UtcNow,
-            LastUpdated = DateTime.UtcNow,
-        };
+            _isolationRules[extensionId] = new IsolationRule
+            {
+                ExtensionId = extensionId,
+                AllowedPaths = [fullPath],
+                DeniedPaths = [.. _extensionDataDirs.Values
+                    .Where(d => d.ExtensionId != extensionId)
+                    .Select(d => d.DataPath)],
+                CreatedAt = DateTime.UtcNow,
+                LastUpdated = DateTime.UtcNow,
+            };
+        }
         
-        _logger?.Info($"Registered data directory for extension {extensionId}: {fullPath}");
+        _logger?.Info($"已为扩展 {extensionId} 注册数据目录: {fullPath}");
     }
     
     /// <summary>
-    /// Unregisters an extension's data directory.
+    /// 注销扩展的数据目录。
     /// </summary>
     public void UnregisterExtensionDataDirectory(string extensionId)
     {
@@ -95,11 +97,12 @@ internal sealed class ExtensionIsolationManager : IDisposable
             return;
         
         _extensionDataDirs.TryRemove(extensionId, out _);
-        _isolationRules.Remove(extensionId);
         
-        // Update other extensions' denied paths
+        // 更新其他扩展的拒绝路径
         lock (_lock)
         {
+            _isolationRules.Remove(extensionId);
+            
             foreach (var rule in _isolationRules.Values)
             {
                 if (rule.ExtensionId != extensionId)
@@ -120,12 +123,12 @@ internal sealed class ExtensionIsolationManager : IDisposable
             }
         }
         
-        _logger?.Info($"Unregistered data directory for extension {extensionId}");
+        _logger?.Info($"已注销扩展 {extensionId} 的数据目录");
     }
     
     /// <summary>
-    /// Validates if an extension can access a file path.
-    /// Returns true if access is allowed, false if it should be blocked.
+    /// 验证扩展是否可以访问指定文件路径。
+    /// 返回 true 表示允许访问，false 表示应阻止。
     /// </summary>
     public bool ValidateFileAccess(string extensionId, string filePath)
     {
@@ -134,47 +137,50 @@ internal sealed class ExtensionIsolationManager : IDisposable
         
         var fullPath = Path.GetFullPath(filePath);
         
-        // Check if path is within the extension's own data directory
+        // 检查路径是否在扩展自己的数据目录内
         if (_extensionDataDirs.TryGetValue(extensionId, out var dataInfo))
         {
             if (fullPath.StartsWith(dataInfo.DataPath, StringComparison.OrdinalIgnoreCase))
             {
-                // Update access info
+                // 更新访问信息
                 dataInfo.LastAccessedAt = DateTime.UtcNow;
                 dataInfo.AccessCount++;
                 return true;
             }
         }
         
-        // Check isolation rules
-        if (_isolationRules.TryGetValue(extensionId, out var rule))
+        // 检查隔离规则
+        lock (_lock)
         {
-            // Check if path is in allowed paths
-            bool isAllowed = rule.AllowedPaths.Any(allowedPath => 
-                fullPath.StartsWith(allowedPath, StringComparison.OrdinalIgnoreCase));
-            
-            if (isAllowed)
+            if (_isolationRules.TryGetValue(extensionId, out var rule))
             {
-                return true;
-            }
-            
-            // Check if path is in denied paths
-            bool isDenied = rule.DeniedPaths.Any(deniedPath => 
-                fullPath.StartsWith(deniedPath, StringComparison.OrdinalIgnoreCase));
-            
-            if (isDenied)
-            {
-                OnIsolationViolationDetected(extensionId, filePath, "Access to other extension's data directory");
-                return false;
+                // 检查路径是否在允许路径列表中
+                bool isAllowed = rule.AllowedPaths.Any(allowedPath => 
+                    fullPath.StartsWith(allowedPath, StringComparison.OrdinalIgnoreCase));
+                
+                if (isAllowed)
+                {
+                    return true;
+                }
+                
+                // 检查路径是否在拒绝路径列表中
+                bool isDenied = rule.DeniedPaths.Any(deniedPath => 
+                    fullPath.StartsWith(deniedPath, StringComparison.OrdinalIgnoreCase));
+                
+                if (isDenied)
+                {
+                    OnIsolationViolationDetected(extensionId, filePath, "访问其他扩展的数据目录");
+                    return false;
+                }
             }
         }
         
-        // Default: allow access to non-extension directories
+        // 默认：允许访问非扩展目录
         return true;
     }
     
     /// <summary>
-    /// Gets information about an extension's data directory.
+    /// 获取扩展数据目录的信息。
     /// </summary>
     public ExtensionDataInfo? GetExtensionDataInfo(string extensionId)
     {
@@ -183,7 +189,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
     }
     
     /// <summary>
-    /// Gets all registered extension data directories.
+    /// 获取所有已注册的扩展数据目录。
     /// </summary>
     public IReadOnlyList<ExtensionDataInfo> GetAllExtensionDataDirectories()
     {
@@ -191,36 +197,42 @@ internal sealed class ExtensionIsolationManager : IDisposable
     }
     
     /// <summary>
-    /// Gets the isolation rule for an extension.
+    /// 获取扩展的隔离规则。
     /// </summary>
     public IsolationRule? GetIsolationRule(string extensionId)
     {
-        _isolationRules.TryGetValue(extensionId, out var rule);
-        return rule;
+        lock (_lock)
+        {
+            _isolationRules.TryGetValue(extensionId, out var rule);
+            return rule;
+        }
     }
     
     /// <summary>
-    /// Updates isolation rules for an extension.
+    /// 更新扩展的隔离规则。
     /// </summary>
     public void UpdateIsolationRule(string extensionId, string[] allowedPaths, string[] deniedPaths)
     {
         if (string.IsNullOrEmpty(extensionId))
             return;
         
-        _isolationRules[extensionId] = new IsolationRule
+        lock (_lock)
         {
-            ExtensionId = extensionId,
-            AllowedPaths = allowedPaths,
-            DeniedPaths = deniedPaths,
-            CreatedAt = _isolationRules.TryGetValue(extensionId, out var existingRule) ? existingRule.CreatedAt : DateTime.UtcNow,
-            LastUpdated = DateTime.UtcNow,
-        };
+            _isolationRules[extensionId] = new IsolationRule
+            {
+                ExtensionId = extensionId,
+                AllowedPaths = allowedPaths,
+                DeniedPaths = deniedPaths,
+                CreatedAt = _isolationRules.TryGetValue(extensionId, out var existingRule) ? existingRule.CreatedAt : DateTime.UtcNow,
+                LastUpdated = DateTime.UtcNow,
+            };
+        }
         
-        _logger?.Info($"Updated isolation rule for extension {extensionId}");
+        _logger?.Info($"已更新扩展 {extensionId} 的隔离规则");
     }
     
     /// <summary>
-    /// Gets the total size of an extension's data directory.
+    /// 获取扩展数据目录的总大小。
     /// </summary>
     public long GetExtensionDataSize(string extensionId)
     {
@@ -238,14 +250,14 @@ internal sealed class ExtensionIsolationManager : IDisposable
     }
     
     /// <summary>
-    /// Gets the total size of all extension data directories.
+    /// 获取所有扩展数据目录的总大小。
     /// </summary>
     public long GetAllExtensionsDataSize()
     {
         return _extensionDataDirs.Values.Sum(d => GetDirectorySize(d.DataPath));
     }
     
-    private long GetDirectorySize(string path)
+    private static long GetDirectorySize(string path)
     {
         if (!Directory.Exists(path))
             return 0;
@@ -262,13 +274,13 @@ internal sealed class ExtensionIsolationManager : IDisposable
                 }
                 catch
                 {
-                    // Skip files that can't be accessed
+                    // 跳过无法访问的文件
                 }
             }
         }
         catch
         {
-            // Skip directories that can't be accessed
+            // 跳过无法访问的目录
         }
         
         return size;
@@ -278,7 +290,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
     {
         lock (_lock)
         {
-            // Remove rules for unregistered extensions
+            // 移除未注册扩展的规则
             var keysToRemove = _isolationRules.Keys
                 .Where(key => !_extensionDataDirs.ContainsKey(key))
                 .ToList();
@@ -288,7 +300,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
                 _isolationRules.Remove(key);
             }
             
-            // Update denied paths for remaining rules
+            // 更新剩余规则的拒绝路径
             var allDataPaths = _extensionDataDirs.Values.Select(d => d.DataPath).ToList();
             
             foreach (var rule in _isolationRules.Values.ToList())
@@ -314,7 +326,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
     
     private void OnIsolationViolationDetected(string extensionId, string filePath, string reason)
     {
-        _logger?.Warn($"Isolation violation detected for extension {extensionId}: {reason} - {filePath}");
+        _logger?.Warn($"检测到扩展 {extensionId} 的隔离违规: {reason} - {filePath}");
         
         IsolationViolationDetected?.Invoke(this, new IsolationViolationEventArgs
         {
@@ -331,7 +343,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
     }
     
     /// <summary>
-    /// Extension data information.
+    /// 扩展数据信息。
     /// </summary>
     public sealed class ExtensionDataInfo
     {
@@ -343,7 +355,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
     }
     
     /// <summary>
-    /// Isolation rule for an extension.
+    /// 扩展的隔离规则。
     /// </summary>
     public sealed class IsolationRule
     {
@@ -355,7 +367,7 @@ internal sealed class ExtensionIsolationManager : IDisposable
     }
     
     /// <summary>
-    /// Isolation violation event arguments.
+    /// 隔离违规事件参数。
     /// </summary>
     public sealed class IsolationViolationEventArgs : EventArgs
     {

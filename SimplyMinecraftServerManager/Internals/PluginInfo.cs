@@ -1,14 +1,14 @@
-﻿// Copyright (c) 2026 We Are Starlight Chaser Team
+// Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
 namespace SimplyMinecraftServerManager.Internals
 {
     /// <summary>
-    /// 从插件 JAR 内的 plugin.yml 提取的元信息。
+    /// 从插件/模组 JAR 内的 plugin.yml 提取的元信息。
     /// </summary>
     public record class PluginInfo
     {
-        /// <summary>插件名称 (plugin.yml → name)</summary>
+        /// <summary>插件/模组名称 (plugin.yml → name)</summary>
         public string Name { get; set; } = "";
 
         /// <summary>版本号 (plugin.yml → version)</summary>

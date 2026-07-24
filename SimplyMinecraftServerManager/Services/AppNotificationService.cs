@@ -30,7 +30,7 @@ namespace SimplyMinecraftServerManager.Services
                 Title = message.Title,
                 Content = message.Content,
                 Appearance = message.Appearance,
-                Duration = duration ?? TimeSpan.FromSeconds(5)
+                Duration = duration ?? TimeSpan.FromSeconds(8)
             });
         }
 

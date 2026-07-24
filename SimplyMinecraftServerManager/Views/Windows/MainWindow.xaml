@@ -83,7 +83,7 @@
     FocusOnLeftClick="True"
     Icon="pack://application:,,,/Assets/Pictures/SMSM-icon-256.jpg"
     MenuOnRightClick="True"
-    TooltipText="SMSM Beta v1.0">
+    TooltipText="SMSM v1.0">
             <tray:NotifyIcon.Menu>
                 <ContextMenu ItemsSource = "{Binding ViewModel.TrayMenuItems, Mode=OneWay}" />
             </tray:NotifyIcon.Menu>

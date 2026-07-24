@@ -69,11 +69,8 @@ namespace SimplyMinecraftServerManager.Internals
         [return: MarshalAs(UnmanagedType.Bool)]
         private static partial bool CloseHandle(IntPtr hObject);
 
-        [LibraryImport("kernel32.dll", SetLastError = true)]
-        private static partial uint GetLastError();
-
         private const uint JOB_OBJECT_LIMIT_PROCESS_TIME = 0x00000002;
-        private const uint JOB_OBJECT_LIMIT_MEMORY = 0x00000001;
+        private const uint JOB_OBJECT_LIMIT_JOB_MEMORY = 0x00000100;
         private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
         private const uint JobObjectExtendedLimitInformation = 9;
 
@@ -118,7 +115,9 @@ namespace SimplyMinecraftServerManager.Internals
             _jobHandle = CreateJobObject(IntPtr.Zero, $"SMSM_{InstanceId}_{Guid.NewGuid():N}");
             if (_jobHandle == IntPtr.Zero)
             {
-                throw new InvalidOperationException($"Failed to create job object: {GetLastError()}");
+                var err = Marshal.GetLastWin32Error();
+                Debug.WriteLine($"[ServerProcess] 无法创建 Job Object (错误 {err})，服务器将在无进程管理的情况下启动");
+                return;
             }
 
             // 获取实例配置的内存限制
@@ -131,7 +130,7 @@ namespace SimplyMinecraftServerManager.Internals
             {
                 BasicLimitInformation = new JOBOBJECT_BASIC_LIMIT_INFORMATION
                 {
-                    LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_MEMORY,
+                    LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_JOB_MEMORY,
                     ActiveProcessLimit = 100, // 限制进程数，防止 fork 炸弹
                 },
                 JobMemoryLimit = (UIntPtr)memoryLimitBytes,
@@ -144,7 +143,10 @@ namespace SimplyMinecraftServerManager.Internals
                 Marshal.StructureToPtr(limitInfo, limitInfoPtr, false);
                 if (!SetInformationJobObject(_jobHandle, JobObjectExtendedLimitInformation, limitInfoPtr, (uint)size))
                 {
-                    throw new InvalidOperationException($"Failed to set job object limits: {GetLastError()}");
+                    var err = Marshal.GetLastWin32Error();
+                    Debug.WriteLine($"[ServerProcess] 无法设置 Job Object 限制 (错误 {err})，将不使用 Job Object");
+                    CloseHandle(_jobHandle);
+                    _jobHandle = IntPtr.Zero;
                 }
             }
             finally
@@ -246,14 +248,17 @@ namespace SimplyMinecraftServerManager.Internals
             _processId = _process.Id;
 
             var process = _process ?? throw new InvalidOperationException("Server process was not created.");
-            IntPtr processHandle = process.Handle;
-            if (!AssignProcessToJobObject(_jobHandle, processHandle))
+            if (_jobHandle != IntPtr.Zero)
             {
-                process.Kill(entireProcessTree: true);
-                CloseHandle(_jobHandle);
-                _jobHandle = IntPtr.Zero;
-                _processId = 0;
-                throw new InvalidOperationException($"Failed to assign process to job object: {GetLastError()}");
+                IntPtr processHandle = process.Handle;
+                if (!AssignProcessToJobObject(_jobHandle, processHandle))
+                {
+                    process.Kill(entireProcessTree: true);
+                    CloseHandle(_jobHandle);
+                    _jobHandle = IntPtr.Zero;
+                    _processId = 0;
+                    throw new InvalidOperationException($"Failed to assign process to job object: {Marshal.GetLastWin32Error()}");
+                }
             }
 
             _process.BeginOutputReadLine();
@@ -397,6 +402,37 @@ namespace SimplyMinecraftServerManager.Internals
         public bool WaitForExit(int milliseconds)
             => _process?.WaitForExit(milliseconds) ?? true;
 
+        /// <summary>
+        /// 异步等待服务器进程退出。
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        public async Task WaitForExitAsync(CancellationToken cancellationToken = default)
+        {
+            if (_process != null)
+            {
+                await _process.WaitForExitAsync(cancellationToken);
+            }
+        }
+
+        /// <summary>
+        /// 异步等待服务器进程退出，带超时。
+        /// </summary>
+        public async Task<bool> WaitForExitAsync(int milliseconds, CancellationToken cancellationToken = default)
+        {
+            if (_process == null) return true;
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(milliseconds);
+            try
+            {
+                await _process.WaitForExitAsync(cts.Token);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return _process.HasExited;
+            }
+        }
+
         /// <summary>释放服务器进程及相关资源</summary>
         public void Dispose()
         {
@@ -409,10 +445,7 @@ namespace SimplyMinecraftServerManager.Internals
                 _rconClient = null;
                 if (client != null)
                 {
-                    Task.Run(async () =>
-                    {
-                        try { await client.DisposeAsync(); } catch { /* best effort */ }
-                    }).Wait(TimeSpan.FromSeconds(5));
+                    _ = DisposeRconAsync(client);
                 }
             }
             catch
@@ -464,6 +497,11 @@ namespace SimplyMinecraftServerManager.Internals
             }
 
             GC.SuppressFinalize(this);
+        }
+
+        private static async Task DisposeRconAsync(RconClient client)
+        {
+            try { await client.DisposeAsync(); } catch { /* best effort */ }
         }
 
         /// <summary>异步释放服务器进程及相关资源</summary>

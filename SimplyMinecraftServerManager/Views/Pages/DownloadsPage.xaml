@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <Page
@@ -175,7 +175,7 @@
                 FontSize="16" 
                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                 HorizontalAlignment="Center" Margin="0,16,0,0"/>
-            <TextBlock Text="前往「下载」页面开始下载服务端、插件，或「运行时管理」页面下载JDK" 
+            <TextBlock Text="前往「下载」页面开始下载服务端、插件/模组，或「运行时管理」页面下载JDK"
                 FontSize="12" 
                 Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                 HorizontalAlignment="Center" Margin="0,8,0,0"/>

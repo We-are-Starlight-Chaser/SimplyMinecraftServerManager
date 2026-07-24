@@ -9,21 +9,16 @@ using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.ViewModels.Dialogs;
 using SimplyMinecraftServerManager.Views.Pages;
-using System;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Controls;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions.Controls;
-using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
     /// <summary>
-    /// 下载页面的视图模型，管理服务端版本下载和插件搜索下载两大功能。
+    /// 下载页面的视图模型，管理服务端版本下载和插件/模组搜索下载两大功能。
     /// </summary>
     public partial class DownloadViewModel : ObservableObject, INavigationAware
     {
@@ -75,13 +70,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         #endregion
 
-        #region 插件搜索下载
+        #region 插件&模组搜索下载
 
-        /// <summary>插件搜索关键词。</summary>
+        /// <summary>插件/模组搜索关键词。</summary>
         [ObservableProperty]
         private string _pluginSearchQuery = "";
 
-        /// <summary>可选的目标实例列表（用于插件安装）。</summary>
+        /// <summary>可选的目标实例列表（用于插件/模组安装）。</summary>
         [ObservableProperty]
         private ObservableCollection<PluginTargetInstanceItem> _pluginTargetInstances = [];
 
@@ -93,55 +88,55 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private bool _hasSelectedPluginTarget = false;
 
-        /// <summary>插件搜索结果列表。</summary>
+        /// <summary>插件/模组搜索结果列表。</summary>
         [ObservableProperty]
         private ObservableCollection<PluginSearchResultCard> _pluginSearchResults = [];
 
-        /// <summary>指示是否正在搜索插件。</summary>
+        /// <summary>指示是否正在搜索插件/模组。</summary>
         [ObservableProperty]
         private bool _isSearchingPlugins = false;
 
-        /// <summary>指示是否正在加载更多插件。</summary>
+        /// <summary>指示是否正在加载更多插件/模组。</summary>
         [ObservableProperty]
         private bool _isLoadingMorePlugins = false;
 
-        /// <summary>指示是否正在加载插件版本列表。</summary>
+        /// <summary>指示是否正在加载插件/模组版本列表。</summary>
         [ObservableProperty]
         private bool _isLoadingPluginVersions = false;
 
-        /// <summary>插件版本加载状态消息。</summary>
+        /// <summary>插件/模组版本加载状态消息。</summary>
         [ObservableProperty]
         private string _pluginVersionLoadingMessage = "";
 
-        /// <summary>指示是否还有更多插件可加载。</summary>
+        /// <summary>指示是否还有更多插件/模组可加载。</summary>
         [ObservableProperty]
         private bool _hasMorePlugins = false;
 
-        /// <summary>插件搜索状态信息文本。</summary>
+        /// <summary>插件/模组搜索状态信息文本。</summary>
         [ObservableProperty]
         private string _pluginSearchStatus = "";
 
         /// <summary>插件搜索提示文本。</summary>
         [ObservableProperty]
-        private string _pluginTargetPrompt = "先选择目标实例，再按该实例的服务端类型和 Minecraft 版本搜索兼容插件。";
+        private string _pluginTargetPrompt = "先选择目标实例，再按该实例的服务端类型和 Minecraft 版本搜索兼容插件/模组。";
 
-        /// <summary>插件搜索上下文描述文本。</summary>
+        /// <summary>插件/模组搜索上下文描述文本。</summary>
         [ObservableProperty]
         private string _pluginSearchContextText = "未选择目标实例";
 
-        /// <summary>插件搜索请求 ID，用于防止并发搜索冲突。</summary>
+        /// <summary>插件/模组搜索请求 ID，用于防止并发搜索冲突。</summary>
         private int _pluginSearchRequestId = 0;
 
-        /// <summary>插件搜索的取消令牌源。</summary>
+        /// <summary>插件/模组搜索的取消令牌源。</summary>
         private CancellationTokenSource? _pluginSearchCancellationTokenSource;
 
-        /// <summary>所有插件搜索结果（用于分页加载）。</summary>
+        /// <summary>所有插件/模组搜索结果（用于分页加载）。</summary>
         private List<ModrinthProject> _allPluginResults = [];
 
-        /// <summary>已加载到界面的插件数量。</summary>
+        /// <summary>已加载到界面的插件/模组数量。</summary>
         private int _loadedPluginCount = 0;
 
-        /// <summary>每页加载的插件数量。</summary>
+        /// <summary>每页加载的插件/模组数量。</summary>
         private const int _pluginPageSize = 12;
 
         /// <summary>下次搜索的偏移量。</summary>
@@ -191,12 +186,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 导航到此页面时加载插件目标实例和服务器版本。
+        /// 导航到此页面时加载插件/模组目标实例和服务器版本。
         /// </summary>
         public async Task OnNavigatedToAsync()
         {
-            LoadPluginTargetInstances();
-            await LoadServerVersionsAsync();
+            await Task.WhenAll(LoadPluginTargetInstancesAsync(), LoadServerVersionsAsync());
         }
 
         /// <summary>
@@ -453,6 +447,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 ServerDownloadStatus = $"正在下载服务端: {card.LatestBuild.FileName}";
                 var res = await platform.DownloadAsync(card.LatestBuild, tempPath);
                 if (res.Status == DownloadStatus.Failed || res.Status == DownloadStatus.Cancelled || res.Status == DownloadStatus.Paused) throw new Exception("Download failed!");
+
+                // 后处理钩子 (NeoForge 需要运行 installer 生成 server.jar)
+                string instanceDir = System.IO.Path.Combine(PathHelper.Root, "instances", Guid.NewGuid().ToString());
+                System.IO.Directory.CreateDirectory(instanceDir);
+                ServerDownloadStatus = $"正在处理服务端文件...";
+                string finalJarPath = await platform.AfterDownloadAsync(tempPath, instanceDir);
                 ServerDownloadStatus = $"下载完成，准备创建实例...";
 
                 // 获取平台名称
@@ -478,7 +478,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                     async () =>
                     {
                         if (dialogViewModel != null && dialog != null)
-                            await CreateInstanceFromDownloadAsync(dialogViewModel, dialog, tempPath, platformName, card);
+                            await CreateInstanceFromDownloadAsync(dialogViewModel, dialog, finalJarPath, platformName, card);
                     },
                     () => { }
                 )
@@ -584,7 +584,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     try
                     {
-                        InstanceManager.DeleteInstance(instance.Id, deleteFiles: true);
+                        await Task.Run(() => InstanceManager.DeleteInstance(instance.Id, deleteFiles: true));
                     }
                     catch
                     {
@@ -636,7 +636,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             ServerPlatform.Folia,
             ServerPlatform.Purpur,
             ServerPlatform.Leaves,
-            ServerPlatform.Leaf
+            ServerPlatform.Leaf,
+            ServerPlatform.Fabric,
+            ServerPlatform.NeoForge
         ];
 
         private IServerProvider? GetSelectedServerPlatform()
@@ -660,6 +662,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 2 => ("Purpur", "Paper 下游，高度可配置，自定义实体行为/游戏机制，更丰富的玩法开关。", "#7B1FA2", "#9C27B0"), // 紫色
                 3 => ("Leaves", "Paper 下游，兼容 Fabric 协议 Mod，假人支持，轻量级生电向优化。", "#558B2F", "#7CB342"), // 浅绿
                 4 => ("Leaf", "Leaves/Gale 融合，多线程实体追踪，异步寻路，极致性能压榨方案。", "#0097A7", "#00BCD4"),     // 青色
+                5 => ("Fabric", "轻量级 Mod 加载器，Mixin 注入，社区增长最快，Mod 生态丰富。", "#E65100", "#FF8A65"),        // 橙色
+                6 => ("NeoForge", "Forge 活跃分叉，API 更干净，兼容主流 Forge Mod，持续更新中。", "#1565C0", "#64B5F6"),    // 蓝色
                 _ => ("Paper", "高性能 Fork，异步区块加载，优化红石/实体 AI，Bukkit/Spigot 插件兼容。", "#C9A227", "#E8C547")
             };
         }
@@ -675,7 +679,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         #endregion
 
-        #region 插件搜索下载方法
+        #region 插件/模组搜索下载方法
 
         /// <summary>
         /// 选中指定的目标实例。
@@ -710,13 +714,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             {
                 PluginSearchContextText = "未选择目标实例";
                 PluginSearchStatus = PluginTargetInstances.Count == 0
-                    ? "请先创建一个服务器实例，再到这里安装插件。"
+                    ? "请先创建一个服务器实例，再到这里安装插件/模组。"
                     : "请选择一个目标实例后开始搜索。";
                 return;
             }
 
             PluginSearchContextText = value.SearchContextText;
-            PluginSearchStatus = $"已选择 {value.Name}，现在会按 {value.ServerTypeDisplay} / {value.MinecraftVersionDisplay} 搜索兼容插件。";
+            PluginSearchStatus = $"已选择 {value.Name}，现在会按 {value.ServerTypeDisplay} / {value.MinecraftVersionDisplay} 搜索兼容插件/模组。";
 
             if (!string.IsNullOrWhiteSpace(PluginSearchQuery))
             {
@@ -729,7 +733,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 根据关键词和目标实例的兼容性筛选条件搜索 Modrinth 插件。
+        /// 根据关键词和目标实例的兼容性筛选条件搜索 Modrinth 插件/模组。
         /// </summary>
         [RelayCommand]
         private async Task SearchPluginsAsync()
@@ -742,7 +746,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             if (string.IsNullOrWhiteSpace(PluginSearchQuery))
             {
-                PluginSearchStatus = "请输入插件关键词。";
+                PluginSearchStatus = "请输入插件/模组关键词。";
                 return;
             }
 
@@ -760,16 +764,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             _pluginSearchOffset = 0;
             _pluginTotalHits = 0;
             HasMorePlugins = false;
-            PluginSearchStatus = $"正在搜索兼容 {targetInstance.Name} 的插件...";
+            PluginSearchStatus = $"正在搜索兼容 {targetInstance.Name} 的插件/模组...";
 
             try
             {
                 var modrinth = new ModrinthProvider();
+                var projectType = targetInstance.LoaderFilters.Any(l => l == "fabric" || l == "forge" || l == "neoforge" || l == "neoforged" || l == "quilt");
                 var result = await modrinth.SearchAsync(
                     query,
                     loaders: targetInstance.LoaderFilters,
                     gameVersions: targetInstance.VersionFilters,
-                    projectType: "plugin",
+                    projectType: projectType ? "mod" : "plugin",
                     limit: _pluginPageSize,
                     offset: _pluginSearchOffset,
                     ct: cancellationToken);
@@ -815,7 +820,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 加载下一页的插件搜索结果到界面列表。
+        /// 加载下一页的插件/模组搜索结果到界面列表。
         /// </summary>
         [RelayCommand]
         private async Task LoadMorePluginsAsync()
@@ -835,11 +840,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 if (_loadedPluginCount >= _allPluginResults.Count && _loadedPluginCount < _pluginTotalHits)
                 {
                     var modrinth = new ModrinthProvider();
+                    var isModLoader = targetInstance.LoaderFilters.Any(l => l == "fabric" || l == "forge" || l == "neoforge" || l == "neoforged" || l == "quilt");
                     var result = await modrinth.SearchAsync(
                         PluginSearchQuery.Trim(),
                         loaders: targetInstance.LoaderFilters,
                         gameVersions: targetInstance.VersionFilters,
-                        projectType: "plugin",
+                        projectType: isModLoader ? "mod" : "plugin",
                         limit: _pluginPageSize,
                         offset: _pluginSearchOffset,
                         ct: cancellationToken);
@@ -879,7 +885,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 取消当前的插件搜索操作。
+        /// 取消当前的插件/模组搜索操作。
         /// </summary>
         private void CancelPluginSearch()
         {
@@ -900,7 +906,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 将指定范围的插件搜索结果添加到界面列表。
+        /// 将指定范围的插件/模组搜索结果添加到界面列表。
         /// </summary>
         private async Task LoadPluginsPageAsync(int startIndex, int count, PluginTargetInstanceItem targetInstance)
         {
@@ -919,7 +925,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 安装指定插件到当前选中的目标实例。
+        /// 安装指定插件/模组到当前选中的目标实例。
         /// </summary>
         [RelayCommand]
         private async Task DownloadPluginAsync(PluginSearchResultCard? card)
@@ -952,7 +958,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 将指定插件另存为到本地文件系统。
+        /// 将指定插件/模组另存为到本地文件系统。
         /// </summary>
         [RelayCommand]
         private async Task SavePluginAsAsync(PluginSearchResultCard? card)
@@ -974,7 +980,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 {
                     FileName = selectedVersion.Version.PrimaryFile.FileName,
                     Filter = "JAR 文件 (*.jar)|*.jar|所有文件 (*.*)|*.*",
-                    Title = "保存插件文件"
+                    Title = "保存插件/模组文件"
                 };
 
                 if (saveDialog.ShowDialog() != true)
@@ -998,7 +1004,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 显示插件版本选择对话框，获取用户选择的版本。
+        /// 显示插件/模组版本选择对话框，获取用户选择的版本。
         /// </summary>
         private async Task<PluginVersionListItem?> ShowPluginVersionDialogAsync(
             ModrinthProject project,
@@ -1045,7 +1051,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 加载指定插件项目的所有兼容版本（按发布时间降序排列）。
+        /// 加载指定插件/模组项目的所有兼容版本（按发布时间降序排列）。
         /// </summary>
         private static async Task<List<ModrinthVersion>> LoadPluginVersionsAsync(ModrinthProject project, PluginTargetInstanceItem targetInstance)
         {
@@ -1072,7 +1078,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 创建插件安装下载任务并加入下载队列。
+        /// 创建插件/模组安装下载任务并加入下载队列。
         /// </summary>
         private static void QueuePluginInstall(ModrinthProject project, ModrinthVersion version, PluginTargetInstanceItem targetInstance)
         {
@@ -1103,7 +1109,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 创建插件下载保存任务并加入下载队列。
+        /// 创建插件/模组下载保存任务并加入下载队列。
         /// </summary>
         private static void QueuePluginSave(ModrinthProject project, ModrinthVersion version, string destinationPath)
         {
@@ -1175,7 +1181,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 获取插件下载的暂存路径。
+        /// 获取插件/模组下载的暂存路径。
         /// </summary>
         private static string GetPluginStagingPath(string instanceId, string fileName)
         {
@@ -1186,23 +1192,29 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 加载所有服务器实例作为插件安装的目标候选。
+        /// 加载所有服务器实例作为插件/模组安装的目标候选。
         /// </summary>
-        private void LoadPluginTargetInstances()
+        private async Task LoadPluginTargetInstancesAsync()
         {
             PluginTargetInstances.Clear();
 
-            var runningInstances = ServerProcessManager.GetRunningInstanceIds();
-            foreach (var instance in InstanceManager.GetAll().OrderBy(static instance => instance.Name, StringComparer.OrdinalIgnoreCase))
+            var (instances, runningIds) = await Task.Run(() =>
             {
-                var metadata = ServerJarMetadataReader.Read(instance);
-                PluginTargetInstances.Add(new PluginTargetInstanceItem(instance, metadata, runningInstances.Contains(instance.Id)));
+                var insts = InstanceManager.GetAll().OrderBy(static instance => instance.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                var running = ServerProcessManager.GetRunningInstanceIds();
+                return (insts, running);
+            });
+
+            foreach (var instance in instances)
+            {
+                var metadata = await Task.Run(() => ServerJarMetadataReader.Read(instance));
+                PluginTargetInstances.Add(new PluginTargetInstanceItem(instance, metadata, runningIds.Contains(instance.Id)));
             }
 
             SelectedPluginTargetInstance = null;
             PluginSearchContextText = "未选择目标实例";
             PluginSearchStatus = PluginTargetInstances.Count == 0
-                ? "请先创建一个服务器实例，再到这里安装插件。"
+                ? "请先创建一个服务器实例，再到这里安装插件/模组。"
                 : "请选择一个目标实例后开始搜索。";
         }
 
@@ -1246,11 +1258,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     }
 
     /// <summary>
-    /// 插件安装的目标实例项，包含实例信息和兼容性筛选条件。
+    /// 插件/模组安装的目标实例项，包含实例信息和兼容性筛选条件。
     /// </summary>
     public sealed class PluginTargetInstanceItem
     {
-        /// <summary>默认的插件加载器列表。</summary>
+        /// <summary>默认的插件/模组加载器列表。</summary>
         private static readonly IReadOnlyList<string> DefaultPluginLoaders = ["paper", "purpur", "folia", "spigot", "bukkit"];
 
         /// <summary>
@@ -1275,7 +1287,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             SearchContextText = $"目标实例：{Name} · {ServerTypeDisplay} · {MinecraftVersionDisplay}";
             CompatibilityHint = LoaderFilters.Count == 0
                 ? "将使用通用 Bukkit / Paper 兼容范围搜索。"
-                : $"将按 {string.Join(" / ", LoaderFilters)} 搜索兼容插件。";
+                : $"将按 {string.Join(" / ", LoaderFilters)} 搜索兼容插件/模组。";
         }
 
         /// <summary>实例唯一标识符。</summary>
@@ -1293,7 +1305,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>Minecraft 版本的显示文本。</summary>
         public string MinecraftVersionDisplay { get; }
 
-        /// <summary>插件加载器兼容性筛选条件。</summary>
+        /// <summary>插件/模组加载器兼容性筛选条件。</summary>
         public IReadOnlyList<string> LoaderFilters { get; }
 
         /// <summary>游戏版本兼容性筛选条件。</summary>
@@ -1315,7 +1327,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public string Initial => string.IsNullOrWhiteSpace(Name) ? "S" : Name[..1].ToUpperInvariant();
 
         /// <summary>
-        /// 根据服务端类型构建对应的插件加载器兼容列表。
+        /// 根据服务端类型构建对应的插件/模组加载器兼容列表。
         /// </summary>
         private static IReadOnlyList<string> BuildLoaderFilters(string? serverType)
         {
@@ -1334,13 +1346,17 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 "pufferfish" => ["paper", "spigot", "bukkit"],
                 "spigot" => ["spigot", "bukkit"],
                 "bukkit" => ["bukkit"],
+                "fabric" => ["fabric"],
+                "forge" => ["forge"],
+                "neoforge" or "neoforged" => ["neoforge"],
+                "quilt" => ["quilt"],
                 _ => [serverType.ToLowerInvariant()]
             };
         }
     }
 
     /// <summary>
-    /// 插件搜索结果卡片，封装 Modrinth 项目在搜索列表中的显示数据。
+    /// 插件/模组搜索结果卡片，封装 Modrinth 项目在搜索列表中的显示数据。
     /// </summary>
     public sealed class PluginSearchResultCard
     {
@@ -1414,7 +1430,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public string ClientSideText { get; }
 
         /// <summary>
-        /// 构建插件与目标实例的兼容性描述文本。
+        /// 构建插件/模组与目标实例的兼容性描述文本。
         /// </summary>
         private static string BuildCompatibilityText(ModrinthProject project, PluginTargetInstanceItem targetInstance)
         {

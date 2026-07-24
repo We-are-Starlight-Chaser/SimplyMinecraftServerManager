@@ -9,15 +9,25 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 /// <summary>
 /// IServerService 实现，桥接到 ServerProcessManager 和 ServerProcess。
 /// 所有方法在执行前检查扩展是否拥有 ServerControl 能力。
+/// 并通过 ProcessGuard 采样检测禁止的进程创建。
 /// </summary>
-internal sealed class ServerServiceImpl(CapabilityGuard? guard = null) : IServerService
+internal sealed class ServerServiceImpl(
+    CapabilityGuard? guard = null,
+    ProcessGuard? processGuard = null,
+    HandleMonitor? handleMonitor = null) : IServerService
 {
     private readonly CapabilityGuard? _guard = guard;
+    private readonly ProcessGuard? _processGuard = processGuard;
+    private readonly HandleMonitor? _handleMonitor = handleMonitor;
+    private int _callCounter;
 
     public Task StartAsync(string instanceId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(instanceId);
-        _guard?.Ensure(ExtensionCapability.ServerControl, "StartAsync");
+        _guard?.Ensure(ExtensionCapability.ServerControl);
+
+        // ProcessGuard 采样检测
+        DetectProcessCreation();
 
         if (ServerProcessManager.IsRunning(instanceId))
         {
@@ -30,17 +40,29 @@ internal sealed class ServerServiceImpl(CapabilityGuard? guard = null) : IServer
         var process = new ServerProcess(instanceId);
         ServerProcessManager.Register(instanceId, process);
 
+        // 跟踪进程句柄
+        if (process.ProcessId.HasValue)
+        {
+            _handleMonitor?.TrackProcessHandle(process.ProcessId.Value, $"MinecraftServer-{instanceId}");
+        }
+
         return process.StartAsync(cancellationToken);
     }
 
     public Task StopAsync(string instanceId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(instanceId);
-        _guard?.Ensure(ExtensionCapability.ServerControl, "StopAsync");
+        _guard?.Ensure(ExtensionCapability.ServerControl);
 
         if (!ServerProcessManager.IsRunning(instanceId))
         {
             return Task.CompletedTask;
+        }
+
+        var process = ServerProcessManager.GetProcess(instanceId);
+        if (process?.ProcessId.HasValue == true)
+        {
+            _handleMonitor?.UntrackProcessHandle(process.ProcessId.Value);
         }
 
         ServerProcessManager.StopAndRemove(instanceId);
@@ -50,11 +72,17 @@ internal sealed class ServerServiceImpl(CapabilityGuard? guard = null) : IServer
     public Task KillAsync(string instanceId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(instanceId);
-        _guard?.Ensure(ExtensionCapability.ServerControl, "KillAsync");
+        _guard?.Ensure(ExtensionCapability.ServerControl);
 
         if (!ServerProcessManager.IsRunning(instanceId))
         {
             return Task.CompletedTask;
+        }
+
+        var process = ServerProcessManager.GetProcess(instanceId);
+        if (process?.ProcessId.HasValue == true)
+        {
+            _handleMonitor?.UntrackProcessHandle(process.ProcessId.Value);
         }
 
         ServerProcessManager.KillAndRemove(instanceId);
@@ -65,7 +93,7 @@ internal sealed class ServerServiceImpl(CapabilityGuard? guard = null) : IServer
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(instanceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
-        _guard?.Ensure(ExtensionCapability.ServerControl, "SendCommandAsync");
+        _guard?.Ensure(ExtensionCapability.ServerControl);
 
         var process = ServerProcessManager.GetProcess(instanceId)
             ?? throw new InvalidOperationException($"实例 '{instanceId}' 未运行");
@@ -78,7 +106,7 @@ internal sealed class ServerServiceImpl(CapabilityGuard? guard = null) : IServer
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(instanceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
-        _guard?.Ensure(ExtensionCapability.ServerControl, "SendRconCommandAsync");
+        _guard?.Ensure(ExtensionCapability.ServerControl);
 
         var process = ServerProcessManager.GetProcess(instanceId)
             ?? throw new InvalidOperationException($"实例 '{instanceId}' 未运行");
@@ -89,7 +117,7 @@ internal sealed class ServerServiceImpl(CapabilityGuard? guard = null) : IServer
     public ServerStateInfo? GetState(string instanceId)
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(instanceId);
-        _guard?.Ensure(ExtensionCapability.ServerControl, "GetState");
+        _guard?.Ensure(ExtensionCapability.ServerControl);
 
         var process = ServerProcessManager.GetProcess(instanceId);
         if (process is null) return null;
@@ -105,10 +133,35 @@ internal sealed class ServerServiceImpl(CapabilityGuard? guard = null) : IServer
 
     public IReadOnlyList<string> GetConsoleLog(string instanceId, int maxLines = 200)
     {
-        _guard?.Ensure(ExtensionCapability.ServerControl, "GetConsoleLog");
+        _guard?.Ensure(ExtensionCapability.ServerControl);
 
         // ServerProcess 不直接暴露历史日志，返回空列表
         // 扩展应通过 EventBus 订阅 OutputReceived 事件获取实时日志
         return [];
+    }
+
+    /// <summary>
+    /// ProcessGuard 采样检测。
+    /// </summary>
+    private void DetectProcessCreation()
+    {
+        if (_processGuard is null) return;
+
+#if DEBUG
+        // DEBUG 模式：每次都检测
+        if (!_processGuard.CanCreateProcess())
+        {
+            // ProcessGuard 记录违规
+        }
+#else
+        int count = Interlocked.Increment(ref _callCounter);
+        if ((count & 63) == 0)
+        {
+            if (!_processGuard.CanCreateProcess())
+            {
+                // ProcessGuard 记录违规
+            }
+        }
+#endif
     }
 }

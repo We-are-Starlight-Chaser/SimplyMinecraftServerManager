@@ -31,10 +31,10 @@ public enum TriggerType
     /// <summary>玩家离开服务器时触发</summary>
     PlayerLeft = 1 << 5,
 
-    /// <summary>插件安装时触发</summary>
+    /// <summary>插件/模组安装时触发</summary>
     PluginInstalled = 1 << 6,
 
-    /// <summary>插件卸载时触发</summary>
+    /// <summary>插件/模组卸载时触发</summary>
     PluginUninstalled = 1 << 7,
 
     /// <summary>配置文件变更时触发</summary>

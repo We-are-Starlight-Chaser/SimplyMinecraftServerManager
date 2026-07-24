@@ -12,12 +12,12 @@ namespace SimplyMinecraftServerManager.Internals.Extensions;
 internal sealed class CapabilityGuard(ExtensionCapability granted)
 {
     /// <summary>检查扩展是否拥有所需能力，否则抛出 UnauthorizedAccessException</summary>
-    public void Ensure(ExtensionCapability required, string operation)
+    public void Ensure(ExtensionCapability required)
     {
         if (!granted.HasFlag(required))
         {
             throw new UnauthorizedAccessException(
-                $"扩展未声明能力 '{required}'，无法执行操作: {operation}");
+                $"扩展未声明所需能力 '{required}'，无法执行此操作。请在 [Extension] 特性中声明该能力。");
         }
     }
 

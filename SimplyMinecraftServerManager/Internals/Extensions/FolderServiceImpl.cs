@@ -2,18 +2,32 @@
 // Licensed under the MIT License.
 
 using System.IO;
+using System.Threading;
 using SimplyMinecraftServerManager.Extension.Interfaces;
 using SimplyMinecraftServerManager.Extension.Models;
 
 namespace SimplyMinecraftServerManager.Internals.Extensions;
 
 /// <summary>
-/// IFolderService 实现。所有目录操作经过 FileAccessGuard 校验。
+/// IFolderService 实现。所有目录操作经过 FileAccessGuard 校验，
+/// 并通过 ReflectionGuard、SerializationGuard 采样检测禁止的调用。
 /// </summary>
-internal sealed class FolderServiceImpl(FileAccessGuard guard, ILogger logger) : IFolderService
+internal sealed class FolderServiceImpl(
+    FileAccessGuard guard,
+    ILogger logger,
+    string? extensionId = null,
+    ReflectionGuard? reflectionGuard = null,
+    SerializationGuard? serializationGuard = null) : IFolderService
 {
+    private readonly string? _extensionId = extensionId;
+    private readonly ReflectionGuard? _reflectionGuard = reflectionGuard;
+    private readonly SerializationGuard? _serializationGuard = serializationGuard;
+    private int _callCounter;
+
     public Task<DirectoryListResult> ListAsync(string scopeId, string relativePath, CancellationToken ct = default)
     {
+        DetectSecurityViolations();
+
         string? path = guard.Validate(scopeId, relativePath, FileAccessLevel.Read);
         if (path is null)
         {
@@ -48,6 +62,8 @@ internal sealed class FolderServiceImpl(FileAccessGuard guard, ILogger logger) :
 
     public Task<FileOperationResult> CreateAsync(string scopeId, string relativePath, CancellationToken ct = default)
     {
+        DetectSecurityViolations();
+
         string? path = guard.Validate(scopeId, relativePath, FileAccessLevel.Write);
         if (path is null)
         {
@@ -68,6 +84,8 @@ internal sealed class FolderServiceImpl(FileAccessGuard guard, ILogger logger) :
 
     public Task<FileOperationResult> DeleteAsync(string scopeId, string relativePath, CancellationToken ct = default)
     {
+        DetectSecurityViolations();
+
         string? path = guard.Validate(scopeId, relativePath, FileAccessLevel.Delete);
         if (path is null)
         {
@@ -97,6 +115,8 @@ internal sealed class FolderServiceImpl(FileAccessGuard guard, ILogger logger) :
 
     public Task<FileOperationResult> MoveAsync(string scopeId, string sourcePath, string destPath, CancellationToken ct = default)
     {
+        DetectSecurityViolations();
+
         string? resolvedSource = guard.Validate(scopeId, sourcePath, FileAccessLevel.Read);
         string? resolvedDest = guard.Validate(scopeId, destPath, FileAccessLevel.Write);
 
@@ -119,6 +139,8 @@ internal sealed class FolderServiceImpl(FileAccessGuard guard, ILogger logger) :
 
     public Task<bool> ExistsAsync(string scopeId, string relativePath, CancellationToken ct = default)
     {
+        DetectSecurityViolations();
+
         string? path = guard.Validate(scopeId, relativePath, FileAccessLevel.Read);
         if (path is null)
         {
@@ -130,6 +152,8 @@ internal sealed class FolderServiceImpl(FileAccessGuard guard, ILogger logger) :
 
     public Task<long> GetSizeAsync(string scopeId, string relativePath, CancellationToken ct = default)
     {
+        DetectSecurityViolations();
+
         string? path = guard.Validate(scopeId, relativePath, FileAccessLevel.Read);
         if (path is null)
         {
@@ -156,6 +180,37 @@ internal sealed class FolderServiceImpl(FileAccessGuard guard, ILogger logger) :
         {
             logger.Error($"计算目录大小失败: {path}", ex);
             return Task.FromResult(0L);
+        }
+    }
+
+    /// <summary>
+    /// 统一安全检测入口：ReflectionGuard + SerializationGuard 采样检测。
+    /// </summary>
+    private void DetectSecurityViolations()
+    {
+        if (string.IsNullOrEmpty(_extensionId)) return;
+
+#if DEBUG
+        PerformDetection();
+#else
+        int count = Interlocked.Increment(ref _callCounter);
+        if ((count & 63) == 0)
+        {
+            PerformDetection();
+        }
+#endif
+    }
+
+    private void PerformDetection()
+    {
+        if (SecuritySampler.ShouldBlockReflection(_extensionId!, _reflectionGuard, null))
+        {
+            logger.Warn($"[{_extensionId}] 检测到可疑反射调用");
+        }
+
+        if (SecuritySampler.ShouldBlockSerialization(_extensionId!, _serializationGuard, null))
+        {
+            logger.Warn($"[{_extensionId}] 检测到可疑序列化调用");
         }
     }
 }

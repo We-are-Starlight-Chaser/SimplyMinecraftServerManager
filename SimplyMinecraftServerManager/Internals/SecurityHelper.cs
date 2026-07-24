@@ -161,13 +161,13 @@ namespace SimplyMinecraftServerManager.Internals
             return fullPath;
         }
 
-        [GeneratedRegex(@"^[a-zA-Z0-9_\-\.]+$", RegexOptions.Compiled)]
+        [GeneratedRegex(@"^[a-zA-Z0-9_\-\.]+$")]
         private static partial Regex SafePath();
-        [GeneratedRegex(@"^[a-zA-Z0-9_\-\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af ]{1,64}$", RegexOptions.Compiled)]
+        [GeneratedRegex(@"^[a-zA-Z0-9_\-\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af ]{1,64}$")]
         private static partial Regex ValidInstanceName();
         [GeneratedRegex(@"[^a-zA-Z0-9_\-\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af ]")]
         private static partial Regex SanitizeInstanceName();
-        [GeneratedRegex(@"^[a-zA-Z0-9_]{3,16}$", RegexOptions.Compiled)]
+        [GeneratedRegex(@"^[a-zA-Z0-9_]{3,16}$")]
         private static partial Regex ValidPlayerNameRegex();
         [GeneratedRegex(@"[^a-zA-Z0-9_]")]
         private static partial Regex SanitizePlayerNameRegex();

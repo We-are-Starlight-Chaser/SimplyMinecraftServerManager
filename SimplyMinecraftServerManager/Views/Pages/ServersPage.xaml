@@ -95,11 +95,8 @@
                                         <Style TargetType="Border">
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                    <Setter Property="Effect">
-                                                        <Setter.Value>
-                                                            <DropShadowEffect Color="#4CAF50" BlurRadius="8" ShadowDepth="0" Opacity="0.6"/>
-                                                        </Setter.Value>
-                                                    </Setter>
+                                                    <Setter Property="BorderBrush" Value="#4CAF50"/>
+                                                    <Setter Property="BorderThickness" Value="2"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>

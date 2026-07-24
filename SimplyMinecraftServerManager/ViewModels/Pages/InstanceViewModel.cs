@@ -4,15 +4,19 @@
 using Microsoft.Win32;
 using SharpCompress.Common;
 using SharpCompress.Writers.Tar;
+using SimplyMinecraftServerManager.Extension.Interfaces;
 using SimplyMinecraftServerManager.Helpers;
 using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Internals.Downloads.JDK;
 using SimplyMinecraftServerManager.Models;
 using SimplyMinecraftServerManager.Services;
 using SimplyMinecraftServerManager.Views.Pages;
+using System.Buffers;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Windows.Controls;
@@ -25,7 +29,7 @@ using ZstdNet;
 namespace SimplyMinecraftServerManager.ViewModels.Pages
 {
     /// <summary>
-    /// 服务器实例详情页面的视图模型，管理实例的启动/停止、控制台、插件、配置、玩家管理和仪表盘等功能。
+    /// 服务器实例详情页面的视图模型，管理实例的启动/停止、控制台、插件/模组、配置、玩家管理和仪表盘等功能。
     /// </summary>
     public partial class InstanceViewModel : ObservableObject, INavigationAware, IDisposable
     {
@@ -34,20 +38,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
         /// <summary>内容对话框服务。</summary>
         private readonly IContentDialogService _contentDialogService;
-
-        /// <summary>导航服务。</summary>
         private readonly INavigationService _navigationService;
-
-        /// <summary>导航参数服务。</summary>
         private readonly NavigationParameterService _navigationParameterService;
-
-        /// <summary>性能监控器，用于采集 CPU 和内存使用数据。</summary>
+        private readonly AppNotificationService _notificationService;
         private PerformanceMonitor? _performanceMonitor;
-
-        /// <summary>玩家刷新操作的信号量，防止并发刷新。</summary>
         private readonly SemaphoreSlim _playerRefreshLock = new(1, 1);
-
-        /// <summary>控制台输出操作的锁对象。</summary>
         private readonly Lock _consoleLock = new();
 
 
@@ -72,6 +67,40 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>服务端类型（如 Paper、Purpur）。</summary>
         [ObservableProperty]
         public partial string ServerType { get; set; } = "";
+
+        /// <summary>是否为模组服务端（Fabric/Forge/NeoForge/Quilt）。</summary>
+        public bool IsModServer => ServerType.Equals("fabric", StringComparison.OrdinalIgnoreCase)
+            || ServerType.Equals("forge", StringComparison.OrdinalIgnoreCase)
+            || ServerType.Equals("neoforge", StringComparison.OrdinalIgnoreCase)
+            || ServerType.Equals("neoforged", StringComparison.OrdinalIgnoreCase)
+            || ServerType.Equals("quilt", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>插件/模组管理标签页标题。</summary>
+        public string PluginModTabHeader => IsModServer ? "模组管理" : "插件管理";
+
+        /// <summary>MOD服必须备份的目录和文件清单。</summary>
+        private static readonly string[] ModServerMustBackup = [
+            "mods",
+            "config",
+            "server.properties",
+            "eula.txt",
+            "ops.json",
+            "whitelist.json",
+            "banned-players.json",
+            "banned-ips.json",
+        ];
+
+        /// <summary>插件服必须备份的目录和文件清单。</summary>
+        private static readonly string[] PluginServerMustBackup = [
+            "plugins",
+            "config",
+            "server.properties",
+            "eula.txt",
+            "ops.json",
+            "whitelist.json",
+            "banned-players.json",
+            "banned-ips.json",
+        ];
 
         /// <summary>Minecraft 版本号。</summary>
         [ObservableProperty]
@@ -111,6 +140,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public event EventHandler<string>? ConsoleLineAdded;
         public event EventHandler? ConsoleCleared;
 
+        /// <summary>页面导航进入时触发的事件，用于重置滚动位置等 UI 状态。</summary>
+        public event EventHandler? NavigatedTo;
+
         /// <summary>控制台最大行数。</summary>
         public static int MaxConsoleLines => 1000;
 
@@ -118,9 +150,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         public partial string CommandInput { get; set; } = "";
 
-        /// <summary>插件列表。</summary>
+        /// <summary>插件/模组列表。</summary>
         [ObservableProperty]
-        public partial ObservableCollection<PluginDisplayItem> Plugins { get; set; } = [];
+        [NotifyPropertyChangedFor(nameof(PluginModsCount))]
+        public partial ObservableCollection<PluginModDisplayItem> PluginMods { get; set; } = [];
+        public int PluginModsCount => PluginMods.Count;
 
         /// <summary>服务器属性（server.properties）列表。</summary>
         [ObservableProperty]
@@ -163,7 +197,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         public partial InstalledJdk? SelectedInstalledJdk { get; set; }
 
-        // 性能监控属性 - 保留原有的性能监控属性
         /// <summary>CPU 使用率百分比。</summary>
         [ObservableProperty]
         public partial double CpuUsage { get; set; } = 0;
@@ -269,7 +302,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>定时任务命令列表。</summary>
         private string _scheduledCommands = "";
 
-        private static readonly MemoryCache<List<OpEntry>> _opsCache = new(TimeSpan.FromSeconds(5), 50);
+        private static readonly MemoryCache<List<OpEntry>> _opsCache = new(TimeSpan.FromSeconds(60), 50);
+        private Dictionary<string, string>? _cachedServerProps;
+        private string? _cachedServerPropsInstanceId;
 
         /// <summary>
         /// 初始化实例详情视图模型。
@@ -280,17 +315,41 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         public InstanceViewModel(
             IContentDialogService contentDialogService,
             INavigationService navigationService,
-            NavigationParameterService navigationParameterService)
+            NavigationParameterService navigationParameterService,
+            AppNotificationService notificationService)
         {
             _contentDialogService = contentDialogService;
             _navigationService = navigationService;
             _navigationParameterService = navigationParameterService;
+            _notificationService = notificationService;
             LoadConsolePreferences();
+            PluginMods.CollectionChanged += OnPluginModsCollectionChanged;
             OnlinePlayers.CollectionChanged += OnOnlinePlayersCollectionChanged;
             AdminPlayers.CollectionChanged += OnAdminPlayersCollectionChanged;
 
             // 订阅全局状态变化事件
             ServerProcessManager.InstanceStatusChanged += OnInstanceStatusChanged;
+        }
+
+        /// <summary>
+        /// 在资源管理器中打开备份文件夹
+        /// </summary>
+        [RelayCommand]
+        private void OpenBackupsFolder()
+        {
+            if (string.IsNullOrWhiteSpace(InstanceId))
+            {
+                return;
+            }
+
+            try
+            {
+                OpenFolder(PathHelper.GetBackupsDir(InstanceId), "备份目录不存在");
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"打开备份目录失败: {ex.Message}";
+            }
         }
 
         /// <summary>
@@ -332,113 +391,340 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 await oldCts.CancelAsync();
                 oldCts.Dispose();
             }
+
             var currentCts = _backupCts!;
             var token = currentCts.Token;
+            bool saveOffExecuted = false;
+
             try
             {
-                if (ServerProcessManager.IsRunning(InstanceId) )
+                BackupProgress = 0;
+
+                if (ServerProcessManager.IsRunning(InstanceId))
                 {
-                    await ExecutePlayerRconCommandAsync("save-off");
-                    await ExecutePlayerRconCommandAsync("save-all flush");
-                    await Task.Delay(2500, token);
+                    try
+                    {
+                        await ExecutePlayerRconCommandAsync("save-off");
+                        saveOffExecuted = true;
+                        await ExecutePlayerRconCommandAsync("save-all flush");
+                        await Task.Delay(2500, token);
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        var res = await _contentDialogService.ShowAsync(new ContentDialog()
+                        {
+                            Title = "SMSM",
+                            Content = $"无法强制保存服务器文件！\n{ex.Message}\n\n您是否要继续？（可能会损坏存档）",
+                            PrimaryButtonAppearance = ControlAppearance.Danger,
+                            PrimaryButtonText = "继续备份",
+                            CloseButtonText = "取消",
+                            CloseButtonAppearance = ControlAppearance.Secondary,
+                        }, token);
+
+                        if (res != ContentDialogResult.Primary) return;
+                    }
                 }
-            }
-            catch{
-                var res = await _contentDialogService.ShowAsync(new ContentDialog()
-                {
-                    Title = "SMSM",
-                    Content = "无法强制保存服务器文件！您是否要继续？（可能会损坏文件）",
-                    PrimaryButtonAppearance = ControlAppearance.Danger,
-                    PrimaryButtonText = "确定",
-                    CloseButtonText = "取消",
-                   CloseButtonAppearance = ControlAppearance.Secondary,
-                   
-                }, CancellationToken.None);
-                if (res != ContentDialogResult.Primary) {
-                    return;
-                }
-            }
-            BackupProgress = 0;
- 
-            string path = PathHelper.GetInstanceDir(InstanceId);
-            string destPath = Path.Combine(PathHelper.Root, "backups");
-            if (!Directory.Exists(destPath)) Directory.CreateDirectory(destPath);
-            try
-            {
-                await CreateTarZstdWithProgress(path, Path.Combine(destPath,$"{InstanceId}_{DateTimeOffset.Now:yyyy_MM_dd_HH_mm}.zst"),token);
+
+                string serverRoot = PathHelper.GetInstanceDir(InstanceId);
+                string destDir = PathHelper.GetBackupsDir(InstanceId);
+                if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
+
+                string backupFile = Path.Combine(destDir, $"{DateTimeOffset.Now:yyyy_MM_dd_HH_mm_ss}.tar.zst");
+
+                await CreateTarZstdWithProgress(serverRoot, backupFile, token);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
-                await _contentDialogService.ShowAsync(new ContentDialog()
-                {
-                    Title = "SMSM",
-                    Content = "备份操作已取消！",
-                    CloseButtonAppearance = ControlAppearance.Primary,
-                    CloseButtonText = "确定"
-                }, CancellationToken.None);
+                _notificationService.ShowInfo("备份", "备份操作已取消");
             }
-            catch
+            catch (Exception ex)
             {
-                await _contentDialogService.ShowAsync(new ContentDialog()
-                {
-                    Title = "SMSM",
-                    Content = "备份出现异常！",
-                    CloseButtonAppearance = ControlAppearance.Primary,
-                    CloseButtonText = "确定"
-                }, CancellationToken.None);
-                
+                Debug.WriteLine($"[Backup] 备份失败: {ex}");
+                _notificationService.ShowDanger("备份", $"备份出现异常: {ex.Message}");
             }
             finally
             {
-                BackupProgress = 100;
-                if (ServerProcessManager.IsRunning(InstanceId))
-                    await ExecutePlayerRconCommandAsync("save-on");
-                if (Interlocked.CompareExchange(ref _backupCts, null, currentCts) == currentCts)
+                if (saveOffExecuted && ServerProcessManager.IsRunning(InstanceId))
                 {
-                    currentCts.Dispose();
+                    try
+                    {
+                        await ExecutePlayerRconCommandAsync("save-on");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[Backup] 恢复 save-on 失败: {ex.Message}");
+                        _notificationService.ShowDanger("备份", "⚠️ 恢复 save-on 失败，请手动执行！");
+                    }
                 }
+
+                // ✅ 仅在非取消状态下报告成功
+                if (!token.IsCancellationRequested)
+                {
+                    BackupProgress = 100;
+                    _notificationService.ShowSuccess("备份", "备份已完成");
+                }
+
+                // ✅ 安全释放 CTS
+                if (Interlocked.CompareExchange(ref _backupCts, null, currentCts) == currentCts)
+                    currentCts.Dispose();
             }
         }
-        /// <summary>
-        /// 创建带进度回调的 Zstandard 压缩 tar 归档文件。
-        /// </summary>
-        public async Task CreateTarZstdWithProgress(string sourceFolder, string outputFilePath, CancellationToken cancellationToken)
+
+        public async Task CreateTarZstdWithProgress(string serverRoot, string outputFilePath, CancellationToken cancellationToken)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath)!);
 
-            long totalSize = 0;
-            var fileEntries = new List<(string Path, string Relative, long Length)>();
-            var srcDir = new DirectoryInfo(sourceFolder);
-            foreach (var fi in srcDir.EnumerateFiles("*", SearchOption.AllDirectories))
+            var (Directories, Files) = CollectBackupTargets(serverRoot);
+            if (Directories.Count == 0 && Files.Count == 0)
             {
-                var fp = fi.FullName;
-                if (fp.Contains("\\logs\\") || fp.EndsWith(".log", StringComparison.OrdinalIgnoreCase)|| fp.EndsWith("session.lock", StringComparison.OrdinalIgnoreCase)|| fp.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)|| fp.EndsWith(".pid", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                totalSize += fi.Length;
-                fileEntries.Add((fp, Path.GetRelativePath(sourceFolder, fp).Replace('\\', '/'), fi.Length));
+                Debug.WriteLine("[Backup] ⚠️ 未找到任何需要备份的内容");
+                return;
             }
 
-            long processedSize = 0;
+            long totalSize = 0;
+            var fileEntries = new List<(string Path, string Relative, long Length)>();
 
-            using var fileStream = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan | FileOptions.Asynchronous);
+            foreach (var dir in Directories)
+            {
+                if (!Directory.Exists(dir)) continue;
+                var srcDir = new DirectoryInfo(dir);
+                string relativeBase = Path.GetRelativePath(serverRoot, dir).Replace('\\', '/');
+
+                foreach (var fi in srcDir.EnumerateFiles("*", SearchOption.AllDirectories))
+                {
+                    ReadOnlySpan<char> fullPath = fi.FullName.AsSpan();
+                    ReadOnlySpan<char> name = fi.Name.AsSpan();
+
+                    if (fullPath.Contains("\\logs\\", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".log", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith("session.lock", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".pid", StringComparison.OrdinalIgnoreCase) ||
+                        name.StartsWith("~$", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".lock", StringComparison.OrdinalIgnoreCase) ||
+                        name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) ||
+                        name.Equals("thumbs.db", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (fi.Length == 0) continue;
+
+                    totalSize += fi.Length;
+                    string relPath = $"{relativeBase}/{Path.GetRelativePath(dir, fi.FullName).Replace('\\', '/')}";
+                    fileEntries.Add((fi.FullName, relPath, fi.Length));
+                }
+            }
+
+            // 单独添加的根级文件
+            foreach (var filePath in Files)
+            {
+                if (!File.Exists(filePath)) continue;
+                var fi = new FileInfo(filePath);
+                if (fi.Length == 0) continue;
+
+                totalSize += fi.Length;
+                string relPath = Path.GetRelativePath(serverRoot, filePath).Replace('\\', '/');
+                fileEntries.Add((filePath, relPath, fi.Length));
+            }
+
+            if (fileEntries.Count == 0) return;
+
+            // ✅ 3. Channel 流水线备份（与之前相同的高性能管线）
+            long processedSize = 0;
+            const int ioBufferSize = 81920;
+            const int maxOpenRetries = 3;
+            const int retryBaseDelayMs = 100;
+
+            int concurrency = Math.Min(Environment.ProcessorCount * 2, 16);
+            var channel = System.Threading.Channels.Channel.CreateBounded<(string Relative, byte[] Data, long Size)>(
+                new System.Threading.Channels.BoundedChannelOptions(concurrency)
+                {
+                    FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait,
+                    SingleReader = true,
+                    SingleWriter = false
+                });
+
+            var producerTask = Task.Run(async () =>
+            {
+                try
+                {
+                    foreach (var (filePath, relativePath, fileSize) in fileEntries)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        FileStream? fs = null;
+                        for (int attempt = 0; attempt <= maxOpenRetries; attempt++)
+                        {
+                            try
+                            {
+                                fs = new FileStream(filePath, FileMode.Open, FileAccess.Read,
+                                    FileShare.ReadWrite | FileShare.Delete,
+                                    ioBufferSize, FileOptions.SequentialScan);
+                                break;
+                            }
+                            catch (IOException) when (attempt < maxOpenRetries)
+                            {
+                                await Task.Delay(retryBaseDelayMs * (attempt + 1), cancellationToken);
+                            }
+                            catch (UnauthorizedAccessException) when (attempt < maxOpenRetries)
+                            {
+                                await Task.Delay(retryBaseDelayMs * (attempt + 1), cancellationToken);
+                            }
+                        }
+
+                        if (fs is null)
+                        {
+                            Debug.WriteLine($"[Backup] ⚠️ 跳过无法打开的文件: {relativePath}");
+                            Interlocked.Add(ref processedSize, fileSize);
+                            continue;
+                        }
+
+                        await using (fs)
+                        {
+                            var buffer = new byte[fileSize];
+                            int bytesRead = 0;
+                            while (bytesRead < fileSize)
+                            {
+                                int read = await fs.ReadAsync(buffer.AsMemory(bytesRead), cancellationToken);
+                                if (read == 0) break;
+                                bytesRead += read;
+                            }
+                            await channel.Writer.WriteAsync((relativePath, buffer, fileSize), cancellationToken);
+                        }
+                    }
+                }
+                finally
+                {
+                    channel.Writer.Complete();
+                }
+            }, cancellationToken);
+
+            using var fileStream = new FileStream(
+                outputFilePath, FileMode.Create, FileAccess.Write,
+                FileShare.None, ioBufferSize,
+                FileOptions.SequentialScan | FileOptions.Asynchronous);
+
             using var zstdStream = new CompressionStream(fileStream, new CompressionOptions(3));
+
             var writerOptions = new TarWriterOptions(CompressionType.None)
             {
                 ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 },
             };
 
             using var tarWriter = new TarWriter(zstdStream, writerOptions);
-            foreach (var (filePath, relativePath, currentFileSize) in fileEntries)
+
+            await foreach (var entry in channel.Reader.ReadAllAsync(cancellationToken))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await using var fileInput = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 81920, FileOptions.SequentialScan);
-                using var progressStream = new ProgressStream(fileInput, currentFileSize, bytesRead =>
-                { 
+                using var dataStream = new MemoryStream(entry.Data, writable: false);
+                using var progressStream = new ProgressStream(dataStream, entry.Size, bytesRead =>
+                {
                     long newTotal = Interlocked.Add(ref processedSize, bytesRead);
                     BackupProgress = Math.Min(100.0, (double)newTotal / totalSize * 100);
                 });
-                await tarWriter.WriteAsync(relativePath, progressStream, DateTimeOffset.UtcNow.UtcDateTime, cancellationToken: cancellationToken);
+
+                await tarWriter.WriteAsync(
+                    entry.Relative, progressStream,
+                    DateTimeOffset.UtcNow.UtcDateTime,
+                    cancellationToken: cancellationToken);
             }
+
+            await producerTask;
+        }
+
+        /// <summary>
+        /// 智能收集备份目标：世界目录 + mods/plugins + 配置文件 + jar文件
+        /// </summary>
+        private (List<string> Directories, List<string> Files) CollectBackupTargets(string serverRoot)
+        {
+            var directories = new List<string>(8);
+            var files = new List<string>(16);
+            var worldDirs = GetWorldDirectories();
+            foreach (var worldDir in worldDirs)
+            {
+                string fullPath = Path.Combine(serverRoot, worldDir);
+                if (Directory.Exists(fullPath))
+                    directories.Add(fullPath);
+            }
+            if (IsModServer)
+            {
+                string modsDir = Path.Combine(serverRoot, "mods");
+                if (Directory.Exists(modsDir)) directories.Add(modsDir);
+
+                // 模组服常见配置目录
+                string[] modConfigDirs = ["config", "defaultconfigs", "kubejs", "scripts"];
+                foreach (var cfgDir in modConfigDirs)
+                {
+                    string p = Path.Combine(serverRoot, cfgDir);
+                    if (Directory.Exists(p)) directories.Add(p);
+                }
+            }
+            else
+            {
+                string pluginsDir = Path.Combine(serverRoot, "plugins");
+                if (Directory.Exists(pluginsDir)) directories.Add(pluginsDir);
+            }
+            string[] commonDirs = ["datapacks", "resourcepacks", "behavior_packs"];
+            foreach (var d in commonDirs)
+            {
+                string p = Path.Combine(serverRoot, d);
+                if (Directory.Exists(p)) directories.Add(p);
+            }
+            string[] configFiles =
+            [
+        "server.properties", "spigot.yml", "paper.yml", "bukkit.yml",
+        "velocity.toml", "config.toml", "ops.json", "whitelist.json",
+        "banned-players.json", "banned-ips.json", "usercache.json",
+        "eula.txt"
+    ];
+            foreach (var f in configFiles)
+            {
+                string p = Path.Combine(serverRoot, f);
+                if (File.Exists(p)) files.Add(p);
+            }
+
+            // ✅ Jar 文件（服务端核心）
+            try
+            {
+                foreach (var jar in Directory.EnumerateFiles(serverRoot, "*.jar", SearchOption.TopDirectoryOnly))
+                {
+                    files.Add(jar);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Backup] 枚举jar文件失败: {ex.Message}");
+            }
+
+            return (directories, files);
+        }
+
+        private List<string> GetWorldDirectories()
+        {
+            var worldDirs = new List<string>(3);
+            try
+            {
+                var props = ServerPropertiesManager.Read(InstanceId);
+                string levelName = props.GetValueOrDefault("level-name", "world");
+                if (string.IsNullOrWhiteSpace(levelName)) levelName = "world";
+
+                worldDirs.Add(levelName);
+                if (!IsModServer)
+                {
+                    worldDirs.Add($"{levelName}_nether");
+                    worldDirs.Add($"{levelName}_the_end");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Backup] 读取服务器属性失败，回退默认世界目录: {ex.Message}");
+                worldDirs.Add("world");
+                if (!IsModServer)
+                {
+                    worldDirs.Add("world_nether");
+                    worldDirs.Add("world_the_end");
+                }
+            }
+            return worldDirs;
         }
         /// <summary>
         /// 实例运行状态变化时的回调，更新 UI 状态。
@@ -597,6 +883,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             }
             System.Windows.Clipboard.SetText(text);
             StatusMessage = "控制台内容已复制到剪贴板";
+            _notificationService.ShowSuccess("控制台", "控制台内容已复制到剪贴板");
         }
 
         /// <summary>
@@ -627,6 +914,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// </summary>
         public async Task OnNavigatedToAsync()
         {
+            NavigatedTo?.Invoke(this, EventArgs.Empty);
             LoadConsolePreferences();
 
             // 从导航参数服务获取实例 ID
@@ -645,6 +933,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             IsConsoleFullScreen = false;
             StopPerformanceMonitoring();
+            StopServerStatusPolling();
+            StopUptimeCounter();
             return Task.CompletedTask;
         }
 
@@ -658,7 +948,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 异步加载实例数据，包括基本信息、插件、配置和性能数据。
+        /// 异步加载实例数据，包括基本信息、插件/模组、配置和性能数据。
         /// </summary>
         private async Task LoadInstanceAsync(string instanceId)
         {
@@ -674,7 +964,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             InstanceInfo = info;
             InstanceName = info.Name;
-            var metadata = ServerJarMetadataReader.Read(info);
+
+            // 在后台线程读取 JAR 元数据和 JDK 列表，避免阻塞 UI
+            var metadata = await Task.Run(() => ServerJarMetadataReader.Read(info));
             ServerType = metadata.ServerType;
             MinecraftVersion = metadata.MinecraftVersion;
             EditMinMemory = info.MinMemoryMb.ToString();
@@ -683,7 +975,8 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             EditExtraJvmArgs = info.ExtraJvmArgs;
             LoadConsolePreferences();
 
-            LoadInstalledJdks();
+            var installedJdks = await Task.Run(() => JdkManager.GetInstalledJdks());
+            InstalledJdks = new ObservableCollection<InstalledJdk>(installedJdks);
             InitializeJdkSelectionState(info.JdkPath);
 
             IsRunning = ServerProcessManager.IsRunning(instanceId);
@@ -701,7 +994,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             _ = Task.Run(() =>
             {
-                try { LoadPlugins(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadPlugins failed: {ex.Message}"); }
+                try { LoadPluginMods(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadPluginMods failed: {ex.Message}"); }
                 try { LoadServerProperties(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadServerProperties failed: {ex.Message}"); }
                 try { LoadPlayerManagementData(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadPlayerManagementData failed: {ex.Message}"); }
                 try { LoadDashboardData(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"LoadDashboardData failed: {ex.Message}"); }
@@ -784,41 +1077,54 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 加载实例的静态存储空间信息。
+        /// 加载实例的静态存储空间信息（异步执行，避免 UI 冻结）。
         /// </summary>
         private void LoadStaticStorageInfo()
+        {
+            if (string.IsNullOrEmpty(InstanceId)) return;
+
+            SafeFireAndForget(LoadStaticStorageInfoAsync());
+        }
+
+        /// <summary>
+        /// 异步加载实例的静态存储空间信息。
+        /// </summary>
+        private async Task LoadStaticStorageInfoAsync()
         {
             try
             {
                 string instanceDir = PathHelper.GetInstanceDir(InstanceId);
                 if (!Directory.Exists(instanceDir)) return;
 
-                // 计算总存储
-                long totalBytes = GetDirectorySize(instanceDir);
-                TotalStorageMb = totalBytes / (1024 * 1024);
-                TotalStorage = FormatBytes(totalBytes);
-
-                // 获取各个世界的大小
-                WorldStorageInfo.Clear();
-                string[] worldFolders = ["world", "world_nether", "world_the_end"];
-                var worldSizes = new Dictionary<string, long>();
-                long maxSize = 0;
-
-                foreach (var worldName in worldFolders)
+                // 在后台线程计算目录大小，避免阻塞 UI
+                var (totalBytes, worldSizes) = await Task.Run(() =>
                 {
-                    string worldPath = Path.Combine(instanceDir, worldName);
-                    if (Directory.Exists(worldPath))
+                    long total = GetDirectorySize(instanceDir);
+
+                    string[] worldFolders = ["world", "world_nether", "world_the_end"];
+                    var sizes = new Dictionary<string, long>();
+
+                    foreach (var worldName in worldFolders)
                     {
-                        long sizeBytes = GetDirectorySize(worldPath);
-                        worldSizes[worldName] = sizeBytes / (1024 * 1024);
-                        if (worldSizes[worldName] > maxSize)
-                            maxSize = worldSizes[worldName];
+                        string worldPath = Path.Combine(instanceDir, worldName);
+                        if (Directory.Exists(worldPath))
+                        {
+                            sizes[worldName] = GetDirectorySize(worldPath) / (1024 * 1024);
+                        }
                     }
-                }
 
-                foreach (var kvp in worldSizes)
+                    return (total, sizes);
+                });
+
+                // 回到 UI 线程更新属性
+                RunOnUiThread(() =>
                 {
-                    WorldStorageInfo.Add(new WorldStorageInfo
+                    TotalStorageMb = totalBytes / (1024 * 1024);
+                    TotalStorage = FormatBytes(totalBytes);
+
+                    // 批量更新世界存储信息
+                    long maxSize = worldSizes.Values.DefaultIfEmpty(1).Max();
+                    var newWorldStorage = worldSizes.Select(kvp => new WorldStorageInfo
                     {
                         WorldName = kvp.Key switch
                         {
@@ -830,10 +1136,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         SizeMb = kvp.Value,
                         SizeFormatted = FormatBytes(kvp.Value * 1024 * 1024),
                         SizePercent = maxSize > 0 ? (double)kvp.Value / maxSize * 100 : 0
-                    });
-                }
+                    }).ToList();
 
-                StatusMessage = "存储空间统计已刷新";
+                    WorldStorageInfo = new ObservableCollection<WorldStorageInfo>(newWorldStorage);
+                    StatusMessage = "存储空间统计已刷新";
+                });
             }
             catch { }
         }
@@ -926,15 +1233,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             var ops = ReadOps();
             RunOnUiThread(() =>
             {
-                AdminPlayers.Clear();
-                foreach (var op in ops)
-                {
-                    AdminPlayers.Add(new PlayerDisplayItem(op.Name, op.Uuid)
+                // 批量替换，避免逐项添加触发多次 UI 更新
+                AdminPlayers = new ObservableCollection<PlayerDisplayItem>(
+                    ops.Select(op => new PlayerDisplayItem(op.Name, op.Uuid)
                     {
                         IsOp = true,
                         SecondaryText = $"等级 {op.Level}" + (string.IsNullOrWhiteSpace(op.Uuid) ? string.Empty : $"  UUID {op.Uuid}")
-                    });
-                }
+                    }));
             });
         }
 
@@ -1128,27 +1433,35 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 加载实例的插件列表。
+        /// 加载实例的插件/模组列表。
         /// </summary>
-        private void LoadPlugins()
+        private void LoadPluginMods()
         {
             if (string.IsNullOrEmpty(InstanceId)) return;
 
             try
             {
-                var plugins = PluginManager.GetPlugins(InstanceId);
+                List<PluginModDisplayItem> items;
+                if (IsModServer)
+                {
+                    var mods = ModManager.GetMods(InstanceId);
+                    items = [.. mods.Select(m => new PluginModDisplayItem(m))];
+                }
+                else
+                {
+                    var plugins = PluginManager.GetPlugins(InstanceId);
+                    items = [.. plugins.Select(p => new PluginModDisplayItem(p))];
+                }
+
                 RunOnUiThread(() =>
                 {
-                    Plugins.Clear();
-                    foreach (var p in plugins)
-                    {
-                        Plugins.Add(new PluginDisplayItem(p));
-                    }
+                    PluginMods = new ObservableCollection<PluginModDisplayItem>(items);
+                    OnPropertyChanged(nameof(PluginModTabHeader));
                 });
             }
             catch (Exception ex)
             {
-                RunOnUiThread(() => StatusMessage = $"加载插件失败: {ex.Message}");
+                RunOnUiThread(() => StatusMessage = $"加载插件/模组失败: {ex.Message}");
             }
         }
 
@@ -1164,11 +1477,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 var props = ServerPropertiesManager.Read(InstanceId);
                 RunOnUiThread(() =>
                 {
-                    ServerProperties.Clear();
-                    foreach (var kvp in props)
-                    {
-                        ServerProperties.Add(new ServerProperty(kvp.Key, kvp.Value));
-                    }
+                    // 批量替换，避免逐项添加触发多次 UI 更新
+                    ServerProperties = new ObservableCollection<ServerProperty>(
+                        props.Select(kvp => new ServerProperty(kvp.Key, kvp.Value)));
                 });
             }
             catch (Exception ex)
@@ -1228,6 +1539,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 if (!success || process == null)
                 {
                     StatusMessage = $"启动失败: {errorMessage}";
+                    _notificationService.ShowDanger("服务器", $"启动失败: {errorMessage}");
                     IsRunning = false;
                     return;
                 }
@@ -1238,6 +1550,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 if (!process.IsRunning)
                 {
                     StatusMessage = "服务器启动失败，进程已退出";
+                    _notificationService.ShowDanger("服务器", "服务器启动失败，进程已退出");
                     try { process.Dispose(); } catch { }
                     IsRunning = false;
                     return;
@@ -1245,11 +1558,13 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 // 注册到全局管理器（这会触发 InstanceStatusChanged 事件）
                 ServerProcessManager.Register(InstanceId, process);
+                _notificationService.ShowSuccess("服务器", $"{InstanceName} 已启动");
             }
             catch (Exception ex)
             {
                 IsRunning = false;
                 StatusMessage = $"启动失败: {ex.Message}";
+                _notificationService.ShowDanger("服务器", $"启动失败: {ex.Message}");
             }
             finally
             {
@@ -1277,7 +1592,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
             try
             {
-                ServerProcessManager.StopAndRemove(InstanceId);
+                await ServerProcessManager.StopAndRemoveAsync(InstanceId);
                 StatusMessage = "正在停止服务器...";
 
                 // 等待进程退出（最多10秒）
@@ -1289,15 +1604,18 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                         IsRunning = false;
                         StopPerformanceMonitoring();
                         StatusMessage = "服务器已停止";
+                        _notificationService.ShowSuccess("服务器", $"{InstanceName} 已停止");
                         return;
                     }
                 }
 
                 StatusMessage = "服务器停止超时，可以使用强制终止";
+                _notificationService.ShowInfo("服务器", "服务器停止超时，可以使用强制终止");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"停止失败: {ex.Message}";
+                _notificationService.ShowDanger("服务器", $"停止失败: {ex.Message}");
             }
         }
 
@@ -1324,10 +1642,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 IsRunning = false;
                 StopPerformanceMonitoring();
                 StatusMessage = "服务器已被强制终止";
+                _notificationService.ShowInfo("服务器", $"{InstanceName} 已被强制终止");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"终止失败: {ex.Message}";
+                _notificationService.ShowDanger("服务器", $"终止失败: {ex.Message}");
             }
         }
 
@@ -1365,11 +1685,32 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             GC.SuppressFinalize(this);
             StopPerformanceMonitoring();
+            StopServerStatusPolling();
+            StopUptimeCounter();
+            UnsubscribeFromProcessOutput();
             _consoleThrottler?.Dispose();
             _backupCts?.Dispose();
+            _playerRefreshLock?.Dispose();
             ServerProcessManager.InstanceStatusChanged -= OnInstanceStatusChanged;
             OnlinePlayers.CollectionChanged -= OnOnlinePlayersCollectionChanged;
             AdminPlayers.CollectionChanged -= OnAdminPlayersCollectionChanged;
+        }
+
+        /// <summary>
+        /// 取消订阅服务器进程的输出和错误事件。
+        /// </summary>
+        private void UnsubscribeFromProcessOutput()
+        {
+            var process = ServerProcessManager.GetProcess(InstanceId);
+            if (process == null) return;
+
+            process.OutputReceived -= OnProcessOutputReceived;
+            process.ErrorReceived -= OnProcessErrorReceived;
+        }
+
+        private void OnPluginModsCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            OnPropertyChanged(nameof(PluginModsCount));
         }
 
         private void OnOnlinePlayersCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -1406,7 +1747,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// 保存实例设置（内存、JDK、JVM 参数等）。
         /// </summary>
         [RelayCommand]
-        private void SaveSettings()
+        private async Task SaveSettings()
         {
             if (InstanceInfo == null) return;
 
@@ -1453,18 +1794,27 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 InstanceInfo.ExtraJvmArgs = EditExtraJvmArgs;
 
                 InstanceInfo.ScheduledTaskList = _scheduledCommands.Split('\n',StringSplitOptions.TrimEntries);
-                InstanceManager.UpdateInstance(InstanceInfo);
-                SaveServerPropertiesInternal();
-                InstanceManager.EnsureRconConfiguration(InstanceId);
-                var props = ServerPropertiesManager.Read(InstanceId);
+
+                // 在后台线程执行文件 I/O 操作
+                await Task.Run(() =>
+                {
+                    InstanceManager.UpdateInstance(InstanceInfo);
+                    SaveServerPropertiesInternal();
+                    InstanceManager.EnsureRconConfiguration(InstanceId);
+                });
+
+                InvalidateServerPropsCache();
+                var props = GetCachedServerProps();
                 UpdateServerAddressFromDict(props);
                 LoadServerPropertiesFromDict(props);
                 LoadPlayerManagementData();
                 StatusMessage = "设置已保存";
+                _notificationService.ShowSuccess("设置", "实例设置已保存");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"保存失败: {ex.Message}";
+                _notificationService.ShowDanger("设置", $"保存失败: {ex.Message}");
             }
         }
 
@@ -1505,10 +1855,10 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 删除指定插件及其数据目录。
+        /// 删除指定插件/模组及其数据目录。
         /// </summary>
         [RelayCommand]
-        private async Task DeletePlugin(PluginDisplayItem? plugin)
+        private async Task DeletePluginMod(PluginModDisplayItem? plugin)
         {
             if (plugin == null || string.IsNullOrEmpty(InstanceId)) return;
 
@@ -1518,7 +1868,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 var dialog = new Wpf.Ui.Controls.ContentDialog
                 {
                     Title = "确认删除",
-                    Content = $"确定要删除插件 \"{plugin.Name}\" 吗？\n\n此操作将删除插件文件及其数据目录！",
+                    Content = $"确定要删除插件/模组 \"{plugin.Name}\" 吗？\n\n此操作将删除插件/模组文件及其数据目录！",
                     PrimaryButtonText = "删除",
                     CloseButtonText = "取消",
                     DefaultButton = Wpf.Ui.Controls.ContentDialogButton.Close
@@ -1528,21 +1878,32 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
 
                 if (result != Wpf.Ui.Controls.ContentDialogResult.Primary) return;
 
-                // 先删除插件文件
-                PluginManager.DeletePlugin(InstanceId, plugin.FileName);
+                // 先删除插件/模组文件
+                string modsOrPluginsDir;
+                if (IsModServer)
+                {
+                    ModManager.DeleteMod(InstanceId, plugin.FileName);
+                    modsOrPluginsDir = "mods";
+                }
+                else
+                {
+                    PluginManager.DeletePlugin(InstanceId, plugin.FileName);
+                    modsOrPluginsDir = "plugins";
+                }
 
-                // 删除插件数据目录（如果存在）
-                string pluginDataDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "plugins", plugin.Name);
+                // 删除插件/模组数据目录（如果存在）
+                string pluginDataDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), modsOrPluginsDir, plugin.Name);
                 if (Directory.Exists(pluginDataDir))
                 {
                     Directory.Delete(pluginDataDir, true); // 递归删除目录
                 }
 
-                // 在UI线程上更新插件列表
+                // 在UI线程上更新插件/模组列表
                 RunOnUiThread(() =>
                 {
-                    Plugins.Remove(plugin);
-                    StatusMessage = "插件已删除";
+                    PluginMods.Remove(plugin);
+                    StatusMessage = "插件/模组已删除";
+                    _notificationService.ShowSuccess("插件/模组", $"{plugin.Name} 已删除");
                 });
             }
             catch (Exception ex)
@@ -1550,30 +1911,32 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 RunOnUiThread(() =>
                 {
                     StatusMessage = $"删除失败: {ex.Message}";
+                    _notificationService.ShowDanger("插件/模组", $"删除失败: {ex.Message}");
                 });
             }
         }
 
         /// <summary>
-        /// 刷新插件列表。
+        /// 刷新插件/模组列表。
         /// </summary>
         [RelayCommand]
-        private void RefreshPlugins()
+        private void RefreshPluginMods()
         {
-            LoadPlugins();
+            LoadPluginMods();
+            _notificationService.ShowSuccess("插件/模组", "插件/模组列表已刷新");
         }
 
         /// <summary>
-        /// 在资源管理器中打开指定插件的数据目录。
+        /// 在资源管理器中打开指定插件/模组的数据目录。
         /// </summary>
         [RelayCommand]
-        private void OpenPluginDataFolder(PluginDisplayItem? plugin)
+        private void OpenPluginModDataFolder(PluginModDisplayItem? plugin)
         {
             if (plugin == null || string.IsNullOrEmpty(plugin.FolderPath)) return;
 
             try
             {
-                OpenFolder(plugin.FolderPath, "插件数据目录不存在");
+                OpenFolder(plugin.FolderPath, "插件/模组数据目录不存在");
             }
             catch (Exception ex)
             {
@@ -1582,21 +1945,23 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 在资源管理器中打开插件目录。
+        /// 在资源管理器中打开插件/模组目录。
         /// </summary>
         [RelayCommand]
-        private void OpenPluginsFolder()
+        private void OpenPluginModsFolder()
         {
             if (string.IsNullOrEmpty(InstanceId)) return;
 
             try
             {
-                string pluginsDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "plugins");
-                OpenFolder(pluginsDir, "插件目录不存在");
+                string pluginDir = IsModServer
+                    ? PathHelper.GetModsDir(InstanceId)
+                    : PathHelper.GetPluginsDir(InstanceId);
+                OpenFolder(pluginDir, IsModServer ? "模组目录不存在" : "插件目录不存在");
             }
             catch (Exception ex)
             {
-                StatusMessage = $"打开插件目录失败: {ex.Message}";
+                StatusMessage = $"打开插件/模组目录失败: {ex.Message}";
             }
         }
 
@@ -1640,82 +2005,111 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
-        /// 切换插件的启用/禁用状态（通过重命名 .jar 文件）。
+        /// 切换插件/模组的启用/禁用状态（通过重命名 .jar 文件）。
         /// </summary>
         [RelayCommand]
-        private void TogglePluginEnabled(PluginDisplayItem? plugin)
+        private async Task TogglePluginModEnabled(PluginModDisplayItem? plugin)
         {
             if (plugin == null || string.IsNullOrEmpty(InstanceId)) return;
 
             try
             {
-                string pluginsDir = Path.Combine(PathHelper.GetInstanceDir(InstanceId), "plugins");
+                string pluginsDir = IsModServer
+                    ? PathHelper.GetModsDir(InstanceId)
+                    : PathHelper.GetPluginsDir(InstanceId);
 
-                // 根据插件当前状态决定操作
-                if (plugin.IsEnabled)
+                // 在后台线程执行文件操作
+                await Task.Run(() =>
                 {
-                    // 当前是启用状态，需要禁用
-                    string pluginFilePath = Path.Combine(pluginsDir, plugin.FileName);
-                    string disabledFilePath = Path.ChangeExtension(pluginFilePath, ".jar.dis");
-
-                    if (File.Exists(pluginFilePath))
+                    if (plugin.IsEnabled)
                     {
-                        if (!File.Exists(disabledFilePath))
+                        string pluginFilePath = Path.Combine(pluginsDir, plugin.FileName);
+                        string disabledFilePath = Path.ChangeExtension(pluginFilePath, ".jar.dis");
+
+                        if (File.Exists(pluginFilePath))
                         {
-                            File.Move(pluginFilePath, disabledFilePath);
-                            plugin.IsEnabled = false;
-                            StatusMessage = "插件已禁用";
+                            if (!File.Exists(disabledFilePath))
+                            {
+                                File.Move(pluginFilePath, disabledFilePath);
+                                RunOnUiThread(() =>
+                                {
+                                    plugin.IsEnabled = false;
+                                    StatusMessage = "插件/模组已禁用";
+                                    _notificationService.ShowInfo("插件/模组", $"{plugin.Name} 已禁用");
+                                });
+                            }
+                            else
+                            {
+                                RunOnUiThread(() => StatusMessage = "禁用文件已存在");
+                            }
                         }
                         else
                         {
-                            StatusMessage = "禁用文件已存在";
+                            RunOnUiThread(() => StatusMessage = "插件/模组文件不存在");
                         }
                     }
                     else
                     {
-                        StatusMessage = "插件文件不存在";
-                    }
-                }
-                else
-                {
-                    // 当前是禁用状态，需要启用
-                    string pluginFileNameWithoutDis = plugin.FileName.EndsWith(".dis")
-                        ? plugin.FileName[..^4] // 移除 .dis
-                        : plugin.FileName;
+                        string pluginFileNameWithoutDis = plugin.FileName.EndsWith(".dis")
+                            ? plugin.FileName[..^4]
+                            : plugin.FileName;
 
-                    string disabledFilePath = Path.Combine(pluginsDir, plugin.FileName);
-                    string enabledFilePath = Path.Combine(pluginsDir, pluginFileNameWithoutDis);
-
-                    if (File.Exists(disabledFilePath))
-                    {
-                        // 需要重命名为启用状态的文件名
+                        string disabledFilePath = Path.Combine(pluginsDir, plugin.FileName);
                         string targetFileName = Path.GetFileNameWithoutExtension(pluginFileNameWithoutDis) + ".jar";
                         string targetPath = Path.Combine(pluginsDir, targetFileName);
 
-                        if (!File.Exists(targetPath))
+                        if (File.Exists(disabledFilePath))
                         {
-                            File.Move(disabledFilePath, targetPath);
-                            plugin.IsEnabled = true;
-                            StatusMessage = "插件已启用";
+                            if (!File.Exists(targetPath))
+                            {
+                                File.Move(disabledFilePath, targetPath);
+                                RunOnUiThread(() =>
+                                {
+                                    plugin.IsEnabled = true;
+                                    StatusMessage = "插件/模组已启用";
+                                    _notificationService.ShowSuccess("插件/模组", $"{plugin.Name} 已启用");
+                                });
+                            }
+                            else
+                            {
+                                RunOnUiThread(() => StatusMessage = "启用文件已存在");
+                            }
                         }
                         else
                         {
-                            StatusMessage = "启用文件已存在";
+                            RunOnUiThread(() => StatusMessage = "禁用的插件/模组文件不存在");
                         }
                     }
-                    else
-                    {
-                        StatusMessage = "禁用的插件文件不存在";
-                    }
-                }
+                });
 
-                // 重新加载插件列表以反映更改
-                LoadPlugins();
+                LoadPluginMods();
             }
             catch (Exception ex)
             {
-                StatusMessage = $"切换插件状态失败: {ex.Message}";
+                StatusMessage = $"切换插件/模组状态失败: {ex.Message}";
             }
+        }
+
+        /// <summary>
+        /// 获取服务器配置（带缓存，避免重复磁盘读取）。
+        /// </summary>
+        private Dictionary<string, string> GetCachedServerProps()
+        {
+            if (_cachedServerProps != null && _cachedServerPropsInstanceId == InstanceId)
+                return _cachedServerProps;
+
+            _cachedServerProps = ServerPropertiesManager.Read(InstanceId);
+            _cachedServerPropsInstanceId = InstanceId;
+            return _cachedServerProps;
+        }
+
+        /// <summary>
+        /// 清除服务器配置缓存。
+        /// </summary>
+        private void InvalidateServerPropsCache()
+        {
+            _cachedServerProps = null;
+            _cachedServerPropsInstanceId = null;
         }
 
         /// <summary>
@@ -1725,7 +2119,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             if (string.IsNullOrEmpty(InstanceId)) return;
 
-            var props = ServerPropertiesManager.Read(InstanceId);
+            var props = GetCachedServerProps();
 
             LoadServerPropertiesFromDict(props);
             UpdateServerAddressFromDict(props);
@@ -1899,23 +2293,45 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         }
 
         /// <summary>
+        /// 停止服务器状态轮询定时器。
+        /// </summary>
+        private void StopServerStatusPolling()
+        {
+            _serverStatusTimer?.Dispose();
+            _serverStatusTimer = null;
+        }
+
+        /// <summary>
         /// 启动服务器运行时长计数器（每秒更新）。
         /// </summary>
         private void StartUptimeCounter()
         {
             _serverStartTime = ServerProcessManager.GetStartTime(InstanceId) ?? DateTime.Now;
-            _uptimeTimer?.Stop();
+            StopUptimeCounter();
             _uptimeTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(1)
             };
-            _uptimeTimer.Tick += (_, _) =>
-            {
-                var uptime = DateTime.Now - _serverStartTime;
-                Uptime = $"{(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
-            };
+            _uptimeTimer.Tick += OnUptimeTick;
             _uptimeTimer.Start();
         }
+
+        private void OnUptimeTick(object? sender, EventArgs e)
+        {
+            var uptime = DateTime.Now - _serverStartTime;
+            Uptime = $"{(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
+        }
+
+        private void StopUptimeCounter()
+        {
+            if (_uptimeTimer != null)
+            {
+                _uptimeTimer.Stop();
+                _uptimeTimer.Tick -= OnUptimeTick;
+                _uptimeTimer = null;
+            }
+        }
+
 
         /// <summary>
         /// 启动仪表盘的性能监控（CPU 和内存）。
@@ -1972,10 +2388,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 LoadAdminPlayers();
                 await RefreshOnlinePlayersAsync();
                 StatusMessage = $"已将 {player.Name} 设为管理员";
+                _notificationService.ShowSuccess("玩家", $"已将 {player.Name} 设为管理员");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"设置管理员失败: {ex.Message}";
+                _notificationService.ShowDanger("玩家", $"设置管理员失败: {ex.Message}");
             }
         }
 
@@ -2018,10 +2436,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 LoadAdminPlayers();
                 await RefreshOnlinePlayersAsync();
                 StatusMessage = $"已移除 {player.Name} 的管理员权限";
+                _notificationService.ShowSuccess("玩家", $"已移除 {player.Name} 的管理员权限");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"取消管理员失败: {ex.Message}";
+                _notificationService.ShowDanger("玩家", $"取消管理员失败: {ex.Message}");
             }
         }
 
@@ -2048,10 +2468,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 await Task.Delay(200);
                 await RefreshOnlinePlayersAsync();
                 StatusMessage = $"已踢出玩家 {player.Name}";
+                _notificationService.ShowSuccess("玩家", $"已踢出玩家 {player.Name}");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"踢出玩家失败: {ex.Message}";
+                _notificationService.ShowDanger("玩家", $"踢出玩家失败: {ex.Message}");
             }
         }
 
@@ -2078,10 +2500,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 await Task.Delay(200);
                 await RefreshOnlinePlayersAsync();
                 StatusMessage = $"已封禁玩家 {player.Name}";
+                _notificationService.ShowSuccess("玩家", $"已封禁玩家 {player.Name}");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"封禁玩家失败: {ex.Message}";
+                _notificationService.ShowDanger("玩家", $"封禁玩家失败: {ex.Message}");
             }
         }
 
@@ -2108,10 +2532,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 await Task.Delay(200);
                 await RefreshOnlinePlayersAsync();
                 StatusMessage = $"已封禁 {player.Name} 的 IP";
+                _notificationService.ShowSuccess("玩家", $"已封禁 {player.Name} 的 IP");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"封禁 IP 失败: {ex.Message}";
+                _notificationService.ShowDanger("玩家", $"封禁 IP 失败: {ex.Message}");
             }
         }
 
@@ -2175,10 +2601,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
                 string singleLineMessage = SingleLineMessage().Replace(message, " ").Trim();
                 await ExecutePlayerRconCommandAsync($"msg {player.Name} {singleLineMessage}");
                 StatusMessage = $"已向 {player.Name} 发送消息";
+                _notificationService.ShowSuccess("玩家", $"已向 {player.Name} 发送消息");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"发送消息失败: {ex.Message}";
+                _notificationService.ShowDanger("玩家", $"发送消息失败: {ex.Message}");
             }
         }
 
@@ -2308,18 +2736,42 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
     internal readonly record struct OnlinePlayersState(int OnlineCount, int MaxPlayers, IReadOnlyList<string> PlayerNames);
 
     /// <summary>
-    /// 插件显示项
+    /// 插件/模组显示项
     /// </summary>
-    public partial class PluginDisplayItem(PluginInfo info) : ObservableObject
+    public partial class PluginModDisplayItem : ObservableObject
     {
-        public string Name { get; } = info.Name;
-        public string Version { get; } = info.Version;
-        public string Description { get; } = info.Description;
-        public string FileName { get; } = info.FileName;
-        public string Authors { get; } = string.Join(", ", info.Authors);
-        public string FolderPath { get; } = string.IsNullOrEmpty(info.FilePath) ? "" :
-            Path.Combine(Path.GetDirectoryName(info.FilePath) ?? "", info.Name); // 指向插件数据目录
-        public bool IsEnabled { get; set; } = !info.IsDisabled; // 根据插件信息设置启用状态
+        public PluginModDisplayItem(PluginInfo info)
+        {
+            Name = info.Name;
+            Version = info.Version;
+            Description = info.Description;
+            FileName = info.FileName;
+            Authors = string.Join(", ", info.Authors);
+            FolderPath = string.IsNullOrEmpty(info.FilePath) ? "" :
+                Path.Combine(Path.GetDirectoryName(info.FilePath) ?? "", info.Name);
+            IsDisabled = info.IsDisabled;
+        }
+
+        public PluginModDisplayItem(ModInfo info)
+        {
+            Name = info.Name;
+            Version = info.Version;
+            Description = info.Description;
+            FileName = info.FileName;
+            Authors = string.Join(", ", info.Authors);
+            FolderPath = string.IsNullOrEmpty(info.FilePath) ? "" :
+                Path.Combine(Path.GetDirectoryName(info.FilePath) ?? "", info.Name);
+            IsDisabled = info.IsDisabled;
+        }
+
+        public string Name { get; } = "";
+        public string Version { get; } = "";
+        public string Description { get; } = "";
+        public string FileName { get; } = "";
+        public string Authors { get; } = "";
+        public string FolderPath { get; } = "";
+        public bool IsDisabled { get; }
+        public bool IsEnabled { get; set; }
     }
 
     /// <summary>
@@ -2370,7 +2822,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return bytesRead;
         }
 
-        // 保留旧版数组重载以兼容老代码
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
             int bytesRead = await _innerStream.ReadAsync(buffer.AsMemory(offset, count), cancellationToken).ConfigureAwait(false);
@@ -2378,7 +2829,6 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return bytesRead;
         }
 
-        // ✅ 新增：同步的 Span 版本也应一并重写
         public override int Read(Span<byte> buffer)
         {
             int bytesRead = _innerStream.Read(buffer);
@@ -2394,7 +2844,26 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
             return bytesRead;
         }
 
-        // 其他 Stream 必须重写的成员，直接转发
+        public override async Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+        {
+            byte[] buffer = new byte[bufferSize];
+            int bytesRead;
+            while ((bytesRead = await ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        public override void CopyTo(Stream destination, int bufferSize)
+        {
+            byte[] buffer = new byte[bufferSize];
+            int bytesRead;
+            while ((bytesRead = Read(buffer, 0, buffer.Length)) > 0)
+            {
+                destination.Write(buffer, 0, bytesRead);
+            }
+        }
+        // 其他 Stream 必须重写的成员
         public override bool CanRead => _innerStream.CanRead;
         public override bool CanSeek => _innerStream.CanSeek;
         public override bool CanWrite => _innerStream.CanWrite;

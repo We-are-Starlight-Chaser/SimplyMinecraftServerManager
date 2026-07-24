@@ -18,7 +18,7 @@ internal sealed class InstanceServiceImpl(CapabilityGuard? guard = null) : IInst
 
     public IReadOnlyList<InstanceSnapshot> GetAll()
     {
-        _guard?.Ensure(ExtensionCapability.InstanceAccess, "GetAll");
+        _guard?.Ensure(ExtensionCapability.InstanceAccess);
 
         return [.. InstanceManager.GetAll().Select(MapToSnapshot)];
     }
@@ -26,7 +26,7 @@ internal sealed class InstanceServiceImpl(CapabilityGuard? guard = null) : IInst
     public InstanceSnapshot? GetById(string instanceId)
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(instanceId);
-        _guard?.Ensure(ExtensionCapability.InstanceAccess, "GetById");
+        _guard?.Ensure(ExtensionCapability.InstanceAccess);
 
         return InstanceManager.GetById(instanceId) is { } info
             ? MapToSnapshot(info)
@@ -36,7 +36,7 @@ internal sealed class InstanceServiceImpl(CapabilityGuard? guard = null) : IInst
     public IReadOnlyList<InstanceSnapshot> Search(string query)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
-        _guard?.Ensure(ExtensionCapability.InstanceAccess, "Search");
+        _guard?.Ensure(ExtensionCapability.InstanceAccess);
 
         return [.. InstanceManager.Search(query).Select(MapToSnapshot)];
     }
@@ -44,7 +44,7 @@ internal sealed class InstanceServiceImpl(CapabilityGuard? guard = null) : IInst
     public string? GetInstancePath(string instanceId)
     {
         ArgumentNullException.ThrowIfNullOrWhiteSpace(instanceId);
-        _guard?.Ensure(ExtensionCapability.InstanceAccess, "GetInstancePath");
+        _guard?.Ensure(ExtensionCapability.InstanceAccess);
 
         return InstanceManager.GetById(instanceId) is not null
             ? Path.Combine(PathHelper.InstancesRoot, instanceId)

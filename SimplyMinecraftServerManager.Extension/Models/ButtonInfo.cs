@@ -8,14 +8,14 @@ namespace SimplyMinecraftServerManager.Extension.Models
     /// <summary>
     /// 定义工具按钮的信息，包括显示内容、图标、外观样式和点击回调。
     /// </summary>
+    /// <param name="Content">按钮显示的文本内容</param>
+    /// <param name="Icon">按钮的图标</param>
+    /// <param name="Appearance">按钮的外观样式</param>
+    /// <param name="OnClick">按钮点击时执行的回调方法</param>
     public record ButtonInfo(
-        /// <summary>按钮显示的文本内容</summary>
         string Content,
-        /// <summary>按钮的图标</summary>
         SymbolRegular Icon,
-        /// <summary>按钮的外观样式</summary>
         ControlAppearance Appearance,
-        /// <summary>按钮点击时执行的回调方法</summary>
         Func<CancellationToken, Task> OnClick
     )
     {

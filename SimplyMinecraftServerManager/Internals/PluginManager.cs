@@ -10,8 +10,8 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace SimplyMinecraftServerManager.Internals
 {
     /// <summary>
-    /// 提供对实例 plugins 目录中插件 JAR 的读取、解析、删除操作。
-    /// 通过读取 JAR 内的 plugin.yml / paper-plugin.yml 获取插件信息。
+    /// 提供对实例 plugins 目录中插件/模组 JAR 的读取、解析、删除操作。
+    /// 通过读取 JAR 内的 plugin.yml / paper-plugin.yml 获取插件/模组信息。
     /// </summary>
     public static class PluginManager
     {
@@ -22,10 +22,11 @@ namespace SimplyMinecraftServerManager.Internals
             .Build();
 
         private static readonly ConcurrentDictionary<string, (List<PluginInfo> Plugins, DateTime CacheTime)> _pluginCache = new();
+        private static readonly ConcurrentDictionary<string, (DateTime LastWriteTime, PluginInfo Info)> _fileCache = new();
         private static readonly TimeSpan _cacheExpiration = TimeSpan.FromSeconds(60);
 
         /// <summary>
-        /// 获取指定实例的所有插件信息（包括已禁用的插件）。
+        /// 获取指定实例的所有插件/模组信息（包括已禁用的插件/模组）。
         /// </summary>
         public static List<PluginInfo> GetPlugins(string instanceId)
         {
@@ -40,12 +41,12 @@ namespace SimplyMinecraftServerManager.Internals
 
             var result = new List<PluginInfo>();
 
-            // 扫描 .jar 文件（启用的插件）
+            // 扫描 .jar 文件（启用的插件/模组）
             foreach (string jarPath in Directory.EnumerateFiles(pluginsDir, "*.jar"))
             {
                 try
                 {
-                    PluginInfo? info = ParsePluginJar(jarPath);
+                    PluginInfo? info = GetOrParsePluginJar(jarPath);
                     if (info != null)
                         result.Add(info);
                 }
@@ -56,12 +57,12 @@ namespace SimplyMinecraftServerManager.Internals
                 }
             }
 
-            // 扫描 .jar.dis 文件（禁用的插件）
+            // 扫描 .jar.dis 文件（禁用的插件/模组）
             foreach (string disPath in Directory.EnumerateFiles(pluginsDir, "*.jar.dis"))
             {
                 try
                 {
-                    PluginInfo? info = ParsePluginJar(disPath, true);
+                    PluginInfo? info = GetOrParsePluginJar(disPath, true);
                     if (info != null)
                         result.Add(info);
                 }
@@ -82,7 +83,28 @@ namespace SimplyMinecraftServerManager.Internals
         }
 
         /// <summary>
-        /// 解析单个 JAR 文件，提取 plugin.yml 元数据，并标记是否为禁用插件。
+        /// 检查文件缓存，仅在 LastWriteTime 变化时重新解析。
+        /// </summary>
+        private static PluginInfo? GetOrParsePluginJar(string jarPath, bool isDisabled = false)
+        {
+            var lastWrite = File.GetLastWriteTimeUtc(jarPath);
+            string cacheKey = $"{jarPath}|{isDisabled}";
+
+            if (_fileCache.TryGetValue(cacheKey, out var cached) && cached.LastWriteTime == lastWrite)
+            {
+                return cached.Info;
+            }
+
+            PluginInfo? info = ParsePluginJar(jarPath, isDisabled);
+            if (info is not null)
+            {
+                _fileCache[cacheKey] = (lastWrite, info);
+            }
+            return info;
+        }
+
+        /// <summary>
+        /// 解析单个 JAR 文件，提取 plugin.yml 元数据，并标记是否为禁用插件/模组。
         /// </summary>
         public static PluginInfo? ParsePluginJar(string jarPath, bool isDisabled = false)
         {
@@ -113,7 +135,7 @@ namespace SimplyMinecraftServerManager.Internals
         }
 
         /// <summary>
-        /// 删除指定实例中的某个插件 JAR。
+        /// 删除指定实例中的某个插件/模组 JAR。
         /// </summary>
         /// <param name="instanceId">实例 UUID</param>
         /// <param name="jarFileName">JAR 文件名（如 "EssentialsX-2.20.jar"）</param>
@@ -142,11 +164,11 @@ namespace SimplyMinecraftServerManager.Internals
         }
 
         /// <summary>
-        /// 将指定的插件 JAR 安装到实例的 plugins 目录中。
+        /// 将指定的插件/模组 JAR 安装到实例的 plugins 目录中。
         /// </summary>
         /// <param name="instanceId">实例 UUID。</param>
         /// <param name="sourceJarPath">源 JAR 文件的绝对路径。</param>
-        /// <returns>安装后的插件信息，若解析失败则返回 null。</returns>
+        /// <returns>安装后的插件/模组信息，若解析失败则返回 null。</returns>
         /// <exception cref="ArgumentException">参数无效时抛出。</exception>
         /// <exception cref="FileNotFoundException">源文件不存在时抛出。</exception>
         /// <exception cref="InvalidOperationException">目标路径超出 plugins 目录范围时抛出。</exception>

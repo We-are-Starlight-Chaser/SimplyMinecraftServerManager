@@ -26,6 +26,7 @@
     <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
     <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
     <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    <EventSourceSupport>false</EventSourceSupport>
     
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <RetainVM>false</RetainVM>
@@ -56,13 +57,14 @@
 
   <ItemGroup>
     <PackageReference Include="DnsClient" Version="1.8.0" />
-    <PackageReference Include="SharpCompress" Version="0.49.1" />
+    <PackageReference Include="SharpCompress" Version="0.50.0" />
     <PackageReference Include="Tomlyn" Version="0.17.0" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="WPF-UI.DependencyInjection" Version="4.3.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 	<PackageReference Include="WPF-UI.Tray" Version="4.3.0" />
+	<PackageReference Include="WpfAnimatedGif" Version="2.0.2" />
 	<PackageReference Include="YamlDotNet" Version="18.1.0" />
 	<PackageReference Include="ZstdNet" Version="1.5.7" />
   </ItemGroup>

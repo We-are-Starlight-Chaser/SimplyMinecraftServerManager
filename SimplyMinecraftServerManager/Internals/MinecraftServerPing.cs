@@ -80,7 +80,7 @@ namespace SimplyMinecraftServerManager.Internals
         #endregion
 
         /// <summary>
-        /// Ping指定的Minecraft服务器（纯异步高性能版本）
+        /// Ping指定的Minecraft服务器
         /// </summary>
         public static async Task<ServerStatus?> PingAsync(
             string host, int port = 25565, int protocolVersion = 0,

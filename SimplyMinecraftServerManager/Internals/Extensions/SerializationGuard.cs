@@ -6,8 +6,8 @@ using System.Runtime.Serialization.Formatters.Binary;
 namespace SimplyMinecraftServerManager.Internals.Extensions;
 
 /// <summary>
-/// Guards against serialization attacks by blocking unsafe serialization methods.
-/// Extensions should use the project's serialization services instead.
+/// 通过阻止不安全的序列化方法来防止序列化攻击。
+/// 扩展应改用项目的序列化服务。
 /// </summary>
 internal sealed class SerializationGuard : IDisposable
 {
@@ -15,7 +15,7 @@ internal sealed class SerializationGuard : IDisposable
     private readonly ExtensionLogger? _logger;
     private bool _disposed;
     
-    // Dangerous serialization types that should be blocked
+    // 应阻止的危险序列化类型
     private static readonly HashSet<string> DangerousSerializationTypes = new()
     {
         "System.Runtime.Serialization.Formatters.Binary.BinaryFormatter",
@@ -27,7 +27,7 @@ internal sealed class SerializationGuard : IDisposable
         "System.Xml.Serialization.XmlSerializer",
     };
     
-    // Dangerous serialization methods
+    // 危险的序列化方法
     private static readonly HashSet<string> DangerousSerializationMethods = new()
     {
         "Deserialize",
@@ -37,7 +37,7 @@ internal sealed class SerializationGuard : IDisposable
         "ReadObject",
     };
     
-    // File extensions that should be blocked for serialization
+    // 应阻止序列化的文件扩展名
     private static readonly HashSet<string> DangerousFileExtensions = new()
     {
         ".bin",
@@ -54,8 +54,8 @@ internal sealed class SerializationGuard : IDisposable
     }
     
     /// <summary>
-    /// Checks if a serialization call is allowed.
-    /// Returns true if the call should be blocked.
+    /// 检查是否允许进行序列化调用。
+    /// 如果调用应被阻止则返回 true。
     /// </summary>
     public bool IsSerializationCallBlocked(Type? serializationType, string? methodName = null)
     {
@@ -67,14 +67,14 @@ internal sealed class SerializationGuard : IDisposable
         
         var typeName = serializationType.FullName ?? serializationType.Name;
         
-        // Check if type is dangerous
+        // 检查类型是否危险
         if (IsDangerousSerializationType(typeName))
         {
             _logger?.Warn($"Blocked serialization call to dangerous type {typeName} in extension {_extensionId}");
             return true;
         }
         
-        // Check if method is dangerous
+        // 检查方法是否危险
         if (methodName != null && IsDangerousSerializationMethod(methodName))
         {
             _logger?.Warn($"Blocked dangerous serialization method {methodName} in extension {_extensionId}");
@@ -85,8 +85,8 @@ internal sealed class SerializationGuard : IDisposable
     }
     
     /// <summary>
-    /// Checks if a file path is safe for serialization operations.
-    /// Returns true if the path should be blocked.
+    /// 检查文件路径是否对序列化操作安全。
+    /// 如果路径应被阻止则返回 true。
     /// </summary>
     public bool IsSerializationPathBlocked(string filePath)
     {
@@ -100,14 +100,14 @@ internal sealed class SerializationGuard : IDisposable
         {
             var extension = Path.GetExtension(filePath);
             
-            // Check if file extension is dangerous
+            // 检查文件扩展名是否危险
             if (DangerousFileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
             {
                 _logger?.Warn($"Blocked serialization to file with dangerous extension {extension} in extension {_extensionId}");
                 return true;
             }
             
-            // Check if file path contains suspicious patterns
+            // 检查文件路径是否包含可疑模式
             if (filePath.Contains("...", StringComparison.OrdinalIgnoreCase) ||
                 filePath.Contains("..\\", StringComparison.OrdinalIgnoreCase) ||
                 filePath.Contains("../", StringComparison.OrdinalIgnoreCase))
@@ -125,7 +125,7 @@ internal sealed class SerializationGuard : IDisposable
     }
     
     /// <summary>
-    /// Checks if a type is in the dangerous list.
+    /// 检查类型是否在危险列表中。
     /// </summary>
     private bool IsDangerousSerializationType(string typeName)
     {
@@ -133,7 +133,7 @@ internal sealed class SerializationGuard : IDisposable
     }
     
     /// <summary>
-    /// Checks if a method name is in the dangerous list.
+    /// 检查方法名是否在危险列表中。
     /// </summary>
     private bool IsDangerousSerializationMethod(string methodName)
     {
@@ -141,14 +141,14 @@ internal sealed class SerializationGuard : IDisposable
     }
     
     /// <summary>
-    /// Validates that serialized data is safe.
+    /// 验证序列化数据是否安全。
     /// </summary>
     public bool IsSerializedDataSafe(byte[] data)
     {
         if (_disposed || data == null || data.Length == 0)
             return true;
         
-        // Check for BinaryFormatter signature (0x00 0x01 0x00 0x00 0x00)
+        // 检查 BinaryFormatter 签名 (0x00 0x01 0x00 0x00 0x00)
         if (data.Length >= 5 &&
             data[0] == 0x00 && data[1] == 0x01 && data[2] == 0x00 && data[3] == 0x00 && data[4] == 0x00)
         {
@@ -156,10 +156,10 @@ internal sealed class SerializationGuard : IDisposable
             return false;
         }
         
-        // Check for .NET serialization header patterns
+        // 检查 .NET 序列化头模式
         if (data.Length >= 4)
         {
-            // Check for SOAP header
+            // 检查 SOAP 头
             if (data[0] == '<' && data[1] == '?' && data[2] == 'x' && data[3] == 'm')
             {
                 _logger?.Warn($"Blocked SOAP serialized data in extension {_extensionId}");
@@ -171,7 +171,7 @@ internal sealed class SerializationGuard : IDisposable
     }
     
     /// <summary>
-    /// Gets the list of dangerous serialization types.
+    /// 获取危险序列化类型的列表。
     /// </summary>
     public static IReadOnlyList<string> GetDangerousSerializationTypes()
     {

@@ -252,7 +252,7 @@ private void CollectData()
                 {
                     try
                     {
-                        if (!excluded.Any(e => Path.GetFullPath(fi.FullName).StartsWith(e, StringComparison.OrdinalIgnoreCase)))
+                        if (!excluded.Any(e => fi.FullName.StartsWith(e, StringComparison.OrdinalIgnoreCase)))
                             size += fi.Length;
                     }
                     catch { }
@@ -266,14 +266,27 @@ private void CollectData()
 
         private (long TotalMb, Dictionary<string, long> WorldSizes) GetStorageUsageCached()
         {
+            var now = DateTime.Now;
+            bool needsRefresh;
             lock (_cacheLock)
             {
-                var now = DateTime.Now;
-                if ((now - _lastStorageCacheTime).TotalMilliseconds >= _storageCacheIntervalMs)
+                needsRefresh = (now - _lastStorageCacheTime).TotalMilliseconds >= _storageCacheIntervalMs;
+            }
+
+            if (needsRefresh)
+            {
+                var result = GetStorageUsage();
+                lock (_cacheLock)
                 {
-                    (_cachedStorageMb, _cachedWorldSizes) = GetStorageUsage();
+                    _cachedStorageMb = result.TotalMb;
+                    _cachedWorldSizes = result.WorldSizes;
                     _lastStorageCacheTime = now;
                 }
+                return result;
+            }
+
+            lock (_cacheLock)
+            {
                 return (_cachedStorageMb, _cachedWorldSizes);
             }
         }

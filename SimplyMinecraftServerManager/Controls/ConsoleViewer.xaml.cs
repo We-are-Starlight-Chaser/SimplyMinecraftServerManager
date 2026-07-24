@@ -235,7 +235,7 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
             ApplyConsoleAppearance();
         }
 
-        private FlowDocument CreateDocument()
+        private static FlowDocument CreateDocument()
         {
             return new FlowDocument
             {
@@ -323,7 +323,7 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
             return paragraph;
         }
 
-        private List<StyledSegment> GetStyledSegments(string fullLine, string prefix, string content)
+        private static List<StyledSegment> GetStyledSegments(string fullLine, string prefix, string content)
         {
             var segments = ParseStyledSegments(content);
             if (segments.Count == 0 || HasExplicitStyling(segments))
@@ -422,7 +422,7 @@ private static readonly Dictionary<int, Color> AnsiBaseColors = new()
             }
         }
 
-        private bool TrySplitTimestampPrefix(string line, out string prefix, out string content)
+        private static bool TrySplitTimestampPrefix(string line, out string prefix, out string content)
         {
             foreach (var pattern in TimestampPatterns)
             {
@@ -569,7 +569,7 @@ if (isSearchHit)
             return run;
         }
 
-        private List<TextRangeInfo> FindSearchRanges(string text, string searchText)
+        private static List<TextRangeInfo> FindSearchRanges(string text, string searchText)
         {
             var ranges = new List<TextRangeInfo>();
             var startIndex = 0;
@@ -592,7 +592,7 @@ if (isSearchHit)
         [ThreadStatic]
         private static StringBuilder? _parseBuffer;
 
-        private List<StyledSegment> ParseStyledSegments(string text)
+        private static List<StyledSegment> ParseStyledSegments(string text)
         {
             if (string.IsNullOrEmpty(text))
             {
@@ -658,7 +658,7 @@ if (isSearchHit)
             return segments;
         }
 
-        private bool HasExplicitStyling(IReadOnlyList<StyledSegment> segments)
+        private static bool HasExplicitStyling(IReadOnlyList<StyledSegment> segments)
         {
             for (int i = 0; i < segments.Count; i++)
             {
@@ -672,7 +672,7 @@ if (isSearchHit)
             return false;
         }
 
-        private List<StyledSegment> BuildSemanticSegments(string fullLine, string prefix, string content)
+        private static List<StyledSegment> BuildSemanticSegments(string fullLine, string prefix, string content)
         {
             if (string.IsNullOrWhiteSpace(content))
             {
@@ -764,7 +764,7 @@ return
             ];
         }
 
-        private ConsoleSemanticSeverity DetectSeverity(string fullLine, string prefix, string content)
+        private static ConsoleSemanticSeverity DetectSeverity(string fullLine, string prefix, string content)
         {
             static bool ContainsAny(string source, ReadOnlySpan<string> targets)
             {
@@ -814,7 +814,7 @@ return
                 new ConsoleTextStyle(foreground, background, isBold, isItalic, isUnderline, isStrikethrough, inverse));
         }
 
-        private ConsoleTextStyle ApplyAnsiCodes(ConsoleTextStyle style, string codesText)
+        private static ConsoleTextStyle ApplyAnsiCodes(ConsoleTextStyle style, string codesText)
         {
             if (string.IsNullOrWhiteSpace(codesText))
             {
@@ -1192,11 +1192,9 @@ return
 
         private void AttachScrollViewer()
         {
-            if (_scrollViewer != null)
-                _scrollViewer.ScrollChanged -= OnScrollChanged;
+            _scrollViewer?.ScrollChanged -= OnScrollChanged;
             _scrollViewer = FindDescendant<ScrollViewer>(ConsoleTextBox);
-            if (_scrollViewer != null)
-                _scrollViewer.ScrollChanged += OnScrollChanged;
+            _scrollViewer?.ScrollChanged += OnScrollChanged;
         }
 
         private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -1498,12 +1496,8 @@ return
             _searchCts = null;
 
             _searchDebounceTimer.Stop();
-
-            if (_subscribedViewModel != null)
-            {
-                _subscribedViewModel.ConsoleLineAdded -= OnConsoleLineAdded;
-                _subscribedViewModel = null;
-            }
+            _subscribedViewModel?.ConsoleLineAdded -= OnConsoleLineAdded;
+            _subscribedViewModel = null;
 
             GC.SuppressFinalize(this);
         }

@@ -111,19 +111,24 @@
                         </Grid>
 
                         <GroupBox Header="在线玩家" Margin="0,0,0,12" Padding="8">
-                            <ItemsControl ItemsSource="{Binding ViewModel.Players}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Margin="0,2">
-                                            <ui:SymbolIcon Symbol="Person24" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <Grid>
+                                <ItemsControl ItemsSource="{Binding ViewModel.Players}" Visibility="{Binding ViewModel.Players.Count,Converter={StaticResource IntToVisibilityConverter}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="0,2">
+                                                <ui:SymbolIcon Symbol="Person24" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel MinHeight="150" Visibility="{Binding ViewModel.Players.Count,Converter={StaticResource CountToVisibilityConverter}}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="无人在线（可能是代理服务器的设置原因）" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="服务器里静悄悄的..." VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                                </StackPanel>
+                            </Grid>
                         </GroupBox>
-
-                        <StackPanel>
+                    <StackPanel>
                             <TextBlock FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        TextOptions.TextFormattingMode="Display">
                                 <Run Text="版本: "/><Run Text="{Binding ViewModel.VersionName, Mode=OneWay}"/>

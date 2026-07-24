@@ -50,6 +50,41 @@ public interface IExtensionContext
     /// </summary>
     IFolderService Folder { get; }
 
+    /// <summary>
+    /// 安全服务，供扩展查询自身安全状态和执行安全校验。
+    /// </summary>
+    ISecurityService Security { get; }
+
+    /// <summary>
+    /// 配置存储服务，供扩展安全地读写自身配置。
+    /// </summary>
+    IConfigService Config { get; }
+
+    /// <summary>
+    /// 定时任务调度服务（禁止扩展自行创建 Thread / Timer）。
+    /// </summary>
+    ISchedulerService Scheduler { get; }
+
+    /// <summary>
+    /// 通知服务，供扩展向用户展示通知（禁止直接操作 UI）。
+    /// </summary>
+    INotificationService Notification { get; }
+
+    /// <summary>
+    /// 哈希/校验服务（禁止直接使用 System.Security.Cryptography）。
+    /// </summary>
+    IHashService Hash { get; }
+
+    /// <summary>
+    /// 系统环境信息服务（禁止直接访问 System.Environment / RuntimeInformation）。
+    /// </summary>
+    IEnvironmentService Environment { get; }
+
+    /// <summary>
+    /// 跨扩展通信服务（禁止直接反射调用其他扩展方法）。
+    /// </summary>
+    IInterExtensionService InterExtension { get; }
+
     /// <summary>注册自定义导航项到侧边栏</summary>
     void RegisterNavigation(NavigationItemInfo item);
 

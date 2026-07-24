@@ -37,5 +37,8 @@ namespace SimplyMinecraftServerManager.Internals
 
         /// <summary>JDK 发行版偏好: Adoptium / Zulu</summary>
         public string PreferredJdkDistribution { get; set; } = "Adoptium";
+
+        /// <summary>是否第一次使用</summary>
+        public bool IsFirstTimeUsing {  get; set; } = true;
     }
 }

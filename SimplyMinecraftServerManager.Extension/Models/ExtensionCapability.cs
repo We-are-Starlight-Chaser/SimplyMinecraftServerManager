@@ -29,5 +29,26 @@ public enum ExtensionCapability
     Navigation = 1 << 4,
 
     /// <summary>扩展需要注册自定义设置面板</summary>
-    SettingsPanel = 1 << 5
+    SettingsPanel = 1 << 5,
+
+    /// <summary>扩展需要执行进程（启动外部程序）</summary>
+    ProcessExecution = 1 << 6,
+
+    /// <summary>扩展需要使用 P/Invoke 调用非托管代码</summary>
+    PInvoke = 1 << 7,
+
+    /// <summary>扩展需要发起网络请求</summary>
+    Network = 1 << 8,
+
+    /// <summary>扩展需要查询自身安全状态</summary>
+    SecurityAudit = 1 << 9,
+
+    /// <summary>扩展需要注册定时/延迟任务</summary>
+    Scheduling = 1 << 10,
+
+    /// <summary>扩展需要显示通知给用户</summary>
+    Notification = 1 << 11,
+
+    /// <summary>扩展需要跨扩展通信</summary>
+    InterExtension = 1 << 12,
 }

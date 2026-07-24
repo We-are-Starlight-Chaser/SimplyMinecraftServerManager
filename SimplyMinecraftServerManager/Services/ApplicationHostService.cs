@@ -2,9 +2,11 @@
 // Licensed under the MIT License.
 
 using Microsoft.Extensions.Hosting;
-using SimplyMinecraftServerManager.Views.Pages;
+using SimplyMinecraftServerManager.Helpers;
+using SimplyMinecraftServerManager.Internals;
 using SimplyMinecraftServerManager.Views.Windows;
 using Wpf.Ui;
+using Wpf.Ui.Controls;
 
 namespace SimplyMinecraftServerManager.Services
 {
@@ -14,7 +16,6 @@ namespace SimplyMinecraftServerManager.Services
     public class ApplicationHostService(IServiceProvider serviceProvider) : IHostedService
     {
         private readonly IServiceProvider _serviceProvider = serviceProvider;
-        private INavigationWindow? _navigationWindow;
 
         /// <summary>
         /// 启动应用程序主机服务，处理窗口激活逻辑。
@@ -40,12 +41,21 @@ namespace SimplyMinecraftServerManager.Services
         {
             if (!Application.Current.Windows.OfType<MainWindow>().Any())
             {
-                _navigationWindow = (
-                    _serviceProvider.GetService(typeof(INavigationWindow)) as INavigationWindow
-                )!;
-                _navigationWindow?.ShowWindow();
+                DispatcherHelper.InvokeIfNeededSync(() =>
+                {
+                    if (ConfigManager.Current.IsFirstTimeUsing)
+                    {
+                        FluentWindow firstTimeUsingWindow = (
+                            _serviceProvider.GetService(typeof(FirstTimeUsingWindow)) as FluentWindow
+                        )!;
+                        firstTimeUsingWindow?.ShowDialog();
+                    }
 
-                _navigationWindow?.Navigate(typeof(DashboardPage));
+                    var navigationWindow = (
+                        _serviceProvider.GetService(typeof(INavigationWindow)) as INavigationWindow
+                    )!;
+                    navigationWindow?.ShowWindow();
+                });
             }
 
             await Task.CompletedTask;

@@ -3,7 +3,6 @@
 
 using SimplyMinecraftServerManager.ViewModels.Pages;
 using System.ComponentModel;
-using System.Windows;
 using System.Windows.Input;
 
 namespace SimplyMinecraftServerManager.Views.Windows

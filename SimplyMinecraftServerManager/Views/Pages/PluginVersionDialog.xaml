@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <ui:ContentDialog
@@ -10,7 +10,7 @@
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
   xmlns:viewModels="clr-namespace:SimplyMinecraftServerManager.ViewModels.Dialogs"
-  Title="选择插件版本"
+  Title="选择插件/模组版本"
   MaxWidth="980"
   MinWidth="860"
   HorizontalAlignment="Center"

@@ -13,7 +13,7 @@ public sealed class ServerStateChangedEventArgs : EventArgs
 }
 
 /// <summary>
-/// 插件安装/卸载事件参数。
+/// 插件/模组安装/卸载事件参数。
 /// </summary>
 public sealed class PluginEventArgs : EventArgs
 {

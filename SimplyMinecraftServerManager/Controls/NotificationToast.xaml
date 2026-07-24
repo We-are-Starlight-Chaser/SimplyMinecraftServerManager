@@ -1,4 +1,4 @@
-﻿<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
+<!-- Copyright (c) 2026 We Are Starlight Chaser Team -->
 <!-- Licensed under the MIT License. -->
 
 <UserControl
@@ -24,9 +24,6 @@
     BorderBrush="{Binding Appearance, Converter={StaticResource NotificationAppearanceToBorderBrushConverter}}"
     BorderThickness="1"
     CornerRadius="16">
-    <Border.Effect>
-      <DropShadowEffect BlurRadius="22" Opacity="0.18" ShadowDepth="6" />
-    </Border.Effect>
     <Grid>
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto" />

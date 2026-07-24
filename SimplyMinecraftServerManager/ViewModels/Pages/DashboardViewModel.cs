@@ -40,6 +40,9 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         [ObservableProperty]
         private ObservableCollection<string> _announcements = [];
 
+        [ObservableProperty]
+        private string _githubUrl = Assets.AppProperties.GithubRepoLink;
+
         /// <summary>
         /// 导航到此页面时执行，加载服务器列表、统计信息、JDK 状态和公告。
         /// </summary>
@@ -64,8 +67,12 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         {
             try
             {
-                var instances = InstanceManager.GetAll();
-                var runningInstances = ServerProcessManager.GetRunningInstanceIds();
+                var (instances, runningInstances) = await Task.Run(() =>
+                {
+                    var insts = InstanceManager.GetAll();
+                    var running = ServerProcessManager.GetRunningInstanceIds();
+                    return (insts, running);
+                });
                 var runningSet = new HashSet<string>(runningInstances);
                 
                 RunningServersCount = runningInstances.Count;
@@ -108,11 +115,11 @@ namespace SimplyMinecraftServerManager.ViewModels.Pages
         /// <summary>
         /// 加载 JDK 安装状态信息。
         /// </summary>
-        private void LoadJdkStatus()
+        private async void LoadJdkStatus()
         {
             try
             {
-                var jdks = JdkManager.GetInstalledJdks();
+                var jdks = await Task.Run(() => JdkManager.GetInstalledJdks());
                 JdkStatus = $"已安装 {jdks.Count} 个 JDK";
             }
             catch

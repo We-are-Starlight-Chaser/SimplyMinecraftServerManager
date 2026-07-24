@@ -20,12 +20,21 @@ namespace SimplyMinecraftServerManager.Controls
             InitializeComponent();
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
+            DataContextChanged += OnDataContextChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             BeginEnterAnimation();
             StartAutoDismiss();
+        }
+
+        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (e.NewValue is AppNotificationItem)
+            {
+                StartAutoDismiss();
+            }
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -60,7 +69,7 @@ namespace SimplyMinecraftServerManager.Controls
 
             storyboard.Children.Add(opacityAnimation);
             storyboard.Children.Add(translateAnimation);
-            storyboard.FillBehavior = FillBehavior.Stop;
+            storyboard.FillBehavior = FillBehavior.HoldEnd;
             storyboard.Begin();
         }
 

@@ -20,7 +20,7 @@ namespace SimplyMinecraftServerManager.ViewModels.Windows
         /// 应用程序标题
         /// </summary>
         [ObservableProperty]
-        private string _applicationTitle = "SMSM v1.0";
+        private string _applicationTitle = Assets.AppProperties.AppTitle;
 
         /// <summary>
         /// 主导航菜单项集合

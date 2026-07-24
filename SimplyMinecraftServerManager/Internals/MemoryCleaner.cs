@@ -1,13 +1,7 @@
 // Copyright (c) 2026 We Are Starlight Chaser Team
 // Licensed under the MIT License.
 
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace SimplyMinecraftServerManager.Internals
 {
@@ -278,9 +272,11 @@ namespace SimplyMinecraftServerManager.Internals
             }
         }
 
+        private static uint[] _processIdBuffer = new uint[2048];
+
         private static int GetEmptyAllSet()
         {
-            uint[] processIds = new uint[2048];
+            uint[] processIds = _processIdBuffer;
             int cleanedCount = 0;
 
             while (true)
@@ -295,6 +291,7 @@ namespace SimplyMinecraftServerManager.Internals
                 if (numProcesses == processIds.Length)
                 {
                     processIds = new uint[processIds.Length * 2];
+                    _processIdBuffer = processIds;
                     continue;
                 }
 
